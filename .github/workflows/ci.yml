@@ -56,6 +56,8 @@ jobs:
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < database/schema.sql
       - name: Apply marketplace and hardening migration
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < database/migrations/2026-11-17-marketplace-fitment-hardening.sql
+      - name: Verify additive migration is idempotent
+        run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < database/migrations/2026-11-17-marketplace-fitment-hardening.sql
       - name: Exercise schema relationships and application query shapes
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < tests/schema-smoke.sql
       - name: Run customer and staff API smoke test
