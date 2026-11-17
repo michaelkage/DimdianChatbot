@@ -47,7 +47,7 @@
   async function ensureConversation() {
     const data=await request(endpoint('conversations'),{
       method:'POST',headers:headers({'Content-Type':'application/json'}),
-      body:JSON.stringify({context_url:location.href,context_sku:contextSku||null,subject:document.title.slice(0,180)})
+      body:JSON.stringify({context_url:location.href.split('#')[0],context_sku:contextSku||null,subject:document.title.slice(0,180)})
     });
     conversationId=data.conversation.id;
     localStorage.setItem(conversationKey,conversationId);
