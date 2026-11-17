@@ -141,7 +141,7 @@
         const stock=product.stock_status==='instock'?'In stock':product.stock_status==='outofstock'?'Out of stock':product.stock_status==='onbackorder'?'Available on backorder':'Stock status unavailable';
         const price=(data.currency?data.currency+' ':'')+(product.price||'Price unavailable')+(product.sale_price&&product.regular_price&&product.sale_price!==product.regular_price?' · was '+product.regular_price:'');
         const meta=document.createElement('small');meta.textContent='SKU '+(product.sku||'—')+(product.mpn?' · MPN '+product.mpn:'')+' · '+price+' · '+stock;card.appendChild(meta);
-        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):(product.type==='simple'?'Use for fitment check':'Ask specialist to check variants');select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
+        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):(product.type==='simple'?'Use for fitment check':product.type==='variable'?'Ask specialist to check variants':'Ask specialist to review listing');select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
         select.addEventListener('click',async()=>{
           if(busy||!conversationId)return;
           const targetConversationId=conversationId,epoch=conversationEpoch;
@@ -155,7 +155,7 @@
             vehicleForm.classList.add('open');
           }catch(error){
             if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId){
-              select.disabled=false;select.textContent=product.type==='simple'?'Use for fitment check':'Ask specialist to check variants';
+              select.disabled=false;select.textContent=product.type==='simple'?'Use for fitment check':product.type==='variable'?'Ask specialist to check variants':'Ask specialist to review listing';
               showError(error.message==='catalogue_product_not_found'?'That listing is no longer available. Search again.':'Could not attach this listing to the vehicle check. Please retry.');
             }
           }finally{busy=false;}
