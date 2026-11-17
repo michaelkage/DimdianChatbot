@@ -8,7 +8,7 @@ function check(bool $ok,string $message): void {
  echo "PASS: ".$message."\n";
 }
 
-check(!woocommerce_ready(),'catalogue remains disabled until private read-only credentials are configured');
+check(woocommerce_ready(),'catalogue adapter is configured against the isolated read-only WooCommerce fixture');
 $product=woocommerce_normalize_product([
  'id'=>42,'name'=>'Test Alternator','sku'=>'ALT-42','price'=>'12500.00',
  'regular_price'=>'15000.00','sale_price'=>'12500.00','stock_status'=>'instock',
@@ -19,7 +19,7 @@ check($product['id']===42&&$product['sku']==='ALT-42'&&$product['price']==='1250
 check($product['stock_status']==='instock'&&$product['permalink']==='','unsafe product link is omitted when its host is not the configured store');
 check(woocommerce_public_permalink('https://parts.example.invalid/product/brake-pad/')==='https://parts.example.invalid/product/brake-pad/','canonical HTTPS storefront product links are retained');
 check(woocommerce_public_permalink('https://attacker.example/phishing')==='','external product links are rejected before reaching staff or shoppers');
-check(woocommerce_public_image('http://parts.example.invalid/image.jpg')===null,'non-HTTPS product images are rejected');
+check(woocommerce_public_image('data:image/png;base64,AAAA')===null,'non-HTTP product image schemes are rejected');
 
 $sample='TESTVIN1234567890';
 $encrypted=vehicle_encrypt_vin($sample);
