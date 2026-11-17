@@ -10,7 +10,7 @@ A lightweight, self-hosted customer support chat system for an auto-parts market
 - Accept secure JPG, PNG, and WEBP attachments up to 3 MB for part and VIN verification.
 - Provide a protected, split-screen staff inbox at `/admin/support`.
 - Keep staff informed with smart short polling, unread indicators, tab-title updates, and optional audio alerts.
-- Leave a modular seam for optional cloud AI triage (Gemini or Groq), with human escalation for fitment, VIN, and order-specific questions.
+- Optionally use a server-side cloud AI first response (Groq, Gemini, or another OpenAI-compatible endpoint), with deterministic human escalation for fitment, VIN, order and payment questions.
 
 ## Explicit non-goals
 
@@ -23,7 +23,7 @@ A lightweight, self-hosted customer support chat system for an auto-parts market
 
 - PHP 8.2 or newer.
 - MySQL 8.0+ or MariaDB 10.5+.
-- PHP extensions: PDO MySQL, fileinfo, and JSON.
+- PHP extensions: PDO MySQL, fileinfo, JSON, and cURL when AI is enabled.
 - HTTPS enabled.
 - No Composer or npm runtime dependency is required by the core application.
 
@@ -33,7 +33,7 @@ The repository is structured so the web server's document root can point to `pub
 
 - `database/schema.sql`: initial relational schema for staff, customers, conversations, messages, attachments, and rate-limit events.
 - `app/bootstrap.php`: shared PDO, JSON response, request parsing, CORS, and method helpers.
-- `app/ai.php`: fail-safe AI mode checks, per-conversation human handoff, and global AI shutdown for provider quota exhaustion.
+- `app/ai.php` and `app/ai_provider.php`: guarded provider calls, short timeouts, deterministic escalation, per-conversation handoff, and global AI shutdown on exhausted quota or invalid credentials.
 - `public/index.php`: minimal database-backed health endpoint.
 - `public/widget.js`: zero-dependency, shadow-DOM customer chat widget.
 - `public/api/`: guest session, conversation, message, image upload, and staff endpoints.
@@ -44,16 +44,45 @@ The repository is structured so the web server's document root can point to `pub
 - `.github/workflows/ci.yml`: PHP, JavaScript, and MySQL schema validation.
 - `config.example.php`: deployment configuration template, including the fail-closed AI provider readiness flag.
 
-The customer-facing guest chat flow and staff inbox are implemented, including persistent browser identity, listing context, customer/staff text messages, delta polling, private image attachments, staff login, CSRF-protected state changes, unread counts, and staff notifications. The backend AI kill switch and human-routing path are implemented. AI provider integration and authenticated marketplace-account linking remain integration work.
+The customer-facing guest chat flow and staff inbox are implemented, including persistent browser identity, listing context, customer/staff text messages, delta polling, private image attachments, staff login, CSRF-protected state changes, unread counts, and staff notifications. The server-side AI provider adapter is wired into customer messages; it supports Groq, Gemini's OpenAI-compatible endpoint, and a configurable OpenAI-compatible endpoint. AI remains opt-in and fail-closed.
 
 ### AI / human support control
 
 - AI is off by default. New conversations are created with `needs_human` status and appear in the staff inbox.
 - An administrator sees the **AI replies** control in `/admin/support/`. Turning AI off moves every currently `open` conversation to `needs_human`; existing human-handled conversations are never automatically returned to AI.
 - Agents can view and reply to conversations, but only administrators can change the global AI setting.
-- The switch cannot enable AI until a provider adapter is installed and `ai.provider_ready` is explicitly set to `true` in the private `config.php`. This guard is deliberate: enabling a setting without a working provider must never strand a customer in an unattended AI queue.
-- `app/ai.php` provides `ai_handoff_conversation()` for a single failed/uncertain AI turn and `ai_disable_globally()` for quota exhaustion or an administrator shutdown. The global helper disables AI, moves all open conversations to `needs_human`, and inserts a neutral customer-facing handoff notice in one database transaction.
-- When a provider is added, its runtime must call these helpers on quota exhaustion/provider failures, treat `needs_human` as a hard no-AI state, and never show raw provider errors to customers. The helper is in place; no provider adapter is wired yet.
+- The switch is available only when the provider name, API key, model, cURL transport and provider-ready flag are all valid in the private `config.php`. AI remains off until an administrator opts in.
+- Provider calls have bounded connection and total timeouts. A timeout, temporary upstream error or malformed response hands that conversation to staff; it does not expose provider errors to the shopper or turn off AI globally.
+- Explicit quota/billing exhaustion (for example HTTP 402 or a provider's `insufficient_quota` / `resource_exhausted` response) disables AI globally, moves all open conversations to `needs_human`, and inserts a neutral handoff notice in one database transaction. Invalid provider credentials also fail closed globally.
+- `needs_human` conversations are never sent to AI. Fitment, VIN, order tracking, payment, returns/refunds, complaints and human requests are escalated before any provider request. AI must not claim compatibility or live stock/order data.
+- If the provider signals a generic request-rate limit without indicating exhausted quota, only the current conversation is handed off; the global switch stays on so a temporary rate limit does not unnecessarily disable the service.
+- Provider API keys stay in private `config.php`, never in browser JavaScript or the repository.
+
+## AI provider setup (optional)
+
+The adapter uses the OpenAI Chat Completions request/response shape. Supported provider names are `groq`, `gemini`, and `openai_compatible`:
+
+- `groq`: fixed endpoint `https://api.groq.com/openai/v1/chat/completions`.
+- `gemini`: fixed Gemini OpenAI-compatible endpoint `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`.
+- `openai_compatible`: the private `ai.provider.base_url` value; production requires HTTPS.
+
+In private `config.php`, set `ai.provider_ready` to `true`, select a provider, set its API key and exact model ID, and configure timeouts. Keep `ai_enabled` off in the staff inbox until the provider has been verified. Example:
+
+```php
+'ai' => [
+  'provider_ready' => true,
+  'provider' => [
+    'name' => 'groq', // or gemini / openai_compatible
+    'api_key' => 'YOUR_SERVER_SIDE_API_KEY',
+    'model' => 'YOUR_PROVIDER_MODEL_ID',
+    'connect_timeout_seconds' => 3,
+    'timeout_seconds' => 12,
+    'max_tokens' => 350,
+  ],
+],
+```
+
+The customer message is committed to MySQL before the provider is called. The request then waits only for the configured bounded timeout; failures are converted into a normal human handoff and the customer message remains saved. Shared hosting does not provide a background worker here, so provider response latency is bounded but still occurs during the message POST.
 
 ## Customer widget integration
 
@@ -102,7 +131,7 @@ All customer endpoints require the `X-Dimdian-Guest-Token` header except the ini
 
 ## Validation
 
-GitHub Actions lints PHP source (including the CLI provisioning script), checks widget JavaScript syntax, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs an end-to-end customer-to-staff API smoke test including a real image upload and the administrator AI-off / human-routing path.
+GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including image upload, AI completion, timeout handoff, quota-triggered global shutdown, and the administrator kill switch.
 
 ## Hostinger setup
 
@@ -135,4 +164,4 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 2. Completed: guest widget, part-page context, image uploads, and private attachment delivery.
 3. Completed: staff authentication, split-screen inbox, conversation status controls, polling, unread counts, and browser/audio alerts.
 4. Remaining: deploy to Hostinger and run end-to-end tests against the actual storefront and MySQL account.
-5. Remaining: optional cloud AI triage with deterministic human escalation. The signed account-ID handoff is implemented; storefront-side signature generation remains an integration step.
+5. Completed: optional cloud AI adapter, bounded provider timeouts, quota-triggered global shutdown, and deterministic human escalation. The signed account-ID handoff is implemented; storefront-side signature generation remains an integration step.
