@@ -11,7 +11,8 @@ return [
  'app'=>['environment'=>'test','base_url'=>'http://127.0.0.1:8080','timezone'=>'UTC','allowed_origins'=>['http://127.0.0.1:8080'],'session_name'=>'dimdian_ci_staff','secure_cookies'=>false],
  'database'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'dimdian_test','username'=>'root','password'=>'root','charset'=>'utf8mb4'],
  'uploads'=>['directory'=>'/tmp/dimdian-ci-private-uploads','max_bytes'=>3*1024*1024,'allowed_mime_types'=>['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp']],
- 'integration'=>['customer_identity_secret'=>'ci-identity-secret'],
+ 'integration'=>['customer_identity_secret'=>'ci-identity-secret','vehicle_data_encryption_key'=>'ci-vehicle-encryption-secret-32-bytes-minimum'],
+ 'woocommerce'=>['enabled'=>false],
  'ai'=>['provider_ready'=>true,'provider'=>['name'=>'openai_compatible','api_key'=>'ci-provider-key','model'=>'ci-stub-model','base_url'=>'http://127.0.0.1:8081/ai-provider-stub.php','connect_timeout_seconds'=>1,'timeout_seconds'=>1,'max_tokens'=>100]],
  'security'=>['guest_token_bytes'=>32,'message_max_chars'=>5000,'poll_limit'=>100,'rate_limit_secret'=>'ci-rate-limit-secret'],
 ];
