@@ -1,0 +1,32 @@
+<?php
+declare(strict_types=1);
+header('Content-Type: application/json; charset=utf-8');
+$input = json_decode((string)file_get_contents('php://input'),true) ?: [];
+$messages = $input['messages'] ?? [];
+$last = '';
+foreach (array_reverse($messages) as $message) {
+ if (($message['role'] ?? '') === 'user') { $last=(string)($message['content'] ?? ''); break; }
+}
+if ($last === 'Return the required test phrase.') {
+ echo json_encode(['choices'=>[['message'=>['role'=>'assistant','content'=>'DIMDIAN_PROVIDER_OK']]]]);
+ exit;
+}
+if (str_contains($last,'TRIGGER_TIMEOUT')) {
+ usleep(1500000);
+}
+if (str_contains($last,'TRIGGER_QUOTA')) {
+ http_response_code(429);
+ echo json_encode(['error'=>['code'=>'insufficient_quota','message'=>'You exceeded your current quota.']]);
+ exit;
+}
+if (str_contains($last,'TRIGGER_TRANSIENT')) {
+ http_response_code(503);
+ echo json_encode(['error'=>['message'=>'Temporary upstream failure.']]);
+ exit;
+}
+if (str_contains($last,'TRIGGER_CONFIG')) {
+ http_response_code(404);
+ echo json_encode(['error'=>['code'=>'model_not_found','message'=>'The requested model does not exist.']]);
+ exit;
+}
+echo json_encode(['choices'=>[['message'=>['role'=>'assistant','content'=>'Thanks for contacting DIMDIAN. Our team can help with that.']] ]]);
