@@ -63,3 +63,6 @@ CREATE TABLE IF NOT EXISTS conversation_product_context (
  KEY idx_conversation_product_context_product (product_id),
  CONSTRAINT fk_product_context_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Structured vehicle submissions count as customer-originated unread events without masquerading as chat text.
+ALTER TABLE messages MODIFY sender_type ENUM('customer','staff','assistant','system','customer_event') NOT NULL;
