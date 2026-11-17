@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/customer.php';
+require_once dirname(__DIR__,2) . '/app/storage.php';
 require_method('GET');
 $customer = require_customer();
 
@@ -11,9 +12,8 @@ $query->execute(['id'=>$id,'customer_id'=>$customer['id']]);
 $attachment = $query->fetch();
 if (!$attachment) json_response(['error'=>'attachment_not_found'],404);
 
-$directory = (string)app_config('uploads.directory','');
-$path = rtrim($directory,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.basename($attachment['storage_key']);
-if ($directory === '' || !is_file($path)) json_response(['error'=>'attachment_not_found'],404);
+$path=private_attachment_path((string)$attachment['storage_key']);
+if($path===null)json_response(['error'=>'attachment_not_found'],404);
 header('Content-Type: '.$attachment['mime_type']);
 header('Content-Length: '.(int)$attachment['size_bytes']);
 header('Content-Disposition: inline; filename="attachment"');
