@@ -5,7 +5,7 @@ require_once dirname(__DIR__,2) . '/app/ai.php';
 require_method('POST');
 
 $customer = require_customer();
-if (rate_limit_exceeded('customer-conversation:'.$customer['id'],20,60)) json_response(['error'=>'too_many_requests'],429);
+if (rate_limit_exceeded('customer-conversation-ip:'.request_ip_hash(),60,60) || rate_limit_exceeded('customer-conversation:'.$customer['id'],20,60)) json_response(['error'=>'too_many_requests'],429);
 $input = request_json();
 $contextUrl = validate_context_url($input['context_url'] ?? null);
 $sku = $input['context_sku'] ?? null;
