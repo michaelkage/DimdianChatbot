@@ -59,7 +59,8 @@ jq -e '.products | length == 1 and .[0].id == 101' <<<"$MPN_SEARCH" >/dev/null
 echo 'live WooCommerce SKU, name and MPN search passed'
 PRODUCT_CONTEXT="$(curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"product_id\":101}")"
 jq -e '.selected == true and .product.id == 101 and .product.sku == "ALT-CAM-25"' <<<"$PRODUCT_CONTEXT" >/dev/null
-curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/brake-pad","context_sku":"BP-100","subject":"Brake pad listing"}' >/dev/null
+RESUMED_CONVERSATION="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/brake-pad","context_sku":"BP-100","subject":"Brake pad listing"}')"
+jq -e '.created == false and .selected_product.id == 101 and .selected_product.name == "Toyota Camry 2.5L Alternator"' <<<"$RESUMED_CONVERSATION" >/dev/null
 SELECTED_CONTEXT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM conversation_product_context p INNER JOIN conversations c ON c.id=p.conversation_id WHERE c.public_id='$CONVERSATION_ID' AND p.product_id=101")"
 test "$SELECTED_CONTEXT_COUNT" = "1"
 mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,verification_source,verified_at,status) VALUES (101,'Toyota','Camry',2015,2020,'2.5L','Automatic','CI manufacturer catalogue fixture',UTC_TIMESTAMP(),'verified')"
