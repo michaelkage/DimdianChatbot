@@ -157,6 +157,10 @@ function ai_provider_complete(array $messages): array {
   error_log('[DimdianChatbot AI] Provider rejected configured credentials (HTTP '.$status.').');
   return ['kind'=>'configuration_error'];
  }
+ if($status===400||$status===404){
+  error_log('[DimdianChatbot AI] Provider rejected the configured endpoint or model (HTTP '.$status.').');
+  return ['kind'=>'configuration_error'];
+ }
  error_log('[DimdianChatbot AI] Provider returned HTTP '.$status.'.');
  return ['kind'=>'transient'];
 }
