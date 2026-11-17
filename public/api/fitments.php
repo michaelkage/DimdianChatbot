@@ -39,6 +39,17 @@ if(!$product||$product['permalink']==='')json_response(['error'=>'catalogue_prod
 // exact vehicle/product tuple updates its evidence instead of creating duplicates.
 $pdo->beginTransaction();
 try{
+ // Serialize against new customer vehicle submissions before persisting this verification.
+ $conversationLock=$pdo->prepare('SELECT id FROM conversations WHERE id=:id FOR UPDATE');
+ $conversationLock->execute(['id'=>$vehicle['id']]);
+ if(!$conversationLock->fetchColumn()){$pdo->rollBack();json_response(['error'=>'conversation_not_found'],404);}
+ $latestVehicle=$pdo->prepare('SELECT id AS vehicle_id,product_id,make,model,model_year,engine,transmission,trim_level FROM conversation_vehicles WHERE conversation_id=:id ORDER BY id DESC LIMIT 1 FOR UPDATE');
+ $latestVehicle->execute(['id'=>$vehicle['id']]);
+ $currentVehicle=$latestVehicle->fetch();
+ if(!$currentVehicle|| (int)$currentVehicle['vehicle_id']!==(int)$vehicle['vehicle_id']){
+  $pdo->rollBack();json_response(['error'=>'vehicle_details_changed'],409);
+ }
+ $vehicle=$currentVehicle;
  $existing=$pdo->prepare("SELECT id FROM product_fitments WHERE product_id=:product_id AND make=:make AND model=:model AND year_from=:year_from AND year_to=:year_to AND engine=:engine AND transmission=:transmission AND trim_level <=> :trim AND status='verified' LIMIT 1 FOR UPDATE");
  $existing->execute([
   'product_id'=>$productId,'make'=>$vehicle['make'],'model'=>$vehicle['model'],
