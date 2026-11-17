@@ -139,14 +139,15 @@ GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema 
 
 1. Create a MySQL database and database user.
 2. Import `database/schema.sql` using phpMyAdmin or the MySQL CLI.
-3. Copy `config.example.php` to `config.php` in the repository root.
-4. Set database credentials, production base URL, exact allowed storefront origins, a private upload directory, and unique random secrets for rate limiting and optional storefront identity signing.
-5. Point the domain document root to the repository's `public/` directory.
-6. Ensure PHP can write to the configured private upload directory. Set `upload_max_filesize` to at least `3M` and `post_max_size` to at least `4M` in Hostinger PHP settings so the 3 MB image limit can be reached.
-7. Run `php bin/preflight.php` over SSH. Resolve every `FAIL` before opening traffic; review `WARN` entries such as disabled AI or an unconfigured MPN route.
-8. Create the first staff account over SSH from the repository root: `php bin/create-admin.php support@example.com "Support Admin" admin`. Enter the password at the prompts; do not put it in shell history.
-9. Visit the site's root URL. A healthy installation returns JSON with `status: ok` and `database: connected`.
-10. Open `/admin/support/` and sign in.
+3. Apply `database/migrations/2026-11-17-marketplace-fitment-hardening.sql` to the same database.
+4. Copy `config.example.php` to `config.php` in the repository root.
+5. Set database credentials, production base URL, exact allowed storefront origins, a private upload directory, and unique random secrets for rate limiting and optional storefront identity signing.
+6. Point the domain document root to the repository's `public/` directory.
+7. Ensure PHP can write to the configured private upload directory. Set `upload_max_filesize` to at least `3M` and `post_max_size` to at least `4M` in Hostinger PHP settings so the 3 MB image limit can be reached.
+8. Run `php bin/preflight.php` over SSH. Resolve every `FAIL` before opening traffic; review `WARN` entries such as disabled AI or an unconfigured MPN route.
+9. Create the first staff account over SSH from the repository root: `php bin/create-admin.php support@example.com "Support Admin" admin`. Enter the password at the prompts; do not put it in shell history.
+10. Visit the site's root URL. A healthy installation returns JSON with `status: ok` and `database: connected`.
+11. Open `/admin/support/` and sign in.
 
 Do not commit `config.php`, database credentials, or uploaded customer images.
 
