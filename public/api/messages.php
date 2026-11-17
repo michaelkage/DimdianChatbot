@@ -100,13 +100,17 @@ try {
          FROM messages
          WHERE conversation_id = :conversation_id AND sequence_id > :after
          ORDER BY sequence_id ASC
-         LIMIT ' . $limit
+         LIMIT ' . ($limit + 1)
     );
     $query->bindValue(':conversation_id', $session['conversation_id']);
     $query->bindValue(':after', $after, PDO::PARAM_INT);
     $query->execute();
 
     $rows = $query->fetchAll();
+    $hasMore = count($rows) > $limit;
+    if ($hasMore) {
+        $rows = array_slice($rows, 0, $limit);
+    }
     $items = array_map(static function (array $row): array {
         return [
             'id' => $row['id'],
@@ -125,7 +129,7 @@ try {
         'meta' => [
             'after' => $after,
             'next_cursor' => $nextCursor,
-            'has_more' => count($items) === $limit,
+            'has_more' => $hasMore,
             'poll_after_ms' => 3000,
         ],
     ]);
