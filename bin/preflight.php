@@ -42,7 +42,7 @@ try{
 }catch(Throwable $error){preflight('Database connection',false,$error->getMessage());}
 $uploadDirectory=private_upload_directory(true);
 preflight('Private upload directory',$uploadDirectory!==null&&is_writable((string)$uploadDirectory),$uploadDirectory??'invalid path or inside public document root');
-$backupConfigured=(string)app_config('backup.directory','');
+$backupConfigured=(string)(getenv('DIMDIAN_BACKUP_DIRECTORY')?:app_config('backup.directory',''));
 $backupOk=false;$backupReal='';
 if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR)&&!is_link($backupConfigured)){
  if(!is_dir($backupConfigured))@mkdir($backupConfigured,0700,true);
