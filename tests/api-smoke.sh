@@ -118,8 +118,9 @@ jq -e --argjson id "$FITMENT_ID" '.verified == true and .created == false and .f
 VERIFIED_FITMENT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM product_fitments WHERE product_id=102 AND make='Honda' AND model='Civic' AND year_from=2018 AND year_to=2018 AND engine='2.0L' AND transmission='CVT' AND trim_level='EX' AND status='verified'")"
 test "$VERIFIED_FITMENT_COUNT" = "1"
 curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":103}" >/dev/null
+mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,trim_level,verification_source,verified_at,status) VALUES (103,'Honda','Civic',2018,2018,'2.0L','CVT','EX','Legacy parent-level fixture',UTC_TIMESTAMP(),'verified')"
 VARIABLE_VEHICLE="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"1HGCM82633A004352\"}")"
-jq -e '.fitment.status == "needs_specialist" and .product_id == 103' <<<"$VARIABLE_VEHICLE" >/dev/null
+jq -e '.fitment.status == "needs_specialist" and .product_id == null' <<<"$VARIABLE_VEHICLE" >/dev/null
 VARIABLE_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-variable-fitment.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":103,\"verification_source\":\"Manufacturer catalogue\"}")"
 test "$VARIABLE_FITMENT_STATUS" = "422"
 jq -e '.error == "specific_product_variant_required"' /tmp/dimdian-variable-fitment.json >/dev/null
