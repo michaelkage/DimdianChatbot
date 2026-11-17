@@ -56,11 +56,19 @@ preflight('Private upload directory',$uploadDirectory!==null&&is_writable((strin
 $backupConfigured=(string)(getenv('DIMDIAN_BACKUP_DIRECTORY')?:app_config('backup.directory',''));
 $backupOk=false;$backupReal='';
 if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR)&&!is_link($backupConfigured)){
- if(!is_dir($backupConfigured))@mkdir($backupConfigured,0700,true);
- $backupReal=realpath($backupConfigured)?:'';
  $publicReal=realpath(dirname(__DIR__).'/public')?:'';
  $systemTemp=realpath(sys_get_temp_dir())?:'';
- $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&(!$production||($systemTemp!==''&&$backupReal!==$systemTemp&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)&&!str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR)))&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
+ $parentSafe=false;
+ if(!is_dir($backupConfigured)){
+  $backupParent=realpath(dirname($backupConfigured))?:'';
+  $parentSafe=$backupParent!==''&&$publicReal!==''&&$backupParent!==$publicReal&&!str_starts_with($backupParent.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&
+   (!$production||($systemTemp!==''&&$backupParent!==$systemTemp&&!str_starts_with($backupParent.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)));
+  if($parentSafe)@mkdir($backupConfigured,0700,false);
+ }
+ $backupReal=realpath($backupConfigured)?:'';
+ $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&
+  (!$production||($systemTemp!==''&&$backupReal!==$systemTemp&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)&&!str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR)))&&
+  $backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
  if($safeBackupPath){@chmod($backupReal,0700);clearstatcache(true,$backupReal);}
  $backupPermissions=$safeBackupPath?fileperms($backupReal):false;
  $backupOk=$safeBackupPath&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0;
