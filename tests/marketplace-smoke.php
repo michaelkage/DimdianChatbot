@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__).'/app/woocommerce.php';
 require_once dirname(__DIR__).'/app/ai_provider.php';
 require_once dirname(__DIR__).'/app/vehicle.php';
+require_once dirname(__DIR__).'/app/storage.php';
 
 function check(bool $ok,string $message): void {
  if(!$ok){fwrite(STDERR,"FAIL: ".$message."\n");exit(1);}
@@ -10,6 +11,11 @@ function check(bool $ok,string $message): void {
 }
 
 check(woocommerce_ready(),'catalogue adapter is configured against the isolated read-only WooCommerce fixture');
+$privateDirectory=private_upload_directory(false);
+check($privateDirectory!==null&&((fileperms($privateDirectory)&0077)===0),'attachment directory is private and not group/world accessible');
+$storedKey=db()->query('SELECT storage_key FROM attachments ORDER BY id DESC LIMIT 1')->fetchColumn();
+$storedPath=is_string($storedKey)?private_attachment_path($storedKey):null;
+check($storedPath!==null&&((fileperms($storedPath)&0077)===0),'stored attachment files are owner-only');
 $providerFingerprint=ai_provider_fingerprint();
 $originalModel=$GLOBALS['config']['ai']['provider']['model'];
 $GLOBALS['config']['ai']['provider']['model']=$originalModel.'-changed';
