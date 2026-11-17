@@ -25,8 +25,10 @@ if(function_exists('proc_open')){
   stream_get_contents($pipes[1]);stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
   return proc_close($process)===0;
  };
- preflight('mysqldump CLI',$cliAvailable(['mysqldump','--version']),'required for bin/backup-db.php; use phpMyAdmin export if unavailable',!$cliAvailable(['mysqldump','--version']));
- preflight('mysql CLI',$cliAvailable(['mysql','--version']),'required for bin/restore-db.php; use phpMyAdmin import if unavailable',!$cliAvailable(['mysql','--version']));
+ $hasMysqldump=$cliAvailable(['mysqldump','--version']);
+ $hasMysql=$cliAvailable(['mysql','--version']);
+ preflight('mysqldump CLI',$hasMysqldump,'required for bin/backup-db.php; use phpMyAdmin export if unavailable',!$hasMysqldump);
+ preflight('mysql CLI',$hasMysql,'required for bin/restore-db.php; use phpMyAdmin import if unavailable',!$hasMysql);
 }
 if((bool)app_config('woocommerce.enabled',false)||(bool)app_config('ai.provider_ready',false))preflight('PHP extension curl',extension_loaded('curl'));
 function preflight_ini_bytes(string $value): int {
