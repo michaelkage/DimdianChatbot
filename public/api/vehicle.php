@@ -47,11 +47,11 @@ try{
  $fitment=$productId&&$productType==='simple'&&$engine!==''&&$transmission!==''?vehicle_find_verified_fitment($pdo,(int)$productId,$make,$model,(int)$year,$engine,$transmission,$trim):null;
  if(!$fitment){
   $pdo->prepare("UPDATE conversations SET status='needs_human',last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id AND status='open'")->execute(['id'=>$conversation['id']]);
-  $notice='Vehicle details received. A parts specialist must verify compatibility before we recommend a part.';
+  $notice=$productType==='variable'?'This listing has product variants. A parts specialist must confirm the exact variant before we recommend a part.':'Vehicle details received. A parts specialist must verify compatibility before we recommend a part.';
  }else{
   $notice='A verified fitment record was found for the selected listing and vehicle details.';
  }
  $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'system',:body,UTC_TIMESTAMP())")->execute(['id'=>$conversation['id'],'body'=>$notice]);
  $pdo->commit();
- json_response(['vehicle_id'=>$vehicleId,'fitment'=>$fitment?['status'=>'verified','source'=>$fitment['verification_source'],'verified_at'=>$fitment['verified_at']]:['status'=>'needs_specialist'],'product_id'=>$productId],201);
+ json_response(['vehicle_id'=>$vehicleId,'fitment'=>$fitment?['status'=>'verified','source'=>$fitment['verification_source'],'verified_at'=>$fitment['verified_at']]:['status'=>'needs_specialist'],'product_id'=>$productId,'product_type'=>$productType],201);
 }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
