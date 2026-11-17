@@ -37,9 +37,10 @@ async function refreshList(){
   const data=await api('staff-conversations?status='+encodeURIComponent($('status-filter').value));
   const items=data.conversations||[];
   for(const item of items){
+   const latestId=Number(item.last_message_id)||0;
    const old=knownLatest.get(item.public_id);
-   if(old&&item.last_message_at!==old&&item.last_sender_type==='customer'&&(!current||current.public_id!==item.public_id))playAlert();
-   knownLatest.set(item.public_id,item.last_message_at);
+   if(old!==undefined&&latestId>old&&item.last_sender_type==='customer'&&(!current||current.public_id!==item.public_id))playAlert();
+   knownLatest.set(item.public_id,latestId);
   }
   renderList(items);
  }catch(error){if(error.message==='staff_auth_required')showLogin()}
