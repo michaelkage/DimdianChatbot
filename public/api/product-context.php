@@ -27,8 +27,7 @@ $pdo->beginTransaction();
 try{
  $upsert=$pdo->prepare('INSERT INTO conversation_product_context (conversation_id,product_id,sku,product_name,product_permalink,selected_at) VALUES (:conversation_id,:product_id,:sku,:name,:permalink,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE product_id=VALUES(product_id),sku=VALUES(sku),product_name=VALUES(product_name),product_permalink=VALUES(product_permalink),selected_at=UTC_TIMESTAMP()');
  $upsert->execute(['conversation_id'=>$conversation['id'],'product_id'=>$product['id'],'sku'=>$product['sku']!==''?$product['sku']:null,'name'=>$product['name'],'permalink'=>$product['permalink']]);
- $update=$pdo->prepare('UPDATE conversations SET context_url=:url,context_sku=:sku,updated_at=UTC_TIMESTAMP() WHERE id=:id');
- $update->execute(['url'=>$product['permalink'],'sku'=>$product['sku']!==''?$product['sku']:null,'id'=>$conversation['id']]);
+ $pdo->prepare('UPDATE conversations SET updated_at=UTC_TIMESTAMP() WHERE id=:id')->execute(['id'=>$conversation['id']]);
  $pdo->commit();
  json_response(['selected'=>true,'product'=>['id'=>$product['id'],'name'=>$product['name'],'sku'=>$product['sku'],'permalink'=>$product['permalink']]]);
 }catch(Throwable $error){
