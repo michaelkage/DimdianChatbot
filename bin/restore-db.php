@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
-if(($argc!==2&&$argc!==3)||!is_file($argv[1])){fwrite(STDERR,"Usage: php bin/restore-db.php /absolute/path/backup.sql[.gz] [target_database]\n");exit(2);}
+if(($argc!==2&&$argc!==3)||!is_string($argv[1])||!str_starts_with($argv[1],DIRECTORY_SEPARATOR)||is_link($argv[1])||!is_file($argv[1])||!preg_match('/\\.sql(?:\\.gz)?$/i',$argv[1])){fwrite(STDERR,"Usage: php bin/restore-db.php /absolute/private/backup.sql[.gz] [target_database]\n");exit(2);}
+$backupPath=realpath($argv[1]);$publicPath=realpath(dirname(__DIR__).'/public');
+if($backupPath===false||$publicPath===false||str_starts_with($backupPath,$publicPath.DIRECTORY_SEPARATOR)){fwrite(STDERR,"Backup must be a real file outside the public document root.\n");exit(2);}
 fwrite(STDERR,"WARNING: this overwrites matching database objects/data. Type RESTORE to continue: ");
 $answer=trim((string)fgets(STDIN));if($answer!=='RESTORE'){fwrite(STDERR,"Cancelled.\n");exit(1);}
 $config=require dirname(__DIR__).'/config.php';$db=$config['database']??[];
@@ -11,7 +13,7 @@ $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod(
 file_put_contents($tmp,"[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n",LOCK_EX);chmod($tmp,0600);
 $proc=proc_open(['mysql','--defaults-extra-file='.$tmp,$targetDatabase],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
 if(!is_resource($proc)){unlink($tmp);fwrite(STDERR,"mysql client unavailable.\n");exit(1);}
-$input=str_ends_with(strtolower($argv[1]),'.gz')?gzopen($argv[1],'rb'):fopen($argv[1],'rb');
+$input=str_ends_with(strtolower($backupPath),'.gz')?gzopen($backupPath,'rb'):fopen($backupPath,'rb');
 if(!$input){fclose($pipes[0]);$exit=proc_close($proc);unlink($tmp);exit(1);}
 while(!feof($input)){$chunk=str_ends_with(strtolower($argv[1]),'.gz')?gzread($input,65536):fread($input,65536);if($chunk===false||$chunk==='')break;fwrite($pipes[0],$chunk);}
 str_ends_with(strtolower($argv[1]),'.gz')?gzclose($input):fclose($input);
