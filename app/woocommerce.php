@@ -35,6 +35,27 @@ function woocommerce_request(string $path,array $query=[]): array {
  if (!is_array($data)) throw new RuntimeException('catalogue_invalid_response');
  return $data;
 }
+function woocommerce_public_permalink(mixed $url): string {
+ if(!is_string($url)||$url==='')return '';
+ $parts=parse_url($url);$store=parse_url((string)(woocommerce_config()['store_url']??''));
+ if(!is_array($parts)||!is_array($store)||strtolower((string)($parts['scheme']??''))!=='https'||
+    empty($parts['host'])||empty($store['host'])||strtolower((string)$parts['host'])!==strtolower((string)$store['host'])||
+    isset($parts['user'])||isset($parts['pass']))return '';
+ if(isset($parts['port'])&&(int)$parts['port']!==443)return '';
+ return $url;
+}
+function woocommerce_public_image(mixed $url): ?string {
+ if(!is_string($url)||$url==='')return null;
+ $parts=parse_url($url);
+ if(!is_array($parts)||strtolower((string)($parts['scheme']??''))!=='https'||empty($parts['host'])||isset($parts['user'])||isset($parts['pass']))return null;
+ return $url;
+}
+function woocommerce_find_by_id(int $productId): ?array {
+ if($productId<1)return null;
+ $product=woocommerce_request('/wp-json/wc/v3/products/'.$productId);
+ if(!is_array($product)||(int)($product['id']??0)!==$productId||($product['status']??'')!=='publish')return null;
+ return woocommerce_normalize_product($product);
+}
 function woocommerce_normalize_product(array $p): array {
  $images=is_array($p['images']??null)?$p['images']:[];
  $image=$images[0]['src']??null;
@@ -44,7 +65,7 @@ function woocommerce_normalize_product(array $p): array {
   'regular_price'=>(string)($p['regular_price']??''),'sale_price'=>(string)($p['sale_price']??''),
   'stock_status'=>(string)($p['stock_status']??'unknown'),
   'stock_quantity'=>array_key_exists('stock_quantity',$p)?$p['stock_quantity']:null,
-  'permalink'=>(string)($p['permalink']??''),'image'=>is_string($image)?$image:null,
+  'permalink'=>woocommerce_public_permalink($p['permalink']??null),'image'=>woocommerce_public_image($image),
   'type'=>(string)($p['type']??'simple'),
  ];
 }
