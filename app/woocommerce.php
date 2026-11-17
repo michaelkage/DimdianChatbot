@@ -13,9 +13,11 @@ function woocommerce_ready(): bool {
  $url=$c['store_url']??'';$key=$c['consumer_key']??'';$secret=$c['consumer_secret']??'';
  if (!is_string($url)||!is_string($key)||!is_string($secret)||$key===''||$secret==='') return false;
  $parts=parse_url($url);
+ if(!is_array($parts)||empty($parts['host'])||isset($parts['user'])||isset($parts['pass'])||isset($parts['query'])||isset($parts['fragment']))return false;
  $scheme=strtolower((string)($parts['scheme']??''));
  $secure=$scheme==='https'||(app_config('app.environment','production')==='test'&&$scheme==='http');
- return is_array($parts)&&$secure&&!empty($parts['host']);
+ $port=(int)($parts['port']??($scheme==='https'?443:80));
+ return $secure&&$port>=1&&$port<=65535;
 }
 function woocommerce_request(string $path,array $query=[]): array {
  if (!woocommerce_ready()) throw new RuntimeException('catalogue_not_configured');
@@ -28,6 +30,8 @@ function woocommerce_request(string $path,array $query=[]): array {
   CURLOPT_RETURNTRANSFER=>true,CURLOPT_HTTPGET=>true,CURLOPT_USERPWD=>$c['consumer_key'].':'.$c['consumer_secret'],
   CURLOPT_HTTPAUTH=>CURLAUTH_BASIC,CURLOPT_CONNECTTIMEOUT=>3,CURLOPT_TIMEOUT=>8,
   CURLOPT_FOLLOWLOCATION=>false,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,
+  CURLOPT_PROTOCOLS=>(app_config('app.environment','production')==='test'?(CURLPROTO_HTTP|CURLPROTO_HTTPS):CURLPROTO_HTTPS),
+  CURLOPT_MAXFILESIZE=>2*1024*1024,
   CURLOPT_HTTPHEADER=>['Accept: application/json','User-Agent: DimdianChatbot-Catalogue/1.0'],
  ]);
  $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);$errno=curl_errno($ch);curl_close($ch);
