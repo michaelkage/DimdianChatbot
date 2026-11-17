@@ -27,6 +27,11 @@ check($product['stock_status']==='instock'&&$product['permalink']==='','unsafe p
 check(woocommerce_public_permalink('http://127.0.0.1:8083/product/alt-cam-25/')==='http://127.0.0.1:8083/product/alt-cam-25/','configured storefront product links are retained in isolated test mode');
 check(woocommerce_public_permalink('https://attacker.example/phishing')==='','external product links are rejected before reaching staff or shoppers');
 check(woocommerce_public_image('data:image/png;base64,AAAA')===null,'non-HTTP product image schemes are rejected');
+$variableProducts=woocommerce_search_products('name','Variable Assembly');
+$draftProducts=woocommerce_search_products('name','Draft Alternator');
+check(count($variableProducts)===1&&$variableProducts[0]['id']===103,'published variable products remain discoverable in live search');
+check($draftProducts===[],'unpublished products are excluded from public catalogue search');
+check(!woocommerce_fitment_product_supported($variableProducts[0]),'variable listings cannot receive parent-level fitment claims');
 
 $sample='TESTVIN1234567890';
 $encrypted=vehicle_encrypt_vin($sample);
