@@ -38,8 +38,11 @@ try {
   }
   $update = $pdo->prepare('UPDATE conversations SET context_url=COALESCE(:context_url,context_url), context_sku=COALESCE(:context_sku,context_sku), subject=COALESCE(:subject,subject), updated_at=UTC_TIMESTAMP() WHERE id=:id');
   $update->execute(['context_url'=>$contextUrl,'context_sku'=>$sku,'subject'=>$subject,'id'=>$conversation['id']]);
+  $selectedQuery=$pdo->prepare('SELECT product_id,name FROM (SELECT product_id,product_name AS name FROM conversation_product_context WHERE conversation_id=:id LIMIT 1) selected_product');
+  $selectedQuery->execute(['id'=>$conversation['id']]);$selectedProduct=$selectedQuery->fetch()?:null;
+  if($selectedProduct)$selectedProduct=['id'=>(int)$selectedProduct['product_id'],'name'=>$selectedProduct['name']];
   $pdo->commit();
-  json_response(['conversation'=>['id'=>$conversation['public_id'],'status'=>$conversation['status']],'created'=>false,'support_mode'=>$aiEnabled?'ai':'human']);
+  json_response(['conversation'=>['id'=>$conversation['public_id'],'status'=>$conversation['status']],'created'=>false,'support_mode'=>$aiEnabled?'ai':'human','selected_product'=>$selectedProduct]);
  }
 
  $publicId = create_public_conversation_id();
@@ -51,7 +54,7 @@ try {
   $notice->execute(['id'=>$conversationDbId,'body'=>'A member of our support team will take over this chat. Send your message and the team will be able to help.']);
  }
  $pdo->commit();
- json_response(['conversation'=>['id'=>$publicId,'status'=>$initialStatus],'created'=>true,'support_mode'=>$aiEnabled?'ai':'human'],201);
+ json_response(['conversation'=>['id'=>$publicId,'status'=>$initialStatus],'created'=>true,'support_mode'=>$aiEnabled?'ai':'human','selected_product'=>null],201);
 } catch (Throwable $error) {
  if ($pdo->inTransaction()) $pdo->rollBack();
  throw $error;
