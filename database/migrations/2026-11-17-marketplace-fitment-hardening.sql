@@ -49,3 +49,17 @@ CREATE TABLE IF NOT EXISTS product_fitments (
  CONSTRAINT fk_fitment_verified_by FOREIGN KEY (verified_by) REFERENCES staff_users(id) ON DELETE SET NULL,
  CONSTRAINT chk_fitment_year_range CHECK (year_from <= year_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A shopper can explicitly select a live search result as the subject of a vehicle check.
+-- One current product context per conversation; vehicle submissions copy the verified ID.
+CREATE TABLE IF NOT EXISTS conversation_product_context (
+ conversation_id BIGINT UNSIGNED NOT NULL,
+ product_id BIGINT UNSIGNED NOT NULL,
+ sku VARCHAR(120) NULL,
+ product_name VARCHAR(255) NOT NULL,
+ product_permalink VARCHAR(2048) NOT NULL,
+ selected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (conversation_id),
+ KEY idx_conversation_product_context_product (product_id),
+ CONSTRAINT fk_product_context_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
