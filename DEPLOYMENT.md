@@ -35,7 +35,11 @@ This runbook is for the PHP/MySQL shared-hosting deployment. The repository CI e
 
 ## Scheduled maintenance
 
-Configure a daily Hostinger cron task to run `php /absolute/path/to/DimdianChatbot/bin/cleanup-rate-limits.php`. This removes expired rate-limit buckets outside the customer request path. Confirm the cron uses the same private `config.php` and database as the application.
+- Configure a daily Hostinger cron task to run `php /absolute/path/to/DimdianChatbot/bin/backup-db.php` using the account's configured PHP CLI binary. Capture the output and monitor failures. Backups are owner-only, retained for 14 days by default, and expired files are pruned only after a successful new backup.
+- Configure a daily Hostinger cron task to run `php /absolute/path/to/DimdianChatbot/bin/cleanup-rate-limits.php`. This removes expired rate-limit buckets outside the customer request path.
+- Confirm both cron tasks use the same private `config.php` and database as the application.
+- Perform a restore drill into a separate database at least monthly. Create that database through hPanel/phpMyAdmin first if the hosting database user cannot create databases.
+- Back up `config.php`, the vehicle encryption key and private uploads separately; the SQL backup does not include them.
 
 ## Rollback
 
