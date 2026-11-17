@@ -89,9 +89,25 @@
   function startPolling(){stopPolling();poll();pollTimer=setInterval(poll,4000)}
   async function openChat(){
     isOpen=true;panel.classList.add('open');launcher.hidden=true;showError('');
-    textarea.disabled=false;sendButton.disabled=false;fileInput.disabled=false;
-    try{await ensureSession();await ensureConversation();startPolling();textarea.focus()}
-    catch(_){showError('Chat could not connect. Please try again.')}
+    try{
+      const previousConversationId=conversationId;
+      await ensureSession();
+      await ensureConversation();
+      if(previousConversationId!==conversationId){
+        lastMessageId=0;messagesEl.replaceChildren();
+        const empty=document.createElement('div');empty.className='empty';
+        empty.textContent='Send us a message. If you are viewing a part, we will include its listing details.';
+        messagesEl.appendChild(empty);
+        catalogueResults.replaceChildren();catalogueQuery.value='';
+        vehicleForm.reset();vehicleForm.classList.remove('open');
+        textarea.value='';fileInput.value='';
+      }
+      textarea.disabled=false;sendButton.disabled=false;fileInput.disabled=false;
+      startPolling();textarea.focus();
+    }catch(_){
+      textarea.disabled=true;sendButton.disabled=true;fileInput.disabled=true;
+      showError('Chat could not connect. Please try again.');
+    }
   }
   function closeChat(){isOpen=false;panel.classList.remove('open');launcher.hidden=false;stopPolling()}
   launcher.addEventListener('click',openChat);
