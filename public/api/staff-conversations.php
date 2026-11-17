@@ -15,6 +15,7 @@ $sql = "SELECT c.public_id,c.status,c.context_url,c.context_sku,c.subject,c.last
  assigned.display_name AS assigned_staff,
  (SELECT m.body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
  (SELECT m.sender_type FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_sender_type,
+ (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id) AS last_message_id,
  (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_type='customer' AND m.id>COALESCE(c.staff_last_read_message_id,0)) AS unread_count
  FROM conversations c INNER JOIN customers cu ON cu.id=c.customer_id
  LEFT JOIN staff_users assigned ON assigned.id=c.assigned_staff_id
