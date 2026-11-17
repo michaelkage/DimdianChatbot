@@ -18,6 +18,10 @@ return [
 PHP
 mkdir -p /tmp/dimdian-ci-private-uploads
 php -S 127.0.0.1:8081 -t tests >/tmp/dimdian-ci-provider.log 2>&1 &
+for attempt in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8081/ai-provider-stub.php >/tmp/dimdian-provider-health.json; then break; fi
+  sleep 1
+done
 php -S 127.0.0.1:8080 -t public >/tmp/dimdian-ci-server.log 2>&1 &
 for attempt in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:8080/ >/tmp/dimdian-health.json; then break; fi
