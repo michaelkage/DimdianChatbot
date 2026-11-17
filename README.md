@@ -54,7 +54,8 @@ The customer-facing guest chat flow and staff inbox are implemented, including p
 - The switch is available only when the provider name, API key, model, cURL transport and provider-ready flag are all valid in the private `config.php`. AI remains off until an administrator opts in.
 - Provider calls have bounded connection and total timeouts. A timeout, temporary upstream error or malformed response hands that conversation to staff; it does not expose provider errors to the shopper or turn off AI globally.
 - Explicit quota/billing exhaustion (for example HTTP 402 or a provider's `insufficient_quota` / `resource_exhausted` response) disables AI globally, moves all open conversations to `needs_human`, and inserts a neutral handoff notice in one database transaction. Invalid provider credentials also fail closed globally.
-- `needs_human` conversations are never sent to AI. Fitment, VIN, order tracking, payment, returns/refunds, complaints and human requests are escalated before any provider request. AI must not claim compatibility or live stock/order data.
+- `needs_human` conversations are never sent to AI. A handoff is sticky: reopening a conversation for staff workflow does not silently return it to AI. Fitment, VIN, order tracking, payment, returns/refunds, complaints and human requests are escalated before any provider request. AI must not claim compatibility or live stock/order data.
+- When AI is unavailable or disabled, a new chat immediately tells the shopper that the support team will take over; the conversation is placed in the staff queue before the shopper's first message.
 - If the provider signals a generic request-rate limit without indicating exhausted quota, only the current conversation is handed off; the global switch stays on so a temporary rate limit does not unnecessarily disable the service.
 - Provider API keys stay in private `config.php`, never in browser JavaScript or the repository.
 
