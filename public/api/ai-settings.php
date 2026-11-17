@@ -24,8 +24,8 @@ if (($input['test_provider'] ?? false) === true) {
  if (($probe['kind'] ?? '') === 'quota_exhausted' || ($probe['kind'] ?? '') === 'configuration_error') {
   ai_disable_globally((int)$staff['id']);
  }
- if (($probe['kind'] ?? '') !== 'ok') json_response(['test_ok'=>false,'error'=>'provider_test_failed','provider_disabled'=>in_array($probe['kind']??'', ['quota_exhausted','configuration_error'],true)],502);
- json_response(['test_ok'=>true,'provider_response'=>trim((string)$probe['content'])]);
+ if (($probe['kind'] ?? '') !== 'ok' || trim((string)($probe['content']??'')) !== 'DIMDIAN_PROVIDER_OK') json_response(['test_ok'=>false,'error'=>'provider_test_failed','provider_disabled'=>in_array($probe['kind']??'', ['quota_exhausted','configuration_error'],true)],502);
+ json_response(['test_ok'=>true,'provider_response'=>'DIMDIAN_PROVIDER_OK']);
 }
 if (!array_key_exists('ai_enabled',$input) || !is_bool($input['ai_enabled'])) json_response(['error'=>'invalid_ai_setting'],422);
 if ($input['ai_enabled'] && !$providerReady) json_response(['error'=>'ai_provider_not_configured'],409);
