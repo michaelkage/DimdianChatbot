@@ -12,10 +12,12 @@ return [
  'database'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'dimdian_test','username'=>'root','password'=>'root','charset'=>'utf8mb4'],
  'uploads'=>['directory'=>'/tmp/dimdian-ci-private-uploads','max_bytes'=>3*1024*1024,'allowed_mime_types'=>['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp']],
  'integration'=>['customer_identity_secret'=>'ci-identity-secret'],
+ 'ai'=>['provider_ready'=>true,'provider'=>['name'=>'openai_compatible','api_key'=>'ci-provider-key','model'=>'ci-stub-model','base_url'=>'http://127.0.0.1:8081/ai-provider-stub.php','connect_timeout_seconds'=>1,'timeout_seconds'=>2,'max_tokens'=>100]],
  'security'=>['guest_token_bytes'=>32,'message_max_chars'=>5000,'poll_limit'=>100,'rate_limit_secret'=>'ci-rate-limit-secret'],
 ];
 PHP
 mkdir -p /tmp/dimdian-ci-private-uploads
+php -S 127.0.0.1:8081 -t tests >/tmp/dimdian-ci-provider.log 2>&1 &
 php -S 127.0.0.1:8080 -t public >/tmp/dimdian-ci-server.log 2>&1 &
 for attempt in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:8080/ >/tmp/dimdian-health.json; then break; fi
@@ -49,7 +51,27 @@ LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
 AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
-jq -e '.ai_enabled == false and .ai_available == false and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
+jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
+curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
+AI_ON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
+jq -e '.ai_enabled == true and .mode == "ai_assisted"' <<<"$AI_ON" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_NORMAL\"}" >/dev/null
+AI_NORMAL_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=2" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.messages[] | select(.sender_type == "assistant" and .body == "Thanks for contacting DIMDIAN. Our team can help with that.")' <<<"$AI_NORMAL_POLL" >/dev/null
+echo 'AI provider completion passed'
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_TIMEOUT\"}" >/dev/null
+TIMEOUT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.status == "needs_human" and any(.messages[]; .sender_type == "system")' <<<"$TIMEOUT_POLL" >/dev/null
+AI_AFTER_TIMEOUT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
+jq -e '.ai_enabled == true and .ai_available == true' <<<"$AI_AFTER_TIMEOUT" >/dev/null
+echo 'AI timeout gracefully handed off without disabling the provider'
+curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_QUOTA\"}" >/dev/null
+AI_AFTER_QUOTA="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
+jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_AFTER_QUOTA" >/dev/null
+HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=needs_human')"
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
+echo 'AI quota exhaustion disabled AI globally and routed open chats to staff'
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
 AI_OFF="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":false}')"
 jq -e '.ai_enabled == false and .mode == "human_only" and .routed_to_human == 1' <<<"$AI_OFF" >/dev/null
@@ -62,7 +84,7 @@ echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Please share your vehicle model and year.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
 CUSTOMER_REPLY="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
-jq -e '.messages[1].sender_type == "system" and .messages[2].sender_type == "staff"' <<<"$CUSTOMER_REPLY" >/dev/null
+jq -e 'any(.messages[]; .sender_type == "assistant") and any(.messages[]; .sender_type == "system") and any(.messages[]; .sender_type == "staff")' <<<"$CUSTOMER_REPLY" >/dev/null
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"closed\"}" | jq -e '.status == "closed"' >/dev/null
 CLOSED_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$STAFF_MESSAGE_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e '.status == "closed"' <<<"$CLOSED_POLL" >/dev/null
