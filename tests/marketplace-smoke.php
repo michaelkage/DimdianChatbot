@@ -33,12 +33,13 @@ $GLOBALS['config']['app']['environment']='production';
 check(!woocommerce_ready(),'production WooCommerce connections reject plaintext HTTP');
 $GLOBALS['config']['app']['environment']='test';
 $product=woocommerce_normalize_product([
- 'id'=>42,'name'=>'Test Alternator','sku'=>'ALT-42','mpn'=>'DENSO-42','price'=>'12500.00',
+ 'id'=>42,'name'=>'Test Alternator','short_description'=>'<p>Premium <strong>test</strong> alternator</p>','sku'=>'ALT-42','mpn'=>'DENSO-42','price'=>'12500.00',
  'regular_price'=>'15000.00','sale_price'=>'12500.00','stock_status'=>'instock',
  'stock_quantity'=>3,'permalink'=>'https://store.example/product/test-alternator/',
  'images'=>[['src'=>'https://store.example/image.jpg']]
 ]);
 check($product['id']===42&&$product['sku']==='ALT-42'&&$product['mpn']==='DENSO-42'&&$product['price']==='12500.00','WooCommerce product normalization preserves live listing fields');
+check($product['description']==='Premium test alternator','live product descriptions are stripped to bounded plain text before display');
 check($product['stock_status']==='instock'&&$product['permalink']==='','unsafe product link is omitted when its host is not the configured store');
 check(woocommerce_public_permalink('http://127.0.0.1:8083/product/alt-cam-25/')==='http://127.0.0.1:8083/product/alt-cam-25/','configured storefront product links are retained in isolated test mode');
 check(woocommerce_public_permalink('https://attacker.example/phishing')==='','external product links are rejected before reaching staff or shoppers');
