@@ -8,7 +8,7 @@ cat > config.php <<'PHP'
 <?php
 declare(strict_types=1);
 return [
- 'app'=>['environment'=>'test','base_url'=>'http://127.0.0.1:8080','timezone'=>'UTC','allowed_origins'=>['http://127.0.0.1:8080'],'session_name'=>'dimdian_ci_staff','secure_cookies'=>false],
+ 'app'=>['environment'=>'test','base_url'=>'http://127.0.0.1:8080','timezone'=>'UTC','allowed_origins'=>['http://127.0.0.1:8080','https://parts.example.invalid'],'session_name'=>'dimdian_ci_staff','secure_cookies'=>false],
  'database'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'dimdian_test','username'=>'root','password'=>'root','charset'=>'utf8mb4'],
  'uploads'=>['directory'=>'/tmp/dimdian-ci-private-uploads','max_bytes'=>3*1024*1024,'allowed_mime_types'=>['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp']],
  'integration'=>['customer_identity_secret'=>'ci-identity-secret','vehicle_data_encryption_key'=>'ci-vehicle-encryption-secret-32-bytes-minimum'],
@@ -41,6 +41,10 @@ CONVERSATION_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.p
 CONVERSATION_ID="$(jq -r '.conversation.id' <<<"$CONVERSATION_JSON")"
 test "$(printf '%s' "$CONVERSATION_ID" | wc -c)" -eq 26
 echo 'conversation creation passed'
+UNTRUSTED_CONTEXT_STATUS="$(curl -sS -o /tmp/dimdian-untrusted-context.json -w '%{http_code}' -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://attacker.example/phishing","subject":"Untrusted context"}')"
+test "$UNTRUSTED_CONTEXT_STATUS" = "422"
+jq -e '.error == "context_origin_not_allowed"' /tmp/dimdian-untrusted-context.json >/dev/null
+echo 'untrusted listing URL rejected'
 curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"What are your opening hours?\"}" >/tmp/dimdian-customer-message.json
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' | base64 -d >/tmp/dimdian-test.png
 UPLOAD_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/upload.php -H "X-Dimdian-Guest-Token: $TOKEN" -F "conversation_id=$CONVERSATION_ID" -F 'file=@/tmp/dimdian-test.png;type=image/png')"
