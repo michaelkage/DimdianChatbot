@@ -10,16 +10,17 @@ The dependency-free browser widget runs inside a Shadow DOM, isolating its styli
 
 The hostname above is an example deployment value. Do not add it to WordPress until the application is deployed.
 
-## Behavior
+## Visitor behavior
 
 - Floating launcher opens an accessible chat panel.
-- Visitors can send as guests; no account, phone, OTP or registration is required.
-- Name and phone are optional and are submitted only when the first message creates a session.
-- Guest token is held in sessionStorage, scoped to API origin and website origin. It is never placed in a URL.
-- Closing and reopening preserves the current conversation. Reloading the same tab can restore it.
+- Visitors can send as guests; no account, OTP or registration is required.
+- Name and phone are optional. A phone number is only needed for WhatsApp continuation.
+- WhatsApp continuation requires a separate explicit checkbox and a full international phone number. No OTP is sent.
+- The guest token is held in sessionStorage, scoped to API origin and website origin. It is never placed in a URL.
+- Closing and reopening preserves the current conversation. Reloading the same tab restores it and reloads history.
 - Message bodies are inserted as text, never interpreted as HTML.
 - Polling runs while the panel is open and the page is visible, with backoff on errors.
-- Visitor messages are labelled Saved, not Delivered. WhatsApp transport is not implemented yet.
+- Messages are labelled Website only unless an opted-in WhatsApp template send is actually queued. Delivery statuses update as webhook events arrive.
 
 ## Script attributes
 
@@ -33,4 +34,4 @@ The hostname above is an example deployment value. Do not add it to WordPress un
 
 ## Boundary
 
-This widget connects to the current guest-session and messages APIs. It does not imply WhatsApp delivery, delivery receipts, business replies or Coexistence support. Those are separate integration tasks.
+The widget can exchange text messages with the PHP API. Actual WhatsApp delivery and Business-app reply mirroring depend on the approved template, verified Meta credentials and working Coexistence webhooks for the target number.

@@ -12,6 +12,24 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dimdian_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DIMDIAN_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=dimdian_test;charset=utf8mb4
+      DIMDIAN_TEST_DB_USER: root
+      DIMDIAN_TEST_DB_PASSWORD: root
+      DIMDIAN_TEST_BASE_URL: http://127.0.0.1:8080
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -19,6 +37,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: pdo_mysql
           coverage: none
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -28,7 +47,43 @@ jobs:
         run: |
           find app public tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
-      - name: Run PHP unit tests
-        run: php tests/run.php
+      - name: Prepare disposable database and app config
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/schema.sql
+          cat > config.php <<'PHP'
+          <?php
+          return [
+              'app' => [
+                  'app_key' => str_repeat('a', 32),
+                  'timezone' => 'UTC',
+                  'allowed_origins' => ['https://website.example.test'],
+                  'guest_session_ttl_hours' => 168,
+                  'session_rate_limit' => ['max_requests' => 100, 'window_seconds' => 900],
+                  'message_rate_limit' => ['max_requests' => 100, 'window_seconds' => 60],
+              ],
+              'database' => [
+                  'dsn' => getenv('DIMDIAN_TEST_DSN'),
+                  'username' => getenv('DIMDIAN_TEST_DB_USER'),
+                  'password' => getenv('DIMDIAN_TEST_DB_PASSWORD'),
+              ],
+              'whatsapp' => [
+                  'outbound_enabled' => false,
+                  'app_secret' => 'test-meta-app-secret',
+                  'verify_token' => 'test-webhook-token',
+              ],
+          ];
+          PHP
+      - name: Start local PHP API
+        run: |
+          php -S 127.0.0.1:8080 -t public > /tmp/dimdian-php-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:8080/api/session.php; then break; fi
+            sleep 1
+          done
+      - name: Run PHP helper and HTTP/database integration tests
+        run: |
+          php tests/run.php
+          php tests/integration.php
       - name: Run widget tests
         run: node --test tests/widget.test.mjs
