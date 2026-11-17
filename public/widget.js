@@ -111,7 +111,7 @@
       showError('Chat could not connect. Please try again.');
     }
   }
-  function closeChat(){isOpen=false;conversationEpoch++;catalogueSearchId++;panel.classList.remove('open');launcher.hidden=false;stopPolling()}
+  function closeChat(){isOpen=false;conversationEpoch++;catalogueSearchId++;catalogueResults.replaceChildren();fileInput.value='';panel.classList.remove('open');launcher.hidden=false;stopPolling()}
   launcher.addEventListener('click',openChat);
   panel.querySelector('.close').addEventListener('click',closeChat);
   panel.querySelector('.attach').addEventListener('click',()=>fileInput.click());
@@ -171,7 +171,7 @@
       if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
       vehicleForm.reset();vehicleForm.classList.remove('open');await poll();
     }catch(error){if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId)showError(error.message==='vin_encryption_not_configured'?'VIN submission is temporarily unavailable. You can leave the VIN blank or contact support.':'Vehicle details could not be submitted. Please retry.');}
-    finally{busy=false;if(epoch===conversationEpoch&&targetConversationId===conversationId)vehicleForm.querySelector('button').disabled=false;}
+    finally{busy=false;vehicleForm.querySelector('button').disabled=false;}
   });
 
   form.addEventListener('submit',async(event)=>{
