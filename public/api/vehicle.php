@@ -6,8 +6,10 @@ require_method('POST');
 $customer=require_customer();
 if(rate_limit_exceeded('vehicle-submit:'.$customer['id'],8,3600))json_response(['error'=>'too_many_requests'],429);
 $in=request_json();
-$id=$in['conversation_id']??'';$make=trim((string)($in['make']??''));$model=trim((string)($in['model']??''));
-$year=filter_var($in['year']??null,FILTER_VALIDATE_INT);$engine=trim((string)($in['engine']??''));$transmission=trim((string)($in['transmission']??''));$trim=trim((string)($in['trim']??''));$vin=strtoupper(trim((string)($in['vin']??'')));
+foreach(['conversation_id','make','model'] as $required)if(!isset($in[$required])||!is_string($in[$required]))json_response(['error'=>'invalid_vehicle_details'],422);
+foreach(['engine','transmission','trim','vin'] as $optional)if(isset($in[$optional])&&!is_string($in[$optional]))json_response(['error'=>'invalid_vehicle_details'],422);
+$id=$in['conversation_id'];$make=trim($in['make']);$model=trim($in['model']);
+$year=filter_var($in['year']??null,FILTER_VALIDATE_INT);$engine=trim($in['engine']??'');$transmission=trim($in['transmission']??'');$trim=trim($in['trim']??'');$vin=strtoupper(trim($in['vin']??''));
 if(!is_string($id)||!preg_match('/^[a-f0-9]{26}$/D',$id)||$make===''||$model===''||$year===false||$year<1950||$year>((int)gmdate('Y')+1)||strlen($make)>100||strlen($model)>120||strlen($engine)>120||strlen($transmission)>100||strlen($trim)>120)json_response(['error'=>'invalid_vehicle_details'],422);
 if($vin!==''&&!preg_match('/^[A-HJ-NPR-Z0-9]{17}$/D',$vin))json_response(['error'=>'invalid_vin'],422);
 try{$encrypted=$vin!==''?vehicle_encrypt_vin($vin):null;}catch(RuntimeException $e){json_response(['error'=>$e->getMessage()],503);}
