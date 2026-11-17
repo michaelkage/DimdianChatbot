@@ -41,7 +41,7 @@ try {
  if ($initialStatus === 'needs_human') {
   $conversationDbId = (int)$pdo->lastInsertId();
   $notice = $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'system',:body,UTC_TIMESTAMP())");
-  $notice->execute(['id'=>$conversationDbId,'body'=>'A member of our support team will take over from here. Your message has been saved.']);
+  $notice->execute(['id'=>$conversationDbId,'body'=>'A member of our support team will take over this chat. Send your message and the team will be able to help.']);
  }
  $pdo->commit();
  json_response(['conversation'=>['id'=>$publicId,'status'=>$initialStatus],'created'=>true,'support_mode'=>$aiEnabled?'ai':'human'],201);
