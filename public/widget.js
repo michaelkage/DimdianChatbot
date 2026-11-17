@@ -137,6 +137,7 @@
         }else{
           const title=document.createElement('strong');title.textContent=product.name||'Catalogue product';card.appendChild(title);
         }
+        if(product.description){const description=document.createElement('p');description.textContent=product.description;card.appendChild(description);}
         const stock=product.stock_status==='instock'?'In stock':product.stock_status==='outofstock'?'Out of stock':product.stock_status==='onbackorder'?'Available on backorder':'Stock status unavailable';
         const price=(data.currency?data.currency+' ':'')+(product.price||'Price unavailable')+(product.sale_price&&product.regular_price&&product.sale_price!==product.regular_price?' · was '+product.regular_price:'');
         const meta=document.createElement('small');meta.textContent='SKU '+(product.sku||'—')+(product.mpn?' · MPN '+product.mpn:'')+' · '+price+' · '+stock;card.appendChild(meta);
