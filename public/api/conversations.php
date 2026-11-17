@@ -13,17 +13,28 @@ $subject = $input['subject'] ?? null;
 if ($subject !== null && (!is_string($subject) || strlen($subject) > 180)) json_response(['error'=>'invalid_subject'],422);
 
 $pdo = db();
-$existing = $pdo->prepare("SELECT id,public_id,status FROM conversations WHERE customer_id=:customer_id AND status IN ('open','needs_human') ORDER BY last_message_at DESC LIMIT 1");
-$existing->execute(['customer_id'=>$customer['id']]);
-$conversation = $existing->fetch();
+$pdo->beginTransaction();
+try {
+ // Serialize conversation creation per customer so two tabs cannot open duplicate active tickets.
+ $lock = $pdo->prepare('SELECT id FROM customers WHERE id=:customer_id FOR UPDATE');
+ $lock->execute(['customer_id'=>$customer['id']]);
+ $existing = $pdo->prepare("SELECT id,public_id,status FROM conversations WHERE customer_id=:customer_id AND status IN ('open','needs_human') ORDER BY last_message_at DESC LIMIT 1 FOR UPDATE");
+ $existing->execute(['customer_id'=>$customer['id']]);
+ $conversation = $existing->fetch();
 
-if ($conversation) {
- $update = $pdo->prepare('UPDATE conversations SET context_url=COALESCE(:context_url,context_url), context_sku=COALESCE(:context_sku,context_sku), subject=COALESCE(:subject,subject), updated_at=UTC_TIMESTAMP() WHERE id=:id');
- $update->execute(['context_url'=>$contextUrl,'context_sku'=>$sku,'subject'=>$subject,'id'=>$conversation['id']]);
- json_response(['conversation'=>['id'=>$conversation['public_id'],'status'=>$conversation['status']],'created'=>false]);
+ if ($conversation) {
+  $update = $pdo->prepare('UPDATE conversations SET context_url=COALESCE(:context_url,context_url), context_sku=COALESCE(:context_sku,context_sku), subject=COALESCE(:subject,subject), updated_at=UTC_TIMESTAMP() WHERE id=:id');
+  $update->execute(['context_url'=>$contextUrl,'context_sku'=>$sku,'subject'=>$subject,'id'=>$conversation['id']]);
+  $pdo->commit();
+  json_response(['conversation'=>['id'=>$conversation['public_id'],'status'=>$conversation['status']],'created'=>false]);
+ }
+
+ $publicId = create_public_conversation_id();
+ $insert = $pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,subject,context_url,context_sku,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,'open',:subject,:context_url,:context_sku,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+ $insert->execute(['public_id'=>$publicId,'customer_id'=>$customer['id'],'subject'=>$subject,'context_url'=>$contextUrl,'context_sku'=>$sku]);
+ $pdo->commit();
+ json_response(['conversation'=>['id'=>$publicId,'status'=>'open'],'created'=>true],201);
+} catch (Throwable $error) {
+ if ($pdo->inTransaction()) $pdo->rollBack();
+ throw $error;
 }
-
-$publicId = create_public_conversation_id();
-$insert = $pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,subject,context_url,context_sku,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,'open',:subject,:context_url,:context_sku,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
-$insert->execute(['public_id'=>$publicId,'customer_id'=>$customer['id'],'subject'=>$subject,'context_url'=>$contextUrl,'context_sku'=>$sku]);
-json_response(['conversation'=>['id'=>$publicId,'status'=>'open'],'created'=>true],201);
