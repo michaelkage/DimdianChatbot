@@ -4,7 +4,7 @@ require_once dirname(__DIR__,2) . '/app/staff.php';
 require_once dirname(__DIR__,2) . '/app/ai.php';
 require_method('GET','POST');
 $staff = require_staff();
-$providerReady = (bool)app_config('ai.provider_ready',false);
+$providerReady = ai_provider_available();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
  $value = db()->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
