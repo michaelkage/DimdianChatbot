@@ -25,9 +25,24 @@ function validate_context_url(mixed $url): ?string {
  if ($url === null || $url === '') return null;
  if (!is_string($url) || strlen($url) > 2048) json_response(['error'=>'invalid_context_url'],422);
  $parts = parse_url($url);
- if (!is_array($parts) || !isset($parts['scheme'],$parts['host']) || !in_array(strtolower($parts['scheme']),['http','https'],true)) {
+ if (!is_array($parts) || !isset($parts['scheme'],$parts['host']) ||
+     !in_array(strtolower((string)$parts['scheme']),['http','https'],true) ||
+     isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])) {
   json_response(['error'=>'invalid_context_url'],422);
  }
+ $origin=strtolower((string)$parts['scheme']).'://'.strtolower((string)$parts['host']);
+ if(isset($parts['port']))$origin.=':'.(int)$parts['port'];
+ $allowed=app_config('app.allowed_origins',[]);
+ $matches=false;
+ if(is_array($allowed))foreach($allowed as $candidate){
+  if(!is_string($candidate))continue;
+  $candidateParts=parse_url($candidate);
+  if(!is_array($candidateParts)||empty($candidateParts['scheme'])||empty($candidateParts['host']))continue;
+  $candidateOrigin=strtolower((string)$candidateParts['scheme']).'://'.strtolower((string)$candidateParts['host']);
+  if(isset($candidateParts['port']))$candidateOrigin.=':'.(int)$candidateParts['port'];
+  if(hash_equals($candidateOrigin,$origin)){$matches=true;break;}
+ }
+ if(!$matches)json_response(['error'=>'context_origin_not_allowed'],422);
  return $url;
 }
 
