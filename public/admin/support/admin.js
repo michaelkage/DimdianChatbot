@@ -12,7 +12,7 @@ async function api(name,{method='GET',body=null}={}){
  if(!response.ok)throw new Error(data.error||'request_failed');return data;
 }
 function showLogin(){loginView.hidden=false;inboxView.hidden=true}
-function showInbox(){loginView.hidden=true;inboxView.hidden=false;$('staff-identity').textContent=staff.display_name+' · '+staff.role;refreshList();startListPolling()}
+function showInbox(){loginView.hidden=true;inboxView.hidden=false;$('staff-identity').textContent=staff.display_name+' · '+staff.role;$('ai-control').hidden=staff.role!=='admin';refreshList();startListPolling();if(staff.role==='admin')refreshAiSettings()}
 function formatTime(value){if(!value)return '';return new Date(value.replace(' ','T')+'Z').toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
 function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el}
 function renderList(items){
@@ -20,10 +20,8 @@ function renderList(items){
  if(!items.length){list.appendChild(node('p','empty-state','No conversations in this view.'));document.title='Dimdian Support';return}
  let totalUnread=0;
  for(const item of items){
-  const button=node('button','conversation-item'+(current&&current.public_id===item.public_id?' active':''));
-  button.type='button';
-  const top=node('div','conversation-top');
-  top.append(node('span','conversation-name',item.customer_name||'Guest shopper'),node('span','conversation-time',formatTime(item.last_message_at)));
+  const button=node('button','conversation-item'+(current&&current.public_id===item.public_id?' active':''));button.type='button';
+  const top=node('div','conversation-top');top.append(node('span','conversation-name',item.customer_name||'Guest shopper'),node('span','conversation-time',formatTime(item.last_message_at)));
   const preview=node('div','conversation-preview',item.last_message||'No messages yet');
   const tags=node('div','conversation-tags');tags.append(node('span','tag',item.status.replace('_',' ')));
   if(item.context_sku)tags.append(node('span','tag','SKU '+item.context_sku));
@@ -32,13 +30,40 @@ function renderList(items){
  }
  document.title=totalUnread?'('+totalUnread+') Dimdian Support':'Dimdian Support';
 }
+async function refreshAiSettings(){
+ try{
+  const data=await api('ai-settings');
+  const toggle=$('ai-enabled');
+  toggle.checked=!!data.ai_enabled;
+  toggle.disabled=!data.ai_available;
+  $('ai-mode-note').textContent=data.ai_available
+   ?(data.ai_enabled?'AI is permitted for new eligible chats.':'AI is off. New chats go directly to staff.')
+   :'AI provider is not configured yet. All chats stay with staff.';
+  $('ai-control-error').textContent='';
+ }catch(_){
+  $('ai-enabled').checked=false;$('ai-enabled').disabled=true;
+  $('ai-mode-note').textContent='Could not load support mode. Human support remains available.';
+ }
+}
+async function setAiMode(enabled){
+ const toggle=$('ai-enabled');toggle.disabled=true;$('ai-control-error').textContent='';
+ try{
+  const data=await api('ai-settings',{method:'POST',body:{ai_enabled:enabled}});
+  toggle.checked=!!data.ai_enabled;
+  $('ai-mode-note').textContent=data.ai_enabled?'AI is permitted for new eligible chats.':'AI is off. New chats go directly to staff.';
+  refreshList();
+ }catch(error){
+  toggle.checked=!enabled;
+  $('ai-control-error').textContent=error.message==='ai_provider_not_configured'?'AI cannot be enabled until a provider is configured.':'Could not change AI mode. Please retry.';
+  refreshAiSettings();
+ }finally{toggle.disabled=false}
+}
 async function refreshList(){
  try{
   const data=await api('staff-conversations?status='+encodeURIComponent($('status-filter').value));
   const items=data.conversations||[];
   for(const item of items){
-   const latestId=Number(item.last_message_id)||0;
-   const old=knownLatest.get(item.public_id);
+   const latestId=Number(item.last_message_id)||0,old=knownLatest.get(item.public_id);
    if(old!==undefined&&latestId>old&&item.last_sender_type==='customer')playAlert();
    knownLatest.set(item.public_id,latestId);
   }
@@ -78,11 +103,10 @@ async function pollThread(initial=false){
 function startThreadPolling(){stopThreadPolling();threadTimer=setInterval(()=>pollThread(false),3000)}
 function stopThreadPolling(){if(threadTimer)clearInterval(threadTimer);threadTimer=null}
 function playAlert(){
- try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=new Ctx();const osc=ctx.createOscillator();const gain=ctx.createGain();osc.frequency.value=740;gain.gain.value=.045;osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.12);osc.onended=()=>ctx.close()}catch(_){}
+ try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=new Ctx(),osc=ctx.createOscillator(),gain=ctx.createGain();osc.frequency.value=740;gain.gain.value=.045;osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.12);osc.onended=()=>ctx.close()}catch(_){}
 }
 $('login-form').addEventListener('submit',async event=>{
- event.preventDefault();$('login-error').textContent='';
- const form=new FormData(event.currentTarget);
+ event.preventDefault();$('login-error').textContent='';const form=new FormData(event.currentTarget);
  try{
   const response=await fetch(endpoint('staff-login'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.get('email'),password:form.get('password')})});
   const data=await response.json();if(!response.ok)throw new Error(data.error||'sign_in_failed');
@@ -94,14 +118,14 @@ $('logout-button').addEventListener('click',async()=>{
  csrf='';staff=null;current=null;stopListPolling();stopThreadPolling();showLogin();
 });
 $('status-filter').addEventListener('change',()=>refreshList());
+$('ai-enabled').addEventListener('change',event=>setAiMode(event.currentTarget.checked));
 $('thread-status').addEventListener('change',async()=>{
  if(!current)return;
  try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;syncReplyAvailability();refreshList()}
  catch(error){$('reply-error').textContent='Could not update conversation status.';$('thread-status').value=current.status}
 });
 $('reply-form').addEventListener('submit',async event=>{
- event.preventDefault();if(!current)return;
- const body=$('reply-body').value.trim();if(!body)return;
+ event.preventDefault();if(!current)return;const body=$('reply-body').value.trim();if(!body)return;
  const button=event.currentTarget.querySelector('button');button.disabled=true;$('reply-error').textContent='';
  try{
   const data=await api('staff-messages',{method:'POST',body:{conversation_id:current.public_id,body}});
