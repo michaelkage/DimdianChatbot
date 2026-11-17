@@ -72,7 +72,6 @@ $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at
 $pdo->prepare("INSERT INTO app_settings (setting_key,setting_value,updated_by,updated_at) VALUES ('ai_enabled','1',:staff,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE setting_value='1',updated_by=VALUES(updated_by),updated_at=UTC_TIMESTAMP()")->execute(['staff'=>$staffId]);
 ai_provider_mark_verified($staffId);
 ai_process_customer_message($conversationId);
-$assistantCount=(int)$pdo->prepare("SELECT COUNT(*) FROM messages WHERE conversation_id=:id AND sender_type='assistant'")->execute(['id'=>$conversationId]);
 $assistantQuery=$pdo->prepare("SELECT COUNT(*) FROM messages WHERE conversation_id=:id AND sender_type='assistant'");$assistantQuery->execute(['id'=>$conversationId]);$assistantCount=(int)$assistantQuery->fetchColumn();
 check($assistantCount===0,'a human vehicle handoff stays sticky after staff reopens the conversation');
 $pdo->prepare("UPDATE app_settings SET setting_value='0',updated_at=UTC_TIMESTAMP() WHERE setting_key='ai_enabled'")->execute();
