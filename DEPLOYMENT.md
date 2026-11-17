@@ -16,7 +16,7 @@ This runbook is for the PHP/MySQL shared-hosting deployment. The repository CI e
 ## Deploy
 
 1. Upload the new release into a separate directory rather than overwriting the active release in place.
-2. Keep the private `config.php` and private upload/backup directories outside the public document root. Reuse the existing config after adding the new WooCommerce, backup and vehicle-encryption settings.
+2. Keep the private `config.php` and private upload/backup directories outside the public document root. Set `app.document_root` to the actual Hostinger web root (the template assumes the release's `public/` directory is the root); this is especially important if the release lives beneath a larger `public_html` directory. Reuse the existing config after adding the new WooCommerce, backup and vehicle-encryption settings.
 3. Confirm the web document root points to the release's `public/` directory and HTTPS is active.
 4. Run the additive migration before switching the site to the new code:
 
