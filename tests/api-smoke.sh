@@ -64,9 +64,9 @@ jq -e '.created == false and .selected_product.id == 101 and .selected_product.n
 SELECTED_CONTEXT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM conversation_product_context p INNER JOIN conversations c ON c.id=p.conversation_id WHERE c.public_id='$CONVERSATION_ID' AND p.product_id=101")"
 test "$SELECTED_CONTEXT_COUNT" = "1"
 mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,verification_source,verified_at,status) VALUES (101,'Toyota','Camry',2015,2020,'2.5L','Automatic','CI manufacturer catalogue fixture',UTC_TIMESTAMP(),'verified')"
-VEHICLE_MATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"2.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"\"}")"
+VEHICLE_MATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"2.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"1HGCM82633A004352\"}")"
 jq -e '.fitment.status == "verified" and .product_id == 101' <<<"$VEHICLE_MATCH" >/dev/null
-VEHICLE_MISMATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"3.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"\"}")"
+VEHICLE_MISMATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"3.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"1HGCM82633A004352\"}")"
 jq -e '.fitment.status == "needs_specialist"' <<<"$VEHICLE_MISMATCH" >/dev/null
 echo 'selected live listing and exact verified fitment/mismatch handling passed'
 curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"What are your opening hours?\"}" >/tmp/dimdian-customer-message.json
@@ -84,12 +84,17 @@ echo 'private attachment retrieval passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
+STAFF_VEHICLE_STATUS="$(curl -sS -o /tmp/dimdian-unauth-staff-vehicle.json -w '%{http_code}' "http://127.0.0.1:8080/api/staff-vehicle.php?conversation_id=$CONVERSATION_ID")"
+test "$STAFF_VEHICLE_STATUS" = "401"
+STAFF_VEHICLE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt "http://127.0.0.1:8080/api/staff-vehicle.php?conversation_id=$CONVERSATION_ID")"
+jq -e '.vehicle.vin == "1HGCM82633A004352" and .vehicle.vin_last4 == "4352"' <<<"$STAFF_VEHICLE" >/dev/null
+echo 'VIN remains encrypted in storage and is decrypted only through authenticated staff access'
 FITMENT_REVIEW_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
 FITMENT_REVIEW_TOKEN="$(jq -r '.token' <<<"$FITMENT_REVIEW_SESSION")"
 FITMENT_REVIEW_CONVERSATION="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d '{"subject":"Staff fitment verification test"}')"
 FITMENT_REVIEW_ID="$(jq -r '.conversation.id' <<<"$FITMENT_REVIEW_CONVERSATION")"
 curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":102}" >/dev/null
-curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"\"}" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"1HGCM82633A004352\"}" >/dev/null
 UNAUTH_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-unauth-fitment.json -w '%{http_code}' -X POST http://127.0.0.1:8080/api/fitments.php -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Manufacturer catalogue\"}")"
 test "$UNAUTH_FITMENT_STATUS" = "401"
 BAD_CSRF_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-bad-csrf-fitment.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H 'X-CSRF-Token: invalid' -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Manufacturer catalogue\"}")"
@@ -102,7 +107,7 @@ jq -e --argjson id "$FITMENT_ID" '.verified == true and .created == false and .f
 VERIFIED_FITMENT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM product_fitments WHERE product_id=102 AND make='Honda' AND model='Civic' AND year_from=2018 AND year_to=2018 AND engine='2.0L' AND transmission='CVT' AND trim_level='EX' AND status='verified'")"
 test "$VERIFIED_FITMENT_COUNT" = "1"
 curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":103}" >/dev/null
-VARIABLE_VEHICLE="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"\"}")"
+VARIABLE_VEHICLE="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"1HGCM82633A004352\"}")"
 jq -e '.fitment.status == "needs_specialist" and .product_id == 103' <<<"$VARIABLE_VEHICLE" >/dev/null
 VARIABLE_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-variable-fitment.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":103,\"verification_source\":\"Manufacturer catalogue\"}")"
 test "$VARIABLE_FITMENT_STATUS" = "422"
@@ -151,7 +156,7 @@ HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/a
 jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
-jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100" and .context_url == "https://parts.example.invalid/brake-pad" and .selected_product_id == 101 and .selected_product_sku == "ALT-CAM-25" and .selected_product_name == "Toyota Camry 2.5L Alternator" and .selected_product_permalink == "http://127.0.0.1:8083/product/alt-cam-25/" and .vehicle_product_id == 101 and (has("vehicle_vin_ciphertext")|not))' <<<"$QUEUE_JSON" >/dev/null
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100" and .context_url == "https://parts.example.invalid/brake-pad" and .selected_product_id == 101 and .selected_product_sku == "ALT-CAM-25" and .selected_product_name == "Toyota Camry 2.5L Alternator" and .selected_product_permalink == "http://127.0.0.1:8083/product/alt-cam-25/" and .vehicle_product_id == 101 and (has("vehicle_vin_ciphertext")|not) and (has("vehicle_vin")|not))' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
 curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/another-listing","context_sku":"NEW-PAGE-SKU","subject":"Another listing"}' >/dev/null
 NAVIGATION_CONTEXT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM conversation_product_context p INNER JOIN conversations c ON c.id=p.conversation_id WHERE c.public_id='$CONVERSATION_ID'")"
