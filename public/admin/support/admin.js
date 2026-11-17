@@ -2,7 +2,7 @@
 'use strict';
 const apiBase=document.body.dataset.apiBase||'/api/';
 const endpoint=name=>{const [path,query]=name.split('?');return new URL(path+'.php'+(query?'?'+query:''),apiBase).href;};
-let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,knownLatest=new Map();
+let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,listRequestId=0,knownLatest=new Map();
 const $=id=>document.getElementById(id);
 const loginView=$('login-view'),inboxView=$('inbox-view'),list=$('conversation-list'),messages=$('thread-messages');
 async function api(name,{method='GET',body=null}={}){
@@ -61,8 +61,11 @@ async function setAiMode(enabled){
  }finally{await refreshAiSettings()}
 }
 async function refreshList(){
+ const requestId=++listRequestId;
+ const status=$('status-filter').value;
  try{
-  const data=await api('staff-conversations?status='+encodeURIComponent($('status-filter').value));
+  const data=await api('staff-conversations?status='+encodeURIComponent(status));
+  if(requestId!==listRequestId||status!==$('status-filter').value)return;
   const items=data.conversations||[];
   for(const item of items){
    const latestId=Number(item.last_message_id)||0,old=knownLatest.get(item.public_id);
