@@ -75,7 +75,6 @@ async function refreshList(){
   }
   renderList(items);
  }catch(error){if(error.message==='staff_auth_required')showLogin()}
- finally{threadPollInFlight=false;}
 }
 function startListPolling(){stopListPolling();refreshList();listTimer=setInterval(refreshList,8000)}
 function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
@@ -129,6 +128,7 @@ async function pollThread(initial=false){
   if(data.status){current.status=data.status;$('thread-status').value=data.status;syncReplyAvailability()}
   if(initial&&lastId===0)messages.appendChild(node('p','empty-state','No messages yet.'));
  }catch(error){if(error.message==='staff_auth_required')showLogin()}
+ finally{threadPollInFlight=false;}
 }
 function startThreadPolling(){stopThreadPolling();threadTimer=setInterval(()=>pollThread(false),3000)}
 function stopThreadPolling(){if(threadTimer)clearInterval(threadTimer);threadTimer=null}
