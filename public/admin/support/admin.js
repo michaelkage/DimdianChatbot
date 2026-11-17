@@ -98,7 +98,12 @@ async function loadVehicleDetails(publicId){
  try{
   const vehicleData=await api('staff-vehicle?conversation_id='+encodeURIComponent(publicId));
   if(!current||current.public_id!==publicId)return;
-  if(vehicleData.vehicle&&vehicleData.vehicle.vin)$('customer-meta').textContent+=' · VIN '+vehicleData.vehicle.vin;
+  if(vehicleData.vehicle){
+   const privateDetails=[];
+   if(vehicleData.vehicle.trim)privateDetails.push('Trim '+vehicleData.vehicle.trim);
+   if(vehicleData.vehicle.vin)privateDetails.push('VIN '+vehicleData.vehicle.vin);
+   if(privateDetails.length)$('customer-meta').textContent+=' · '+privateDetails.join(' · ');
+  }
  }catch(_){}
 }
 async function loadAttachment(img,id){
