@@ -22,11 +22,11 @@ $selectedContext->execute(['id'=>$conversation['id']]);
 $selectedValue=$selectedContext->fetchColumn();
 $selectedId=$selectedValue===false||$selectedValue===null?null:(int)$selectedValue;
 $originalSku=$conversation['context_sku'];
-$productId=null;
+$productId=null;$productType='unknown';
 if(woocommerce_ready()){
  try{
   $product=$selectedId!==null?woocommerce_find_by_id($selectedId):($originalSku?woocommerce_find_by_sku((string)$originalSku):null);
-  $productId=$product['id']??null;
+  $productId=$product['id']??null;$productType=$product['type']??'unknown';
  }catch(Throwable $e){$productId=null;}
 }
 $pdo->beginTransaction();
@@ -42,7 +42,7 @@ try{
  $insert=$pdo->prepare('INSERT INTO conversation_vehicles (conversation_id,product_id,make,model,model_year,engine,transmission,trim_level,vin_ciphertext,vin_last4,created_at) VALUES (:cid,:pid,:make,:model,:year,:engine,:transmission,:trim,:vin,:last4,UTC_TIMESTAMP())');
  $insert->execute(['cid'=>$conversation['id'],'pid'=>$productId,'make'=>$make,'model'=>$model,'year'=>$year,'engine'=>$engine!==''?$engine:null,'transmission'=>$transmission!==''?$transmission:null,'trim'=>$trim!==''?$trim:null,'vin'=>$encrypted,'last4'=>$vin!==''?substr($vin,-4):null]);
  $vehicleId=(int)$pdo->lastInsertId();
- $fitment=$productId&&$engine!==''&&$transmission!==''?vehicle_find_verified_fitment($pdo,(int)$productId,$make,$model,(int)$year,$engine,$transmission,$trim):null;
+ $fitment=$productId&&$productType==='simple'&&$engine!==''&&$transmission!==''?vehicle_find_verified_fitment($pdo,(int)$productId,$make,$model,(int)$year,$engine,$transmission,$trim):null;
  if(!$fitment){
   $pdo->prepare("UPDATE conversations SET status='needs_human',last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id AND status='open'")->execute(['id'=>$conversation['id']]);
   $notice='Vehicle details received. A parts specialist must verify compatibility before we recommend a part.';
