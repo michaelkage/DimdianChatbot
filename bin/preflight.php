@@ -4,6 +4,7 @@ if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require_once dirname(__DIR__).'/app/bootstrap.php';
 require_once dirname(__DIR__).'/app/storage.php';
 require_once dirname(__DIR__).'/app/woocommerce.php';
+require_once dirname(__DIR__).'/app/ai_provider.php';
 
 $failures=0;$warnings=0;
 function preflight(string $label,bool $ok,string $detail='',bool $warning=false): void {
@@ -59,7 +60,8 @@ if($wooEnabled){
  preflight('Storefront CORS origin',!$production||$allowStore,$storeOrigin);
  try{$products=woocommerce_request('/wp-json/wc/v3/products',['per_page'=>1]);preflight('Live WooCommerce API',is_array($products),'read-only product request completed');}
  catch(Throwable $error){preflight('Live WooCommerce API',false,$error->getMessage());}
- preflight('MPN lookup route',(string)app_config('woocommerce.mpn_lookup_path','')!=='','not configured',true);
+ $mpnPath=(string)app_config('woocommerce.mpn_lookup_path','');
+ preflight('MPN lookup route',$mpnPath!=='',$mpnPath!==''?$mpnPath:'not configured',$mpnPath==='');
 }else preflight('Live WooCommerce catalogue',false,'disabled; product search will return 503',true);
 if((bool)app_config('ai.provider_ready',false))preflight('AI provider configuration',ai_provider_available(),'connectivity must still be tested in the staff inbox',!ai_provider_available());
 else preflight('AI provider',false,'disabled; human-only support remains active',true);
