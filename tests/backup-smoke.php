@@ -21,8 +21,8 @@ $backupPath=explode(' (',trim((string)$backupOutput),2)[0];
 backupCheck(is_file($backupPath)&&filesize($backupPath)>0,'compressed SQL backup is created in private storage');
 backupCheck((fileperms($backupPath)&0777)===0600,'backup file permissions are owner-only');
 backupCheck(preg_match('/^dimdian-\\d{8}-\\d{6}-[a-f0-9]{8}\\.sql\\.gz$/D',basename($backupPath))===1,'backup filename is collision-resistant and predictable for retention');
-$publicPath=realpath(dirname(__DIR__).'/public');
-backupCheck($publicPath!==false&&!str_starts_with(realpath($backupPath),$publicPath.DIRECTORY_SEPARATOR),'backup file is outside the public document root');
+$publicPath=realpath(dirname(__DIR__).'/public');$realBackupPath=realpath($backupPath);
+backupCheck($publicPath!==false&&$realBackupPath!==false&&!str_starts_with($realBackupPath,$publicPath.DIRECTORY_SEPARATOR),'backup file is outside the public document root');
 
 $target='dimdian_restore_'.bin2hex(random_bytes(4));
 db()->exec('CREATE DATABASE '.$target.' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
