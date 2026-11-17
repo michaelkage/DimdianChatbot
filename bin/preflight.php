@@ -59,9 +59,11 @@ if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR
  if(!is_dir($backupConfigured))@mkdir($backupConfigured,0700,true);
  $backupReal=realpath($backupConfigured)?:'';
  $publicReal=realpath(dirname(__DIR__).'/public')?:'';
- if($backupReal!=='')@chmod($backupReal,0700);
- $backupPermissions=$backupReal!==''?fileperms($backupReal):false;
- $backupOk=$backupReal!==''&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0&&$publicReal!==''&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR);
+ $systemTemp=realpath(sys_get_temp_dir())?:'';
+ $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&$backupReal!==$systemTemp&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
+ if($safeBackupPath){@chmod($backupReal,0700);clearstatcache(true,$backupReal);}
+ $backupPermissions=$safeBackupPath?fileperms($backupReal):false;
+ $backupOk=$safeBackupPath&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0;
 }
 preflight('Private backup directory',$backupOk,$backupOk?$backupReal:($backupConfigured!==''?$backupConfigured:'not configured'));
 $wooEnabled=(bool)app_config('woocommerce.enabled',false);
