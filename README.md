@@ -57,7 +57,9 @@ After deploying the support app, add this script to the marketplace layout (repl
 ></script>
 ```
 
-The widget also captures the current page URL and document title automatically. Add the storefront's exact origin to `app.allowed_origins` in `config.php`. The widget uses browser local storage for its opaque guest token and pauses polling while it is closed or the tab is hidden.
+The widget also captures the current page URL and document title automatically. Add the storefront's exact origin to `app.allowed_origins` in `config.php`. It uses browser local storage for its opaque guest token and pauses polling while closed or when the tab is hidden.
+
+For logged-in shoppers, the storefront can add `data-customer-id` and `data-customer-signature` to the script element. Generate the signature on the storefront server with `hash_hmac('sha256', (string) $customerId, $sharedIdentitySecret)`. Configure the same secret as `integration.customer_identity_secret` in the support app. Never expose the shared secret in browser code; only the generated signature is sent. The staff inbox then displays the linked marketplace account ID. If the attributes are omitted, the shopper remains a guest.
 
 ## Implemented customer API
 
@@ -104,4 +106,4 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 2. Completed: guest widget, part-page context, image uploads, and private attachment delivery.
 3. Completed: staff authentication, split-screen inbox, conversation status controls, polling, unread counts, and browser/audio alerts.
 4. Remaining: deploy to Hostinger and run end-to-end tests against the actual storefront and MySQL account.
-5. Remaining: authenticated marketplace-account linking and optional cloud AI triage with deterministic human escalation.
+5. Remaining: optional cloud AI triage with deterministic human escalation. The signed account-ID handoff is implemented; storefront-side signature generation remains an integration step.
