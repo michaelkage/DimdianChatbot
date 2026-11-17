@@ -25,6 +25,8 @@ $query->execute($params);
 $rows = $query->fetchAll();
 foreach ($rows as &$row) {
  $row['unread_count']=(int)$row['unread_count'];
+ $row['vehicle_product_id']=$row['vehicle_product_id']===null?null:(int)$row['vehicle_product_id'];
+ $row['selected_product_id']=$row['selected_product_id']===null?null:(int)$row['selected_product_id'];
  $parts=[$row['vehicle_make']??null,isset($row['vehicle_model'],$row['vehicle_year'])?$row['vehicle_model'].' '.$row['vehicle_year']:null,$row['vehicle_engine']??null,$row['vehicle_transmission']??null,!empty($row['vehicle_vin_last4'])?'VIN …'.$row['vehicle_vin_last4']:null];
  $row['vehicle_summary']=implode(' · ',array_values(array_filter($parts,static fn($part)=>is_string($part)&&$part!=='')));
  unset($row['vehicle_make'],$row['vehicle_model'],$row['vehicle_year'],$row['vehicle_engine'],$row['vehicle_transmission'],$row['vehicle_vin_last4']);
