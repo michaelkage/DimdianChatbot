@@ -60,7 +60,7 @@ if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR
  $backupReal=realpath($backupConfigured)?:'';
  $publicReal=realpath(dirname(__DIR__).'/public')?:'';
  $systemTemp=realpath(sys_get_temp_dir())?:'';
- $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&$systemTemp!==''&&$backupReal!==$systemTemp&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)&&!str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR)&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
+ $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&(!$production||($systemTemp!==''&&$backupReal!==$systemTemp&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)&&!str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR)))&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
  if($safeBackupPath){@chmod($backupReal,0700);clearstatcache(true,$backupReal);}
  $backupPermissions=$safeBackupPath?fileperms($backupReal):false;
  $backupOk=$safeBackupPath&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0;
