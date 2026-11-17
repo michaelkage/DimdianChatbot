@@ -6,6 +6,7 @@ start_staff_session();
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
  $staff = $_SESSION['staff'] ?? null;
  if (!is_array($staff)) json_response(['authenticated'=>false]);
+ $staff=require_staff();
  json_response(['authenticated'=>true,'staff'=>$staff,'csrf_token'=>$_SESSION['csrf_token'] ?? null]);
 }
 require_staff_csrf();
