@@ -12,7 +12,7 @@ if ($status === 'active') $where = "WHERE c.status IN ('open','needs_human')";
 elseif ($status !== 'all') { $where = 'WHERE c.status=:status'; $params['status']=$status; }
 $sql = "SELECT c.public_id,c.status,c.context_url,c.context_sku,c.subject,c.last_message_at,c.created_at,
  cu.display_name AS customer_name,cu.email AS customer_email,cu.external_user_id AS customer_account_id,
- assigned.display_name AS assigned_staff,
+ assigned.display_name AS assigned_staff,\n (SELECT CONCAT_WS(' · ',v.make,CONCAT(v.model,' ',v.model_year),NULLIF(v.engine,''),NULLIF(v.transmission,''),IF(v.vin_last4 IS NOT NULL,CONCAT('VIN …',v.vin_last4),NULL)) FROM conversation_vehicles v WHERE v.conversation_id=c.id ORDER BY v.id DESC LIMIT 1) AS vehicle_summary,\n (SELECT v.product_id FROM conversation_vehicles v WHERE v.conversation_id=c.id ORDER BY v.id DESC LIMIT 1) AS vehicle_product_id,
  (SELECT m.body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
  (SELECT m.sender_type FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_sender_type,
  (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id) AS last_message_id,
