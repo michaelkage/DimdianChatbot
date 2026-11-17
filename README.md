@@ -56,6 +56,7 @@ The customer-facing guest chat flow and staff inbox are implemented, including p
 - An administrator sees the **AI replies** control in `/admin/support/`. Turning AI off moves every currently `open` conversation to `needs_human`; existing human-handled conversations are never automatically returned to AI.
 - Agents can view and reply to conversations, but only administrators can change the global AI setting.
 - The switch is available only when the provider name, API key, model, cURL transport and provider-ready flag are all valid in the private `config.php`. AI remains off until an administrator opts in.
+- The backend requires a successful **Test provider** probe before the AI switch can be enabled. A keyed fingerprint of the provider endpoint, model and API key is stored; the raw key is never stored in the fingerprint record. Changing provider identity/configuration, exhausting quota, invalid credentials, or using the global AI-off switch invalidates the test and requires another successful probe.
 - Provider calls have bounded connection and total timeouts. A timeout, temporary upstream error or malformed response hands that conversation to staff; it does not expose provider errors to the shopper or turn off AI globally.
 - Explicit quota/billing exhaustion (for example HTTP 402 or a provider's `insufficient_quota` / `resource_exhausted` response) disables AI globally, moves all open conversations to `needs_human`, and inserts a neutral handoff notice in one database transaction. Invalid provider credentials also fail closed globally.
 - `needs_human` conversations are never sent to AI. A handoff is sticky: reopening a conversation for staff workflow does not silently return it to AI. Fitment, VIN, order tracking, payment, returns/refunds, complaints and human requests are escalated before any provider request. AI must not claim compatibility or live stock/order data.
@@ -71,7 +72,7 @@ The adapter uses the OpenAI Chat Completions request/response shape. Supported p
 - `gemini`: fixed Gemini OpenAI-compatible endpoint `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`.
 - `openai_compatible`: the private `ai.provider.base_url` value; production requires HTTPS.
 
-In private `config.php`, set `ai.provider_ready` to `true`, select a provider, set its API key and exact model ID, and configure timeouts. Keep `ai_enabled` off in the staff inbox until the provider has been verified. Example:
+In private `config.php`, set `ai.provider_ready` to `true`, select a provider, set its API key and exact model ID, and configure timeouts. Keep `ai_enabled` off until **Test provider** succeeds. The server enforces this: attempting to enable AI before a successful test returns `ai_provider_test_required`. Example:
 
 ```php
 'ai' => [
@@ -238,7 +239,7 @@ The restore command requires typing `RESTORE` and overwrites database objects/da
 
 ## Live provider activation
 
-The administrator panel now includes **Test provider**. It sends a minimal probe to the configured provider and requires the exact expected response. A successful test does not turn AI on; an administrator must still enable AI separately. Quota exhaustion or invalid credentials keep AI disabled and route open conversations to staff.
+The administrator panel now includes **Test provider**. It sends a minimal probe to the configured provider and requires the exact expected response. A successful test records a keyed configuration fingerprint; it does not turn AI on. An administrator must still enable AI separately. The backend refuses activation until the current endpoint/model/key combination has passed the probe. Manual AI shutdown, quota exhaustion or invalid credentials clears that verification. Quota exhaustion or invalid credentials keep AI disabled and route open conversations to staff.
 
 CI tests the provider adapter using a local stub. This is not a live Groq/Gemini test. Production activation still requires a real API key and model ID in private `config.php`, a successful **Test provider** result from the deployed server, and an administrator enabling AI.
 
