@@ -24,6 +24,8 @@ jobs:
         run: find app public bin tests integrations -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Lint configuration template
         run: php -l config.example.php
+      - name: Check shell smoke-test syntax
+        run: bash -n tests/api-smoke.sh
       - name: Check widget JavaScript syntax
         run: node --check public/widget.js && node --check public/admin/support/admin.js
 
