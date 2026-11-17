@@ -13,7 +13,9 @@ function woocommerce_ready(): bool {
  $url=$c['store_url']??'';$key=$c['consumer_key']??'';$secret=$c['consumer_secret']??'';
  if (!is_string($url)||!is_string($key)||!is_string($secret)||$key===''||$secret==='') return false;
  $parts=parse_url($url);
- return is_array($parts)&&strtolower((string)($parts['scheme']??''))==='https'&&!empty($parts['host']);
+ $scheme=strtolower((string)($parts['scheme']??''));
+ $secure=$scheme==='https'||(app_config('app.environment','production')==='test'&&$scheme==='http');
+ return is_array($parts)&&$secure&&!empty($parts['host']);
 }
 function woocommerce_request(string $path,array $query=[]): array {
  if (!woocommerce_ready()) throw new RuntimeException('catalogue_not_configured');
@@ -38,16 +40,22 @@ function woocommerce_request(string $path,array $query=[]): array {
 function woocommerce_public_permalink(mixed $url): string {
  if(!is_string($url)||$url==='')return '';
  $parts=parse_url($url);$store=parse_url((string)(woocommerce_config()['store_url']??''));
- if(!is_array($parts)||!is_array($store)||strtolower((string)($parts['scheme']??''))!=='https'||
+ $scheme=strtolower((string)($parts['scheme']??''));
+ $test=app_config('app.environment','production')==='test';
+ if(!is_array($parts)||!is_array($store)||($scheme!=='https'&&!($test&&$scheme==='http'))||
     empty($parts['host'])||empty($store['host'])||strtolower((string)$parts['host'])!==strtolower((string)$store['host'])||
     isset($parts['user'])||isset($parts['pass']))return '';
- if(isset($parts['port'])&&(int)$parts['port']!==443)return '';
+ $port=(int)($parts['port']??($scheme==='https'?443:80));
+ $storeScheme=strtolower((string)($store['scheme']??'https'));
+ $storePort=(int)($store['port']??($storeScheme==='https'?443:80));
+ if($port!==$storePort)return '';
  return $url;
 }
 function woocommerce_public_image(mixed $url): ?string {
  if(!is_string($url)||$url==='')return null;
  $parts=parse_url($url);
- if(!is_array($parts)||strtolower((string)($parts['scheme']??''))!=='https'||empty($parts['host'])||isset($parts['user'])||isset($parts['pass']))return null;
+ $scheme=strtolower((string)($parts['scheme']??''));
+ if(!is_array($parts)||($scheme!=='https'&&!(app_config('app.environment','production')==='test'&&$scheme==='http'))||empty($parts['host'])||isset($parts['user'])||isset($parts['pass']))return null;
  return $url;
 }
 function woocommerce_find_by_id(int $productId): ?array {
