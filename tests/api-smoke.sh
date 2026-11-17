@@ -40,7 +40,7 @@ CONVERSATION_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.p
 CONVERSATION_ID="$(jq -r '.conversation.id' <<<"$CONVERSATION_JSON")"
 test "$(printf '%s' "$CONVERSATION_ID" | wc -c)" -eq 26
 echo 'conversation creation passed'
-curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Will this fit my vehicle?\"}" >/tmp/dimdian-customer-message.json
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"What are your opening hours?\"}" >/tmp/dimdian-customer-message.json
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' | base64 -d >/tmp/dimdian-test.png
 UPLOAD_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/upload.php -H "X-Dimdian-Guest-Token: $TOKEN" -F "conversation_id=$CONVERSATION_ID" -F 'file=@/tmp/dimdian-test.png;type=image/png')"
 ATTACHMENT_ID="$(jq -r '.attachment.id' <<<"$UPLOAD_JSON")"
@@ -70,6 +70,11 @@ AI_AFTER_TIMEOUT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8
 jq -e '.ai_enabled == true and .ai_available == true' <<<"$AI_AFTER_TIMEOUT" >/dev/null
 echo 'AI timeout gracefully handed off without disabling the provider'
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Will this fit my vehicle?\"}" >/dev/null
+FITMENT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.status == "needs_human" and any(.messages[]; .sender_type == "system")' <<<"$FITMENT_POLL" >/dev/null
+echo 'fitment request bypassed AI and went straight to staff'
+curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
 curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_QUOTA\"}" >/dev/null
 AI_AFTER_QUOTA="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_AFTER_QUOTA" >/dev/null
@@ -85,7 +90,7 @@ echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
 jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
-STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Please share your vehicle model and year.\"}")"
+STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Our support team can help with that.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
 CUSTOMER_REPLY="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e 'any(.messages[]; .sender_type == "assistant") and any(.messages[]; .sender_type == "system") and any(.messages[]; .sender_type == "staff")' <<<"$CUSTOMER_REPLY" >/dev/null
