@@ -38,7 +38,7 @@ The exact WhatsApp app/API coexistence and inbound-reply webhook route must be c
 - MySQL / MariaDB
 - Vanilla JavaScript, HTML and CSS
 - Stateless HTTP APIs and short polling; no WebSocket daemon
-- Shared-hosting / Hostinger-friendly deployment
+- Shared-hosting friendly deployment
 - Minimal runtime dependencies
 
 ## Repository layout
@@ -49,8 +49,11 @@ config.example.php         Safe configuration template (copy to config.php)
 database/schema.sql        Initial MySQL schema
 database/migrations/       Incremental database changes
 docs/API.md                Public API contract
-public/api/                Public HTTP endpoints; configure this as the web root
-tests/                     API acceptance criteria
+docs/WIDGET.md             Widget integration and behavior
+public/api/                Public HTTP API endpoints
+public/widget.js           Embeddable browser widget
+public/widget.css          Isolated widget styling
+tests/                     API and widget acceptance criteria
 archive/                   Retired marketplace-support implementation
 ```
 
@@ -65,18 +68,19 @@ The previous marketplace-support implementation is preserved under `archive/lega
 5. Set the database DSN, username, password, a random `app.app_key` of at least 32 characters, and the exact website origins allowed to embed the widget.
 6. Point the API subdomain's document root at `public/`. Do not expose the repository root or `archive/` over HTTP.
 7. Test session creation, message submission and polling using [docs/API.md](docs/API.md).
+8. See [docs/WIDGET.md](docs/WIDGET.md) for the browser widget embed contract. Do not embed it on the live website until the API is deployed and tested.
 
-The endpoint returns a one-time plaintext guest token. The database stores only its SHA-256 hash. Keep the token in the embedding browser's storage and send it as `X-DIMDIAN-GUEST-TOKEN` on subsequent API calls. Do not place it in a URL or log it.
+The endpoint returns a one-time plaintext guest token. The database stores only its SHA-256 hash. The widget keeps the token in tab-scoped `sessionStorage` and sends it as `X-DIMDIAN-GUEST-TOKEN` on subsequent API calls. It is never placed in a URL.
 
 ## Development status
 
 1. [x] Retire the previous marketplace-support direction from the active repository.
 2. [x] Establish PHP bootstrap, database schema, and guest-session API.
 3. [x] Implement message submission and polling APIs.
-4. [ ] Build the embeddable website chat widget.
-5. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
-6. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
-7. [ ] Add automated runtime tests and complete Hostinger deployment verification.
-8. [ ] Run an end-to-end test with the business's real WhatsApp Business account.
+4. [x] Build the first dependency-free embeddable guest chat widget.
+5. [ ] Add automated browser and PHP/MySQL runtime tests.
+6. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
+7. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
+8. [ ] Complete deployment verification and end-to-end testing with the real WhatsApp Business account.
 
-Visitor messages are persisted and can be polled by the originating widget session. Until the WhatsApp transport is implemented, newly submitted messages remain queued in the database; the API does not claim they have reached the business.
+Visitor messages are persisted and can be polled by the originating widget session. Until the WhatsApp transport is implemented, newly submitted messages remain queued in the database; the API and widget do not claim they have reached the business.
