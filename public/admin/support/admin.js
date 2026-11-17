@@ -36,12 +36,13 @@ async function refreshAiSettings(){
   const toggle=$('ai-enabled');
   toggle.checked=!!data.ai_enabled;
   toggle.disabled=!data.ai_available;
+  $('ai-test-button').disabled=!data.ai_available;
   $('ai-mode-note').textContent=data.ai_available
    ?(data.ai_enabled?'AI is permitted for new eligible chats.':'AI is off. New chats go directly to staff.')
    :'AI provider is not configured yet. All chats stay with staff.';
   $('ai-control-error').textContent='';
  }catch(_){
-  $('ai-enabled').checked=false;$('ai-enabled').disabled=true;
+  $('ai-enabled').checked=false;$('ai-enabled').disabled=true;$('ai-test-button').disabled=true;
   $('ai-mode-note').textContent='Could not load support mode. Human support remains available.';
  }
 }
@@ -119,6 +120,12 @@ $('logout-button').addEventListener('click',async()=>{
 });
 $('status-filter').addEventListener('change',()=>refreshList());
 $('ai-enabled').addEventListener('change',event=>setAiMode(event.currentTarget.checked));
+$('ai-test-button').addEventListener('click',async()=>{
+ const button=$('ai-test-button');button.disabled=true;$('ai-mode-note').textContent='Testing provider connectivity…';
+ try{await api('ai-settings',{method:'POST',body:{test_provider:true}});$('ai-mode-note').textContent='Provider test passed. AI is still off until you enable replies.';}
+ catch(error){$('ai-mode-note').textContent=error.message==='ai_provider_not_configured'?'Configure the provider in private config.php first.':'Provider test failed. AI remains off; check server logs and provider settings.';}
+ finally{await refreshAiSettings();}
+});
 $('thread-status').addEventListener('change',async()=>{
  if(!current)return;
  try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;syncReplyAvailability();refreshList()}
