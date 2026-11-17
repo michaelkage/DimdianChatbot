@@ -22,6 +22,17 @@ return [
             'window_seconds' => 900,
         ],
     ],
+    'whatsapp' => [
+        // Keep disabled until the business number and Coexistence behavior are verified.
+        'outbound_enabled' => false,
+        'graph_api_version' => 'vXX.X',
+        'phone_number_id' => '',
+        'access_token' => '',
+        'app_secret' => '',
+        'verify_token' => '',
+        // A separate staff WhatsApp number, not the business sender number.
+        'notification_recipient' => '',
+    ],
     'database' => [
         'dsn' => 'mysql:host=localhost;dbname=dimdian_chatbot;charset=utf8mb4',
         'username' => 'database_user',

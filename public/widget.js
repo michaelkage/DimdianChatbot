@@ -24,9 +24,11 @@ $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
+const messageNodes=new Map();
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
- if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.}
+ if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
+ }
 } catch (_) {}
 function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,cursor}));}catch(_){}}}
 function status(t,kind){$('.status').textContent=t;$('.status').dataset.kind=kind||'normal';}
@@ -39,6 +41,8 @@ async function request(path,opts){
  return body;
 }
 function scroll(){const el=$('.conversation');el.scrollTop=el.scrollHeight;}
+function deliveryLabel(state){return ({queued:'Queued',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Not sent'})[state]||'Saved';}
+function applyDeliveryUpdates(rows){(Array.isArray(rows)?rows:[]).forEach(row=>{const node=messageNodes.get(row.id);if(!node)return;node.textContent=deliveryLabel(row.delivery_status);node.dataset.status=row.delivery_status;});}
 function render(m){
  if(!m||!m.id||seen.has(m.id))return;seen.add(m.id);
  const article=document.createElement('article');article.className='message '+(m.sender==='visitor'?'visitor':'business');
@@ -48,7 +52,8 @@ function render(m){
  time.dateTime=Number.isNaN(date.getTime())?new Date().toISOString():date.toISOString();
  time.textContent=date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
  meta.append(time);
- const label=document.createElement('span');label.textContent=m.sender==='visitor'?(m.delivery_status==='failed'?'Not sent':'Saved'):'Support';meta.append(label);
+ const label=document.createElement('span');label.textContent=m.sender==='visitor'?deliveryLabel(m.delivery_status):'Support';label.dataset.status=m.delivery_status||'';meta.append(label);
+ if(m.sender==='visitor')messageNodes.set(m.id,label);
  article.append(body,meta);messages.append(article);
  const seq=Number(m.sequence_id);if(Number.isSafeInteger(seq)){cursor=Math.max(cursor,seq);persist();}
  welcome.hidden=true;scroll();
@@ -73,12 +78,12 @@ async function poll(){
   while(more&&opened){
    const result=await request('/messages.php?after='+encodeURIComponent(String(cursor))+'&limit=50');
    (Array.isArray(result.data)?result.data:[]).forEach(render);
-   const meta=result.meta||{};if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
+   const meta=result.meta||{};applyDeliveryUpdates(meta.delivery_updates);if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
    more=Boolean(meta.has_more);
   }
   delay=3000;
  }catch(e){
-  if(e.status===401){expired();stop();status('Start a new conversation.','warning');return;}
+  if(e.status===401||e.status===409){expired();stop();status('Start a new conversation.','warning');return;}
   delay=Math.min(30000,delay*2);status('Connection interrupted. Retrying…','warning');
  }
 }

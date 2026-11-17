@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
 
 enforce_allowed_origin();
 handle_preflight();
@@ -14,7 +15,7 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 
 try {
     $pdo = database();
-    $session = authenticate_guest_session($pdo);
+    $session = authenticate_guest_session($pdo, $method === 'POST');
 
     if ($method === 'POST') {
         $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
@@ -34,6 +35,10 @@ try {
         enforce_rate_limit($pdo, 'message:' . $session['session_id'], $maxRequests, $windowSeconds);
 
         $messageId = uuid_v4();
+        $transportState = 'not_configured';
+        $whatsappConfig = app_config('whatsapp') ?? [];
+        $notificationRecipient = is_array($whatsappConfig) ? normalize_whatsapp_number((string)($whatsappConfig['notification_recipient'] ?? '')) : '';
+        $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $notificationRecipient !== '';
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare(
@@ -59,6 +64,17 @@ try {
             );
             $update->execute([':id' => $session['conversation_id']]);
 
+            if ($outboundEnabled) {
+                $guestLabel = trim((string)($session['display_name'] ?? ''));
+                $guestPhone = trim((string)($session['phone'] ?? ''));
+                $notification = "New website chat enquiry\\n";
+                $notification .= 'Name: ' . ($guestLabel !== '' ? $guestLabel : 'Not provided') . "\\n";
+                $notification .= 'Phone: ' . ($guestPhone !== '' ? $guestPhone : 'Not provided') . "\\n\\n";
+                $notification .= 'Message: ' . $messageText;
+                enqueue_whatsapp_notification($pdo, $messageId, $notificationRecipient, mb_substr_safe($notification, 0, 4000));
+                $transportState = 'queued';
+            }
+
             $pdo->commit();
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) {
@@ -78,8 +94,10 @@ try {
                 'created_at' => (new DateTimeImmutable($saved['sent_at'], new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
             ],
             'meta' => [
-                'transport' => 'not_configured',
-                'note' => 'Your message is saved. WhatsApp delivery will become available when the WhatsApp integration is configured.',
+                'transport' => $transportState,
+                'note' => $transportState === 'queued'
+                    ? 'Your message is saved and queued for WhatsApp notification. Delivery is confirmed separately.'
+                    : 'Your message is saved. WhatsApp notification transport is not configured.',
             ],
         ], 201);
     }
@@ -123,6 +141,15 @@ try {
     }, $rows);
 
     $nextCursor = $items === [] ? $after : $items[array_key_last($items)]['sequence_id'];
+    $statusQuery = $pdo->prepare(
+        'SELECT id, delivery_status FROM messages
+         WHERE conversation_id = :conversation_id AND sender_type = "visitor"
+         ORDER BY sequence_id DESC LIMIT 50'
+    );
+    $statusQuery->execute([':conversation_id' => $session['conversation_id']]);
+    $deliveryUpdates = array_map(static fn(array $row): array => [
+        'id' => $row['id'], 'delivery_status' => $row['delivery_status'],
+    ], $statusQuery->fetchAll());
 
     json_response([
         'data' => $items,
@@ -131,6 +158,7 @@ try {
             'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
             'poll_after_ms' => 3000,
+            'delivery_updates' => $deliveryUpdates,
         ],
     ]);
 } catch (Throwable $error) {

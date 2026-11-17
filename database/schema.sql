@@ -9,10 +9,12 @@ CREATE TABLE guests (
     id CHAR(36) NOT NULL,
     display_name VARCHAR(100) NULL,
     phone VARCHAR(32) NULL,
+    phone_normalized VARCHAR(32) NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_guests_phone (phone)
+    KEY idx_guests_phone (phone),
+    KEY idx_guests_phone_normalized (phone_normalized)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE conversations (
@@ -89,4 +91,28 @@ CREATE TABLE rate_limits (
     request_count INT UNSIGNED NOT NULL DEFAULT 0,
     PRIMARY KEY (bucket_key),
     KEY idx_rate_limits_window (window_started_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE message_outbox (
+    id CHAR(36) NOT NULL,
+    message_id CHAR(36) NOT NULL,
+    recipient VARCHAR(32) NOT NULL,
+    payload_text TEXT NOT NULL,
+    status ENUM('pending', 'processing', 'sent', 'failed') NOT NULL DEFAULT 'pending',
+    attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    available_at DATETIME NOT NULL,
+    locked_at DATETIME NULL,
+    lock_token CHAR(36) NULL,
+    provider_message_id VARCHAR(191) NULL,
+    last_error VARCHAR(1000) NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_message_outbox_message (message_id),
+    KEY idx_message_outbox_due (status, available_at, created_at),
+    KEY idx_message_outbox_lock (status, locked_at),
+    CONSTRAINT fk_message_outbox_message
+        FOREIGN KEY (message_id) REFERENCES messages (id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

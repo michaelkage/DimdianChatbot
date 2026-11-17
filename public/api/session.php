@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
 
 enforce_allowed_origin();
 handle_preflight();
@@ -37,10 +38,10 @@ try {
     $pdo->beginTransaction();
 
     $guest = $pdo->prepare(
-        'INSERT INTO guests (id, display_name, phone, created_at, updated_at)
-         VALUES (:id, :name, :phone, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+        'INSERT INTO guests (id, display_name, phone, phone_normalized, created_at, updated_at)
+         VALUES (:id, :name, :phone, :phone_normalized, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
-    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone]);
+    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $phone !== null ? normalize_whatsapp_number($phone) : null]);
 
     $conversation = $pdo->prepare(
         'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
