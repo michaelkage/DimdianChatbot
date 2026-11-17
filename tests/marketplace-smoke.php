@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__).'/app/woocommerce.php';
 require_once dirname(__DIR__).'/app/ai_provider.php';
+require_once dirname(__DIR__).'/app/ai.php';
 require_once dirname(__DIR__).'/app/vehicle.php';
 require_once dirname(__DIR__).'/app/storage.php';
 
@@ -58,6 +59,26 @@ $wrongEngine=vehicle_find_verified_fitment(db(),$fitmentProduct,'Honda','Civic',
 check(is_array($verified)&&$verified['verification_source']==='CI verified fixture','fitment matcher accepts an exact verified catalogue record');
 check($wrongEngine===null,'fitment matcher rejects a different engine instead of guessing');
 db()->prepare('DELETE FROM product_fitments WHERE product_id=:product')->execute(['product'=>$fitmentProduct]);
+
+$pdo=db();
+$staffId=(int)$pdo->query("SELECT id FROM staff_users WHERE email='ci-admin@example.invalid' LIMIT 1")->fetchColumn();
+$guestToken=bin2hex(random_bytes(32));$publicId=bin2hex(random_bytes(13));
+$pdo->prepare('INSERT INTO customers (guest_token_hash,created_at,last_seen_at) VALUES (:token,UTC_TIMESTAMP(),UTC_TIMESTAMP())')->execute(['token'=>hash('sha256',$guestToken)]);
+$customerId=(int)$pdo->lastInsertId();
+$pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,'open',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())")->execute(['public_id'=>$publicId,'customer_id'=>$customerId]);
+$conversationId=(int)$pdo->lastInsertId();
+$pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'customer_event',:body,UTC_TIMESTAMP())")->execute(['id'=>$conversationId,'body'=>'A member of our support team will take over this vehicle compatibility check.']);
+$pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'customer','Thanks for the update.',UTC_TIMESTAMP())")->execute(['id'=>$conversationId]);
+$pdo->prepare("INSERT INTO app_settings (setting_key,setting_value,updated_by,updated_at) VALUES ('ai_enabled','1',:staff,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE setting_value='1',updated_by=VALUES(updated_by),updated_at=UTC_TIMESTAMP()")->execute(['staff'=>$staffId]);
+ai_provider_mark_verified($staffId);
+ai_process_customer_message($conversationId);
+$assistantCount=(int)$pdo->prepare("SELECT COUNT(*) FROM messages WHERE conversation_id=:id AND sender_type='assistant'")->execute(['id'=>$conversationId]);
+$assistantQuery=$pdo->prepare("SELECT COUNT(*) FROM messages WHERE conversation_id=:id AND sender_type='assistant'");$assistantQuery->execute(['id'=>$conversationId]);$assistantCount=(int)$assistantQuery->fetchColumn();
+check($assistantCount===0,'a human vehicle handoff stays sticky after staff reopens the conversation');
+$pdo->prepare("UPDATE app_settings SET setting_value='0',updated_at=UTC_TIMESTAMP() WHERE setting_key='ai_enabled'")->execute();
+ai_provider_clear_verification($pdo);
+$pdo->prepare('DELETE FROM conversations WHERE id=:id')->execute(['id'=>$conversationId]);
+$pdo->prepare('DELETE FROM customers WHERE id=:id')->execute(['id'=>$customerId]);
 
 $scope='marketplace-smoke-'.bin2hex(random_bytes(8));
 check(rate_limit_exceeded($scope,1,60)===false,'first request is allowed within a fixed window');
