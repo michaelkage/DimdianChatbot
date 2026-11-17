@@ -83,7 +83,7 @@ $scope='marketplace-smoke-'.bin2hex(random_bytes(8));
 check(rate_limit_exceeded($scope,1,60)===false,'first request is allowed within a fixed window');
 check(rate_limit_exceeded($scope,1,60)===true,'subsequent request is rejected at the configured limit');
 
-$eventCount=(int)db()->query("SELECT COUNT(*) FROM messages WHERE sender_type='customer_event' AND (body LIKE 'Vehicle details submitted%' OR body LIKE 'This listing has product variants%')")->fetchColumn();
+$eventCount=(int)db()->query("SELECT COUNT(*) FROM messages WHERE sender_type='customer_event' AND body LIKE 'A member of our support team will take over%'")->fetchColumn();
 check($eventCount>0,'unresolved vehicle submissions persist as explicit human-handoff events');
 $unreadEvents=(int)db()->query("SELECT COUNT(*) FROM messages m INNER JOIN conversations c ON c.id=m.conversation_id WHERE m.sender_type='customer_event' AND m.id>COALESCE(c.staff_last_read_message_id,0)")->fetchColumn();
 check($unreadEvents>0,'unresolved vehicle events remain unread until staff marks the conversation read');
