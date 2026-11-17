@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/customer.php';
+require_once dirname(__DIR__,2) . '/app/ai.php';
 require_method('POST');
 
 $customer = require_customer();
@@ -15,7 +16,7 @@ if ($subject !== null && (!is_string($subject) || strlen($subject) > 180)) json_
 $pdo = db();
 // Fail closed: a missing, unreadable, or unset setting must never activate AI.
 $aiSetting = $pdo->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
-$aiEnabled = $aiSetting === '1' && (bool)app_config('ai.provider_ready',false);
+$aiEnabled = $aiSetting === '1' && ai_provider_available();
 $initialStatus = $aiEnabled ? 'open' : 'needs_human';
 
 $pdo->beginTransaction();
