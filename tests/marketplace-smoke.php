@@ -23,6 +23,8 @@ $GLOBALS['config']['ai']['provider']['model']=$originalModel.'-changed';
 check($providerFingerprint!==ai_provider_fingerprint(),'changing the provider model invalidates its successful-test fingerprint');
 $GLOBALS['config']['ai']['provider']['model']=$originalModel;
 check($providerFingerprint===ai_provider_fingerprint(),'restoring the tested provider model restores its fingerprint');
+$configError=ai_provider_complete([['role'=>'user','content'=>'TRIGGER_CONFIG']]);
+check(($configError['kind']??'')==='configuration_error','provider model/endpoint errors are classified as configuration failures');
 $originalStoreUrl=$GLOBALS['config']['woocommerce']['store_url'];
 $GLOBALS['config']['woocommerce']['store_url']='https://user:secret@parts.example.invalid';
 check(!woocommerce_ready(),'WooCommerce base URLs containing embedded credentials are rejected');
