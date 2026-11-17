@@ -4,7 +4,7 @@ require_once dirname(__DIR__,2).'/app/customer.php';
 require_once dirname(__DIR__,2).'/app/woocommerce.php';
 require_method('GET');
 $customer=require_customer();
-if(rate_limit_exceeded('catalogue-search:'.$customer['id'],20,60))json_response(['error'=>'too_many_requests'],429);
+if(rate_limit_exceeded('catalogue-search-ip:'.request_ip_hash(),120,60)||rate_limit_exceeded('catalogue-search:'.$customer['id'],20,60))json_response(['error'=>'too_many_requests'],429);
 $type=$_GET['type']??'name';$q=$_GET['q']??'';
 if(!is_string($type)||!in_array($type,['name','sku','mpn'],true)||!is_string($q)||trim($q)===''||strlen($q)>100)json_response(['error'=>'invalid_search'],422);
 try{
