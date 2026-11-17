@@ -26,7 +26,7 @@ let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
- if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=Number.isSafeInteger(saved.cursor)&&saved.cursor>=0?saved.cursor:0;}
+ if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.}
 } catch (_) {}
 function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,cursor}));}catch(_){}}}
 function status(t,kind){$('.status').textContent=t;$('.status').dataset.kind=kind||'normal';}
