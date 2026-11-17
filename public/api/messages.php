@@ -8,6 +8,7 @@ $customer = require_customer();
 $pdo = db();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+ if (rate_limit_exceeded('customer-poll-ip:'.request_ip_hash(),300,60) || rate_limit_exceeded('customer-poll:'.$customer['id'],60,60)) json_response(['error'=>'poll_rate_limited'],429);
  $publicId = $_GET['conversation_id'] ?? '';
  $afterId = filter_var($_GET['after_id'] ?? 0,FILTER_VALIDATE_INT);
  if (!is_string($publicId) || !preg_match('/^[a-f0-9]{26}$/D',$publicId) || $afterId === false || $afterId < 0) {
