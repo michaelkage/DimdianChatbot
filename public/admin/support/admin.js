@@ -76,8 +76,9 @@ function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
 async function selectConversation(item){
  current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
  $('customer-name').textContent=item.customer_name||'Guest shopper';
- $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null,item.vehicle_vin?'VIN '+item.vehicle_vin:null].filter(Boolean).join(' · ');
+ $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
  $('thread-status').value=item.status;syncReplyAvailability();
+ if(item.vehicle_summary){try{const vehicleData=await api('staff-vehicle?conversation_id='+encodeURIComponent(item.public_id));if(vehicleData.vehicle&&vehicleData.vehicle.vin)$('customer-meta').textContent+=' · VIN '+vehicleData.vehicle.vin;}catch(_){}}
  const fitmentPanel=$('fitment-verify');fitmentPanel.hidden=staff.role!=='admin'||!item.vehicle_summary;
  $('fitment-product-id').value=item.vehicle_product_id||'';$('fitment-source').value='';$('fitment-result').textContent='';
  const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
