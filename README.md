@@ -202,6 +202,7 @@ Do not copy the example placeholder as the real key. Confirm the field key used 
 - The customer widget collects make, model, year, engine, transmission, trim and an optional 17-character vehicle identifier.
 - Vehicle details are stored against the conversation and shown in the authenticated staff inbox. The full identifier is encrypted at rest using AES-256-GCM; staff can view it only through the authenticated staff API. The inbox summary displays the last four characters.
 - Configure a unique random `integration.vehicle_data_encryption_key` (at least 32 characters) in private `config.php`. If this key is missing, identifier submission is rejected; the customer can still submit the other vehicle details.
+- Back up this encryption key separately and securely. Losing it makes previously encrypted vehicle identifiers unreadable; changing it requires a planned re-encryption migration. The database backup does not include private `config.php` secrets.
 - A customer submission is not itself proof of compatibility. A match is returned as verified only when an exact product ID, make, model, year range, engine and transmission match a row whose `product_fitments.status` is `verified`. Trim-specific records are also respected.
 - If no verified record matches, the conversation is routed to `needs_human`. The assistant is bypassed for fitment questions.
 - An administrator can record a verified fitment from the conversation panel after checking the vehicle against a trusted manufacturer/supplier catalogue. The app first checks that the product ID exists in the live WooCommerce store and records the source, staff account and verification timestamp. Do not mark a row verified based only on product-name similarity.
@@ -246,3 +247,6 @@ CI tests the provider adapter using a local stub. This is not a live Groq/Gemini
 10. Configure and test the real AI provider. Keep AI off until the provider test passes and human fallback is confirmed.
 
 Hostinger deployment, actual WooCommerce credentials, the live MPN metadata key, verified fitment dataset and real AI credentials are environment inputs; they are not present in this repository and are not fabricated by the build.
+
+
+For release and rollback steps, see [DEPLOYMENT.md](DEPLOYMENT.md).
