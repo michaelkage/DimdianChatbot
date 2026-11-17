@@ -15,12 +15,21 @@ $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod(
 $ini="[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n";
 file_put_contents($tmp,$ini,LOCK_EX);chmod($tmp,0600);
 $file=$real.'/dimdian-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sql.gz';
+$gz=gzopen($file,'wb6');
+if($gz===false){unlink($tmp);fwrite(STDERR,"Cannot create compressed backup file.\n");exit(1);}
 $proc=proc_open(['mysqldump','--defaults-extra-file='.$tmp,'--single-transaction','--quick',(string)$db['name']],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
-if(!is_resource($proc)){unlink($tmp);fwrite(STDERR,"mysqldump is unavailable. Use Hostinger phpMyAdmin export instead.\n");exit(1);}
-fclose($pipes[0]);$gz=gzopen($file,'wb6');$bytes=0;
-while(!feof($pipes[1])){$chunk=fread($pipes[1],65536);if($chunk===false)break;$bytes+=strlen($chunk);gzwrite($gz,$chunk);}
-fclose($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[2]);$exit=proc_close($proc);gzclose($gz);unlink($tmp);
-if($exit!==0||$bytes===0){@unlink($file);fwrite(STDERR,"Backup failed: ".trim((string)$error)."\n");exit(1);}
+if(!is_resource($proc)){gzclose($gz);unlink($tmp);@unlink($file);fwrite(STDERR,"mysqldump is unavailable. Use Hostinger phpMyAdmin export instead.\n");exit(1);}
+fclose($pipes[0]);$bytes=0;$streamOk=true;$writeOk=true;
+while(!feof($pipes[1])){
+ $chunk=fread($pipes[1],65536);
+ if($chunk===false){$streamOk=false;break;}
+ if($chunk==='')continue;
+ $length=strlen($chunk);$bytes+=$length;
+ if($writeOk&&gzwrite($gz,$chunk)!==$length)$writeOk=false;
+}
+if(!$streamOk)proc_terminate($proc);
+fclose($pipes[1]);$error=stream_get_contents($pipes[2]);fclose($pipes[2]);$exit=proc_close($proc);$gzClosed=gzclose($gz);unlink($tmp);
+if($exit!==0||$bytes===0||!$streamOk||!$writeOk||!$gzClosed){@unlink($file);fwrite(STDERR,"Backup failed: ".trim((string)$error)."\n");exit(1);}
 chmod($file,0600);
 $retentionDays=max(1,min(365,(int)($config['backup']['retention_days']??14)));
 $cutoff=time()-($retentionDays*86400);
