@@ -1,6 +1,38 @@
 # DimdianChatbot
 
-A lightweight, self-hosted customer support chat system for an auto-parts marketplace. It is designed around existing Hostinger PHP + MySQL hosting rather than a paid support SaaS.
+A lightweight, self-hosted customer support chat system for DIMDIAN's auto-parts marketplace. It is designed for the PHP and MySQL hosting DIMDIAN already operates, rather than depending on a paid support platform.
+
+## What this system does — plain-English overview
+
+Customers can ask DIMDIAN for help while browsing the store without first creating an account. The chat remembers the browser's support session as the customer moves between product pages and gives staff the page/product context the shopper was viewing.
+
+Customers can send messages and photos (JPG, PNG or WEBP, up to 3 MB), search the live catalogue by product name or SKU, and search by manufacturer part number once DIMDIAN's actual MPN field is connected. They can select a product and submit vehicle details: make, model, year, engine, transmission, trim and, when appropriate, a VIN.
+
+Staff use a password-protected inbox at `/admin/support/`. They can review incoming conversations, reply, inspect product and vehicle context, view customer attachments and manage the support queue. Unread indicators, browser-tab title updates and optional sound alerts help staff notice new messages.
+
+The catalogue adapter reads product information from WooCommerce on the server. Product prices, stock status, product links and listing details come from WooCommerce's API response—not the old Shop-page HTML snapshot. If the live catalogue is unavailable, the app does not silently substitute old snapshot data.
+
+Compatibility checks are deliberately strict. A part is reported as compatible only when DIMDIAN has a verified fitment record for the exact product and matching vehicle details. Missing, incomplete or uncertain matches go to a human parts specialist. VINs are encrypted before storage.
+
+An optional cloud AI can answer suitable routine questions, but the support system does not depend on it. AI is off by default. Fitment, VIN, order tracking, payment, returns/refunds, complaints and requests for a person are routed to staff. Timeouts, invalid credentials and quota exhaustion trigger human fallback; quota/credential failures disable AI globally. The application has no live order-management integration and AI must not invent order, stock or compatibility facts.
+
+**In practical terms:** this is a customer chat and staff inbox with live product lookup and a controlled vehicle-fitment workflow. It is not yet deployed to DIMDIAN's hosting, does not arrive with a populated compatibility database, and does not replace staff judgement.
+
+## How it works — developer view
+
+The application is a conventional PHP/MySQL web app with no required Composer or npm runtime dependency:
+
+1. **Browser widget** — `public/widget.js` creates/resumes a guest identity, captures page URL/title and optional SKU, and calls the support API over HTTPS.
+2. **Customer API** — endpoints under `public/api/` validate the guest token, request method, origin, payload and rate limits. The browser holds the raw random token; MySQL stores only its SHA-256 hash.
+3. **Persistence** — PDO prepared statements store customers, conversations, messages, attachments, selected product context and vehicle submissions. Conversation states are `open`, `needs_human` and `closed`.
+4. **Message delivery** — the widget fetches only messages newer than its last message ID. Short polling replaces a persistent WebSocket service and pauses while the widget is closed or the tab is hidden.
+5. **Staff inbox** — `public/admin/support/` uses authenticated staff sessions and CSRF-protected actions. Agents handle conversations; administrator-only controls govern AI activation.
+6. **WooCommerce adapter** — `app/woocommerce.php` makes server-side HTTPS GET requests using a read-only REST API key. SKU/name searches use WooCommerce's products endpoint. MPN search uses the optional WordPress route in `integrations/wordpress/dimdian-mpn-lookup.php`. Selected products are re-fetched by ID before attachment to a vehicle check.
+7. **Fitment engine** — `app/vehicle.php` checks a concrete simple-product ID, make, model, year range, engine and transmission against rows marked `verified` in `product_fitments`; trim-specific records are respected. A miss is a staff handoff, not a fuzzy match. VINs use AES-256-GCM encryption with a private application key.
+8. **AI adapter** — `app/ai.php` applies deterministic escalation rules before `app/ai_provider.php` calls Groq, Gemini or an OpenAI-compatible endpoint. The customer message is saved first; the provider call then runs synchronously with bounded timeouts. Failures hand off the conversation, while explicit quota exhaustion or invalid credentials disables AI globally.
+9. **Operations** — private attachments/configuration/backups are kept outside web roots. CLI tools provide preflight checks, staff provisioning, database backup/restore and rate-limit cleanup.
+
+This is designed for shared hosting: no queue worker, local language model, WebSocket daemon or automatic staff-presence/assignment service is required. A human handoff means the conversation enters the staff inbox; it does not guarantee an agent is online or instantly connected.
 
 ## Product goals
 
@@ -140,21 +172,199 @@ All customer endpoints require the `X-Dimdian-Guest-Token` header except the ini
 
 GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema and additive migration into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including live WooCommerce fixture lookups, selected-product context, exact fitment/mismatch handling, trusted listing URL validation, image upload, AI completion, timeout handoff, quota-triggered global shutdown, the administrator provider probe, backup/restore recovery, and multi-client polling/rate-limit burst checks.
 
-## Hostinger setup
+## Detailed Hostinger setup guide
 
-1. Create a MySQL database and database user.
-2. Import `database/schema.sql` using phpMyAdmin or the MySQL CLI.
-3. Apply `database/migrations/2026-11-17-marketplace-fitment-hardening.sql` to the same database.
-4. Copy `config.example.php` to `config.php` in the repository root.
-5. Set database credentials, production base URL, exact allowed storefront origins, a private upload directory, and unique random secrets for rate limiting and optional storefront identity signing.
-6. Point the domain document root to the repository's `public/` directory.
-7. Ensure PHP can write to the configured private upload directory. Set `upload_max_filesize` to at least `3M` and `post_max_size` to at least `4M` in Hostinger PHP settings so the 3 MB image limit can be reached.
-8. Run `php bin/preflight.php` over SSH. Resolve every `FAIL` before opening traffic; review `WARN` entries such as disabled AI or an unconfigured MPN route.
-9. Create the first staff account over SSH from the repository root: `php bin/create-admin.php support@example.com "Support Admin" admin`. Enter the password at the prompts; do not put it in shell history.
-10. Visit the site's root URL. A healthy installation returns JSON with `status: ok` and `database: connected`.
-11. Open `/admin/support/` and sign in.
+This is the fresh-install procedure. For an existing installation, back up the database and private files first and follow [DEPLOYMENT.md](DEPLOYMENT.md). Do not import the base schema over a production database that already contains data.
 
-Do not commit `config.php`, database credentials, or uploaded customer images.
+### 1. Check hosting requirements
+
+Confirm the Hostinger plan provides PHP 8.2+, MySQL 8.0+ or MariaDB 10.5+, HTTPS, PDO MySQL, fileinfo, OpenSSL, JSON and cURL (for WooCommerce/AI). PHP zlib is needed for compressed backups. SSH is recommended for installation and CLI tools. Set `upload_max_filesize` to at least `3M` and `post_max_size` to at least `4M`.
+
+The web application needs no Composer, npm, Node runtime, persistent daemon or root access. The automated backup/restore scripts additionally require the `mysqldump` and `mysql` command-line programs; if unavailable on the plan, use phpMyAdmin for export/import.
+
+### 2. Upload the application and set the document root
+
+Use a dedicated support subdomain (recommended) and upload the repository to a private application directory. A suitable layout is:
+
+```text
+/home/ACCOUNT/dimdian-chatbot/
+  app/ bin/ database/ integrations/ public/ tests/
+  config.example.php
+  config.php                    # private; create this; never commit
+/home/ACCOUNT/dimdian-private-uploads/
+/home/ACCOUNT/dimdian-private-backups/
+```
+
+Set the support domain's document root to the repository's `public/` directory. Only `public/` should be web-accessible. Keep `config.php`, uploads and backups outside every active web document root. If the app is installed below `public_html`, configure the actual parent web root accurately and keep private files outside it. Do not fix permissions by making private directories world-readable.
+
+Set `app.document_root` in private `config.php` to the absolute canonical path of the actual support-domain document root. The template assumes the release's `public/` directory; replace that with the real Hostinger path. Runtime checks reject upload/backup paths that are inside or overlap configured/active web roots.
+
+### 3. Create and initialize MySQL
+
+Create a database and database user in hPanel. Record the exact host, database name, username and password provided by Hostinger; the host is not necessarily `localhost`. Grant the application user the privileges needed for initial schema/migration setup (SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX and REFERENCES).
+
+From the repository root, import the base schema into a new empty database:
+
+```sh
+mysql -h DB_HOST -u DB_USER -p DB_NAME < database/schema.sql
+mysql -h DB_HOST -u DB_USER -p DB_NAME < database/migrations/2026-11-17-marketplace-fitment-hardening.sql
+```
+
+Enter the password at the prompt. Do not include it in the command, shell history or source code. If CLI MySQL is unavailable, import both files in phpMyAdmin, in that order. For an existing installation, take a backup first; the migration is additive and idempotent.
+
+### 4. Create private config.php
+
+Copy the template into the repository root:
+
+```sh
+cp config.example.php config.php
+```
+
+Edit `config.php` and set:
+
+| Key | Required value |
+|---|---|
+| `app.environment` | `production` |
+| `app.document_root` | Actual absolute support-domain document-root path |
+| `app.base_url` | Support subdomain HTTPS URL, no trailing slash |
+| `app.allowed_origins` | Exact storefront origins, including scheme and hostname, no path |
+| `database.host/name/username/password` | Exact Hostinger database credentials |
+| `uploads.directory` | Absolute private path outside all web roots |
+| `backup.directory` | Absolute persistent private path outside all web roots |
+| `security.rate_limit_secret` | Unique random secret, 32+ random bytes |
+| `integration.customer_identity_secret` | Separate random secret, only if signed account linking is used |
+| `integration.vehicle_data_encryption_key` | Unique random secret, 32+ characters/bytes, for VIN encryption |
+
+Generate a fresh value separately for each secret:
+
+```sh
+php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+```
+
+Do not reuse the same secret for multiple purposes. Keep the VIN encryption key in a secure password manager and protected backup. Losing it makes previously stored VINs unreadable; changing it requires a planned re-encryption migration.
+
+The template's upload and backup paths are intended as sibling directories outside the application web root. Ensure their parent exists and the PHP account can write there. Keep WooCommerce disabled and `ai.provider_ready` false for the initial installation. Never commit `config.php`.
+
+### 5. Connect the live WooCommerce catalogue
+
+In WordPress, create a WooCommerce REST API key for a dedicated integration user and set its permission to **Read** only. Do not use a Read/Write or Write key.
+
+Add the following section to private `config.php`, using the real store URL and credentials:
+
+```php
+'woocommerce' => [
+  'enabled' => true,
+  'store_url' => 'https://ACTUAL-DIMDIAN-STOREFRONT',
+  'consumer_key' => 'ck_actual_read_only_key',
+  'consumer_secret' => 'cs_actual_read_only_secret',
+  'currency_code' => 'NGN', // confirm the store's configured currency
+  'mpn_lookup_path' => '/wp-json/dimdian/v1/products',
+],
+```
+
+The adapter uses server-side HTTPS GET requests only. SKU and product-name searches use the standard WooCommerce products endpoint. Returned price, sale/regular price, stock status/quantity, SKU, link, image and short description come from the WooCommerce response at lookup time. The application does not write to WooCommerce. If the API is unavailable, product search fails closed; it does not fall back to the historical Shop HTML snapshot.
+
+**Manufacturer part numbers require a separate WordPress setup.** WooCommerce has no universal MPN field. Confirm the exact custom-field/meta key DIMDIAN uses in its product editor. Install `integrations/wordpress/dimdian-mpn-lookup.php` as a WordPress plugin (copy it into `wp-content/plugins/dimdian-mpn-lookup/`, activate it, and add the confirmed key to `wp-config.php`):
+
+```php
+define('DIMDIAN_MPN_META_KEY', 'THE_CONFIRMED_DIMDIAN_MPN_META_KEY');
+```
+
+Do not copy the example string as the actual key. Confirm the key with the person who manages DIMDIAN's product fields. The plugin exposes `/wp-json/dimdian/v1/products`; set `woocommerce.mpn_lookup_path` to that path. Test authentication and a known MPN against the real store before advertising MPN search as available.
+
+### 6. Add the widget to the storefront
+
+Add this script to the shared WooCommerce storefront layout on pages where support chat should appear:
+
+```html
+<script
+  src="https://SUPPORT-SUBDOMAIN/widget.js"
+  data-api-base="https://SUPPORT-SUBDOMAIN/api/"
+  data-context-sku="PRODUCT_PAGE_SKU"
+  defer
+></script>
+```
+
+Replace the support hostname and SKU expression with the actual values from DIMDIAN's storefront template. The widget also captures the current page URL and title. Add the exact storefront HTTPS origin to `app.allowed_origins`.
+
+Logged-in account linking is optional. If wanted, use the server-side HMAC example under [Customer widget integration](#customer-widget-integration), and configure the same random shared secret in the storefront's private environment and `integration.customer_identity_secret`. Never expose that secret in HTML or JavaScript. Guest chat works without account linking.
+
+### 7. Create the first administrator
+
+From SSH, in the repository root, run:
+
+```sh
+php bin/create-admin.php support@example.com "DIMDIAN Support Admin" admin
+```
+
+Enter a unique password of at least 12 characters at the prompts. The password is hashed and is not supplied in the command line. Create agents with the final argument `agent`. Limit administrator accounts to trusted staff.
+
+Open `https://SUPPORT-SUBDOMAIN/admin/support/` and sign in. The root health endpoint should return JSON showing `status: ok` and `database: connected`. This checks basic application/database health; it does not prove external integrations work.
+
+### 8. Run preflight
+
+Run from SSH:
+
+```sh
+php bin/preflight.php
+```
+
+Resolve every `FAIL` before exposing the widget to customers. Review every `WARN`: disabled WooCommerce, disabled AI or missing MPN route may be intentional during setup, but those capabilities will not be available. Preflight checks runtime requirements, database tables, private storage and configured WooCommerce/AI connectivity.
+
+A successful WooCommerce probe does not prove that every listing is correct or that MPN metadata is mapped properly. Manually test a known SKU, product name and MPN against the store.
+
+### 9. Populate verified fitment records
+
+The repository does not contain DIMDIAN's compatibility dataset. A DIMDIAN parts specialist must verify each fitment against a trusted manufacturer or supplier source before recording it.
+
+From the staff inbox, open the relevant product/conversation and use the verified-fitment action only after checking the source. Record the source and exact product, make, model, year range, engine and transmission; include trim when the source specifies it. Only rows marked `verified` can produce a positive match. Missing or uncertain records must remain human handoffs.
+
+Automatic matching currently supports simple WooCommerce products. Variable/grouped parent listings can be searched and sent to staff, but are not treated as one universally compatible part.
+
+### 10. Enable AI only if DIMDIAN wants it
+
+AI is optional. For human-only support, leave `ai.provider_ready` false and the database `ai_enabled` setting off.
+
+To enable later, configure Groq, Gemini or an HTTPS OpenAI-compatible provider in private `config.php` with a real API key and exact model ID, then set `ai.provider_ready` true. Run preflight. In the staff inbox, an administrator must use **Test provider** and receive a successful response before enabling **AI replies**.
+
+Test routine FAQs and all escalation categories. CI uses a local provider stub; it does not validate live credentials or spend real provider quota. AI calls are synchronous during the customer message POST, although connection and total timeouts are bounded. A timeout hands that conversation to staff; exhausted quota or invalid credentials disables AI globally.
+
+### 11. Backups and scheduled maintenance
+
+Run a manual backup:
+
+```sh
+php bin/backup-db.php
+```
+
+This requires `mysqldump` and a writable private backup directory. The script creates a compressed SQL dump with owner-only permissions and retains 14 days by default. If the host does not expose `mysqldump`, export using phpMyAdmin and store the export outside the web root.
+
+In hPanel Cron Jobs, configure:
+- A daily `php /absolute/path/to/dimdian-chatbot/bin/backup-db.php` task, if CLI database tools are available.
+- A daily `php /absolute/path/to/dimdian-chatbot/bin/cleanup-rate-limits.php` task.
+- Notifications/monitoring for failed cron executions.
+
+Use Hostinger's actual PHP CLI binary and absolute application path. Confirm cron loads the same private `config.php` and database as the website. Back up `config.php`, the VIN encryption key and private uploads separately; SQL backups do not contain them.
+
+Perform a restore drill into a separate test database before launch and periodically thereafter. The restore script requires the `mysql` CLI, asks you to type `RESTORE`, and overwrites the selected target database. Never test recovery against the live database.
+
+### 12. Launch acceptance checklist
+
+- [ ] Health endpoint reports a database connection.
+- [ ] Administrator and agent logins work; disabling an account revokes its sessions.
+- [ ] A guest can start a chat, browse another product page and continue the same conversation.
+- [ ] Staff replies reach the customer.
+- [ ] Product URL/title/SKU context is visible to staff.
+- [ ] Valid JPG, PNG and WEBP files upload; invalid/oversized files are rejected; attachments are private to the owning conversation.
+- [ ] Known live WooCommerce SKU and product-name searches return expected details.
+- [ ] A known MPN works if the custom route is configured.
+- [ ] A verified fitment matches; a missing or mismatched fitment reaches staff.
+- [ ] VIN encryption works and the encryption key is backed up securely.
+- [ ] AI stays off unless the real provider probe passes and an administrator deliberately enables it.
+- [ ] A database backup restores successfully into a separate test database.
+- [ ] Staff understand that `needs_human` means queued for the team, not that an agent is guaranteed to be online instantly.
+
+Follow [DEPLOYMENT.md](DEPLOYMENT.md) for the controlled release and rollback procedure. Do not describe the system as live until these checks have passed on DIMDIAN's actual Hostinger account and storefront.
 
 ## Security baseline
 
@@ -168,14 +378,21 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 - User-provided text must be escaped at the point it is rendered.
 - Responses include frame denial, MIME sniffing protection, a restrictive referrer policy, disabled unused device permissions and HSTS when the production base URL is HTTPS.
 
-## Build sequence
+## Delivery status
 
-1. Completed: database/PHP foundation and customer messaging APIs.
-2. Completed: guest widget, part-page context, image uploads, and private attachment delivery.
-3. Completed: staff authentication, split-screen inbox, conversation status controls, polling, unread counts, and browser/audio alerts.
-4. Remaining: deploy to Hostinger and run end-to-end tests against the actual storefront and MySQL account.
-5. Completed: optional cloud AI adapter, bounded provider timeouts, quota-triggered global shutdown, and deterministic human escalation. The signed account-ID handoff is implemented; storefront-side signature generation remains an integration step.
+| Area | Repository status | Still required before launch |
+|---|---|---|
+| Customer chat and staff inbox | Implemented and covered by automated tests | Deploy and test with DIMDIAN staff |
+| Guest identity, listing context and image attachments | Implemented | Verify storefront embed and Hostinger file permissions |
+| WooCommerce SKU/name lookup | Server-side read-only adapter implemented | Add real read-only API credentials and test against the live store |
+| Manufacturer part-number lookup | Optional WordPress route included | Confirm DIMDIAN's real MPN meta key, install plugin and test |
+| Vehicle details and VIN encryption | Implemented | Configure the private encryption key |
+| Verified fitment matching | Exact-match workflow implemented | DIMDIAN must build and maintain verified fitment records |
+| AI provider and human fallback | Implemented, opt-in and fail-closed | Add a real provider key/model, test live and explicitly enable |
+| Backups, recovery and preflight | CLI tooling and CI tests implemented | Confirm Hostinger CLI tools/permissions and complete a restore drill |
+| Hostinger production deployment | Not performed | Hosting access, configuration and acceptance testing |
 
+GitHub Actions validates PHP/JavaScript syntax, applies the schema and migration to a disposable MySQL 8 service, and runs API, integration, provider-stub, backup/restore and concurrent polling/rate-limit tests. Passing CI is evidence for the tested code paths in that test environment; it is not evidence of a successful Hostinger deployment or live DIMDIAN integration.
 
 ## Live WooCommerce catalogue
 
