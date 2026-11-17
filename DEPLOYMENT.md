@@ -26,11 +26,16 @@ This runbook is for the PHP/MySQL shared-hosting deployment. The repository CI e
 
    For a fresh database, import `database/schema.sql` first. The migration is idempotent and creates only new tables.
 5. Switch the document root to the new release's `public/` directory. If Hostinger does not allow document-root switching, upload the public files during the quiet window after taking a backup.
-6. Verify the health endpoint, staff login, customer message send/reply, image upload/retrieval, vehicle submission, product search and the staff inbox.
-7. Test a known SKU and product name against the live WooCommerce catalogue. Test MPN only after the WordPress lookup plugin is installed and its exact product meta key is configured.
-8. Test one verified fitment and one unmatched vehicle. The unmatched case must reach the human queue.
-9. Keep AI disabled until the provider probe succeeds against the real provider. Then enable it deliberately and test a harmless FAQ plus the human escalation paths.
-10. Keep the previous release and pre-deploy backup until the new release has completed an agreed observation period.
+6. Run `php bin/preflight.php` over SSH and resolve every failure. Confirm the WooCommerce API test succeeds when the catalogue is enabled.
+7. Verify the health endpoint, staff login, customer message send/reply, image upload/retrieval, vehicle submission, product search and the staff inbox.
+8. Test a known SKU and product name against the live WooCommerce catalogue. Test MPN only after the WordPress lookup plugin is installed and its exact product meta key is configured.
+9. Test one verified fitment and one unmatched vehicle. The unmatched case must reach the human queue.
+10. Keep AI disabled until the provider probe succeeds against the real provider. Then enable it deliberately and test a harmless FAQ plus the human escalation paths.
+11. Keep the previous release and pre-deploy backup until the new release has completed an agreed observation period.
+
+## Scheduled maintenance
+
+Configure a daily Hostinger cron task to run `php /absolute/path/to/DimdianChatbot/bin/cleanup-rate-limits.php`. This removes expired rate-limit buckets outside the customer request path. Confirm the cron uses the same private `config.php` and database as the application.
 
 ## Rollback
 
