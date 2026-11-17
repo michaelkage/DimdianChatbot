@@ -15,6 +15,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 if (($staff['role'] ?? '') !== 'admin') json_response(['error'=>'admin_required'],403);
 require_staff_csrf();
 $input = request_json();
+if (($input['test_provider'] ?? false) === true) {
+ if (!$providerReady) json_response(['test_ok'=>false,'error'=>'ai_provider_not_configured'],409);
+ $probe=ai_provider_complete([
+  ['role'=>'system','content'=>'You are a connectivity test. Reply with exactly: DIMDIAN_PROVIDER_OK'],
+  ['role'=>'user','content'=>'Return the required test phrase.'],
+ ]);
+ if (($probe['kind'] ?? '') === 'quota_exhausted' || ($probe['kind'] ?? '') === 'configuration_error') {
+  ai_disable_globally((int)$staff['id']);
+ }
+ if (($probe['kind'] ?? '') !== 'ok') json_response(['test_ok'=>false,'error'=>'provider_test_failed','provider_disabled'=>in_array($probe['kind']??'', ['quota_exhausted','configuration_error'],true)],502);
+ json_response(['test_ok'=>true,'provider_response'=>trim((string)$probe['content'])]);
+}
 if (!array_key_exists('ai_enabled',$input) || !is_bool($input['ai_enabled'])) json_response(['error'=>'invalid_ai_setting'],422);
 if ($input['ai_enabled'] && !$providerReady) json_response(['error'=>'ai_provider_not_configured'],409);
 
