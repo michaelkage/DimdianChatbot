@@ -5,7 +5,7 @@ require_once __DIR__ . '/ai_provider.php';
 
 /** AI is active only when a working provider is configured and an administrator opted in. */
 function ai_runtime_enabled(?PDO $pdo = null): bool {
- if (!ai_provider_available()) return false;
+ if (!ai_provider_verified()) return false;
  $pdo ??= db();
  $value = $pdo->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
  return $value === '1';
@@ -40,6 +40,7 @@ function ai_disable_globally(?int $actorId = null): int {
  try {
   $setting = $pdo->prepare("INSERT INTO app_settings (setting_key,setting_value,updated_by,updated_at) VALUES ('ai_enabled','0',:actor_id,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE setting_value='0',updated_by=VALUES(updated_by),updated_at=UTC_TIMESTAMP()");
   $setting->execute(['actor_id'=>$actorId]);
+  ai_provider_clear_verification($pdo);
   $query = $pdo->query("SELECT id FROM conversations WHERE status='open' FOR UPDATE");
   $ids = array_map('intval',$query->fetchAll(PDO::FETCH_COLUMN));
   if ($ids) {
@@ -76,7 +77,11 @@ function ai_requires_human(string $message): bool {
 /** Process a customer turn after it has been committed. All provider failures degrade to staff handoff. */
 function ai_process_customer_message(int $conversationId): void {
  try {
-  if (!ai_runtime_enabled()) return;
+  if (!ai_runtime_enabled()) {
+   $configuredSetting=db()->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
+   if($configuredSetting==='1')ai_disable_globally();
+   return;
+  }
   $pdo = db();
   $find = $pdo->prepare("SELECT id,status,context_url,context_sku FROM conversations WHERE id=:id LIMIT 1");
   $find->execute(['id'=>$conversationId]);
