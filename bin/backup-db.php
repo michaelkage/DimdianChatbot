@@ -7,18 +7,23 @@ $config=require $configPath;$db=$config['database']??[];
 if(!function_exists('proc_open')||!function_exists('gzopen')){fwrite(STDERR,"CLI process support and PHP zlib are required; use Hostinger phpMyAdmin export instead.\n");exit(1);}
 $directory=(string)($config['backup']['directory']??getenv('DIMDIAN_BACKUP_DIRECTORY')?:'');
 if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)||is_link($directory)){fwrite(STDERR,"Set backup.directory to an absolute private directory outside public_html.\n");exit(1);}
-$public=realpath(dirname(__DIR__).'/public');$systemTemp=realpath(sys_get_temp_dir());$production=($config['app']['environment']??'production')==='production';
-if($public===false){fwrite(STDERR,"Public document root cannot be resolved safely.\n");exit(1);}
+$public=realpath(dirname(__DIR__).'/public');$documentRoot=realpath((string)($config['app']['document_root']??dirname(__DIR__).'/public'));
+$systemTemp=realpath(sys_get_temp_dir());$production=($config['app']['environment']??'production')==='production';
+if($public===false||$documentRoot===false){fwrite(STDERR,"Configured web document root cannot be resolved safely.\n");exit(1);}
+$webRoots=array_values(array_unique([$public,$documentRoot]));
+$insideOrAncestor=static fn(string $path,string $root):bool=>$path===$root||str_starts_with($path.DIRECTORY_SEPARATOR,$root.DIRECTORY_SEPARATOR)||str_starts_with($root.DIRECTORY_SEPARATOR,$path.DIRECTORY_SEPARATOR);
 if(!is_dir($directory)){
  $parent=realpath(dirname($directory));
- if($parent===false||$parent===DIRECTORY_SEPARATOR||$parent===$public||($public&&str_starts_with($parent.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))||
-   ($production&&$systemTemp!==false&&($parent===$systemTemp||str_starts_with($parent.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)))){
-  fwrite(STDERR,"Backup directory parent must be an existing private path outside public and temporary storage.\n");exit(1);
- }
+ $unsafeParent=$parent===false||$parent===DIRECTORY_SEPARATOR;
+ if(!$unsafeParent)foreach($webRoots as $root)if($parent===$root||str_starts_with($parent.DIRECTORY_SEPARATOR,$root.DIRECTORY_SEPARATOR)){$unsafeParent=true;break;}
+ if(!$unsafeParent&&$production&&$systemTemp!==false&&($parent===$systemTemp||str_starts_with($parent.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)))$unsafeParent=true;
+ if($unsafeParent){fwrite(STDERR,"Backup directory parent must be an existing private path outside web and temporary roots.\n");exit(1);}
  if(!mkdir($directory,0700,false)&&!is_dir($directory)){fwrite(STDERR,"Cannot create backup directory.\n");exit(1);}
 }
 $real=realpath($directory);
-if(!$real||$real===DIRECTORY_SEPARATOR||($production&&$systemTemp!==false&&($real===$systemTemp||str_starts_with($real.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)||str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$real.DIRECTORY_SEPARATOR)))||($public&&($real===$public||str_starts_with($real.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR)||str_starts_with($public.DIRECTORY_SEPARATOR,$real.DIRECTORY_SEPARATOR)))){fwrite(STDERR,"Backup directory must be outside public/.\n");exit(1);}
+if(!$real||$real===DIRECTORY_SEPARATOR){fwrite(STDERR,"Backup directory cannot be resolved safely.\n");exit(1);}
+foreach($webRoots as $root)if($insideOrAncestor($real,$root)){fwrite(STDERR,"Backup directory must be outside every web document root.\n");exit(1);}
+if($production&&$systemTemp!==false&&$insideOrAncestor($real,$systemTemp)){fwrite(STDERR,"Production backups must use persistent storage outside system temporary directories.\n");exit(1);}
 @chmod($real,0700);clearstatcache(true,$real);$directoryPermissions=fileperms($real);
 if($directoryPermissions===false||($directoryPermissions&0077)!==0){fwrite(STDERR,"Backup directory must be owner-only (0700).\n");exit(1);}
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod($tmp,0600);
