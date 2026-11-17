@@ -24,4 +24,9 @@ if (str_contains($last,'TRIGGER_TRANSIENT')) {
  echo json_encode(['error'=>['message'=>'Temporary upstream failure.']]);
  exit;
 }
+if (str_contains($last,'TRIGGER_CONFIG')) {
+ http_response_code(404);
+ echo json_encode(['error'=>['code'=>'model_not_found','message'=>'The requested model does not exist.']]);
+ exit;
+}
 echo json_encode(['choices'=>[['message'=>['role'=>'assistant','content'=>'Thanks for contacting DIMDIAN. Our team can help with that.']] ]]);
