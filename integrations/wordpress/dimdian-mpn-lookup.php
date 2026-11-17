@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: DIMDIAN Manufacturer Part Number Lookup
- * Description: Read-only public product lookup by the store's configured manufacturer part-number metadata key.
+ * Description: Read-only authenticated product lookup by the store's configured manufacturer part-number metadata key.
  * Version: 1.0.0
  * Requires Plugins: woocommerce
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) exit;
 add_action('rest_api_init', static function (): void {
  register_rest_route('dimdian/v1','/products',[
   'methods'=>WP_REST_Server::READABLE,
-  'permission_callback'=>'__return_true',
+  'permission_callback'=>static function (): bool { return current_user_can('read'); },
   'args'=>[
    'mpn'=>['required'=>true,'type'=>'string','sanitize_callback'=>'sanitize_text_field'],
    'per_page'=>['required'=>false,'type'=>'integer','default'=>10],
