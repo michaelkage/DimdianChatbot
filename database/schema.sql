@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS staff_users (
  email VARCHAR(254) NOT NULL,
  password_hash VARCHAR(255) NOT NULL,
  display_name VARCHAR(120) NOT NULL,
- role ENUM('admin','agent') NOT NULL DEFAULT 'agent',
+ `role` ENUM('admin','agent') NOT NULL DEFAULT 'agent',
  is_active TINYINT(1) NOT NULL DEFAULT 1,
  last_login_at DATETIME NULL,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
