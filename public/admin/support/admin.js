@@ -51,7 +51,7 @@ async function selectConversation(item){
  current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
  $('customer-name').textContent=item.customer_name||'Guest shopper';
  $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null].filter(Boolean).join(' · ');
- $('thread-status').value=item.status;
+ $('thread-status').value=item.status;syncReplyAvailability();
  const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
  messages.replaceChildren();$('reply-error').textContent='';
  await pollThread(true);refreshList();startThreadPolling();
@@ -59,6 +59,7 @@ async function selectConversation(item){
 async function loadAttachment(img,id){
  try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok)img.src=URL.createObjectURL(await response.blob())}catch(_){}
 }
+function syncReplyAvailability(){const closed=current&&current.status==='closed';$('reply-body').disabled=!!closed;$('reply-form').querySelector('button').disabled=!!closed;$('reply-body').placeholder=closed?'This conversation is closed.':'Reply to customer…'}
 function appendMessage(message){
  const empty=messages.querySelector('.empty-state');if(empty)empty.remove();
  const bubble=node('article','bubble '+message.sender_type,message.body||'');
@@ -70,7 +71,7 @@ async function pollThread(initial=false){
  try{
   const data=await api('staff-messages?conversation_id='+encodeURIComponent(current.public_id)+'&after_id='+lastId);
   for(const message of data.messages||[]){appendMessage(message);lastId=Math.max(lastId,Number(message.id)||0)}
-  if(data.status){current.status=data.status;$('thread-status').value=data.status}
+  if(data.status){current.status=data.status;$('thread-status').value=data.status;syncReplyAvailability()}
   if(initial&&lastId===0)messages.appendChild(node('p','empty-state','No messages yet.'));
  }catch(error){if(error.message==='staff_auth_required')showLogin()}
 }
@@ -95,7 +96,7 @@ $('logout-button').addEventListener('click',async()=>{
 $('status-filter').addEventListener('change',()=>refreshList());
 $('thread-status').addEventListener('change',async()=>{
  if(!current)return;
- try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;refreshList()}
+ try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;syncReplyAvailability();refreshList()}
  catch(error){$('reply-error').textContent='Could not update conversation status.';$('thread-status').value=current.status}
 });
 $('reply-form').addEventListener('submit',async event=>{
