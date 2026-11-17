@@ -54,7 +54,7 @@ https://YOUR-API-HOST/api/webhook.php
 
 The GET subscription handshake checks `hub.mode=subscribe` and `hub.verify_token`, then returns `hub.challenge` as plain text.
 
-Every POST is checked against `X-Hub-Signature-256` using HMAC-SHA256 over the exact raw request body and the Meta App Secret. Invalid signatures are rejected before JSON parsing or database access.
+Every POST is checked against `X-Hub-Signature-256` using HMAC-SHA256 over the exact raw request body and the Meta App Secret. Invalid signatures are rejected before JSON parsing or database access. When `whatsapp.phone_number_id` is configured, webhook changes for any other phone-number ID are ignored.
 
 Subscribe to the WhatsApp webhook fields needed for:
 - `messages`: inbound visitor messages and sent/delivered/read/failed statuses.

@@ -126,7 +126,7 @@ function webhook_event_insert(PDO $pdo, string $eventId, string $eventType, stri
     return $insert->rowCount() === 1;
 }
 
-function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
+function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
 {
     $processed = 0;
     $ignored = 0;
@@ -138,6 +138,11 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
             if (!is_array($change)) continue;
             $field = (string)($change['field'] ?? '');
             $value = is_array($change['value'] ?? null) ? $change['value'] : [];
+            $receivedPhoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
+            if ($expectedPhoneNumberId !== '' && !hash_equals($expectedPhoneNumberId, $receivedPhoneNumberId)) {
+                $ignored++;
+                continue;
+            }
 
             if ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {

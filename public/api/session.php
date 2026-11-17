@@ -21,7 +21,7 @@ if (!is_bool($whatsappOptIn)) {
     json_response(['error' => ['code' => 'invalid_field', 'message' => 'whatsapp_opt_in must be true or false.']], 422);
 }
 $normalizedPhone = $phone !== null ? normalize_whatsapp_number($phone) : null;
-if ($phone !== null && $normalizedPhone === '') {
+if ($phone !== null && ($normalizedPhone === '' || strlen($normalizedPhone) < 8 || strlen($normalizedPhone) > 15)) {
     json_response(['error' => ['code' => 'invalid_field', 'message' => 'Enter a valid phone number including its country code.']], 422);
 }
 if ($whatsappOptIn && $normalizedPhone === null) {

@@ -49,7 +49,7 @@ try {
     $pdo = database();
     $pdo->beginTransaction();
     try {
-        $summary = process_meta_webhook($pdo, $payload, $rawBody);
+        $summary = process_meta_webhook($pdo, $payload, $rawBody, (string)app_config('whatsapp.phone_number_id'));
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
