@@ -64,6 +64,10 @@ function woocommerce_find_by_id(int $productId): ?array {
  if(!is_array($product)||(int)($product['id']??0)!==$productId||($product['status']??'')!=='publish')return null;
  return woocommerce_normalize_product($product);
 }
+/** Fitment records currently attach to a concrete, non-variable WooCommerce listing. */
+function woocommerce_fitment_product_supported(array $product): bool {
+ return ($product['type']??'')==='simple';
+}
 function woocommerce_normalize_product(array $p): array {
  $images=is_array($p['images']??null)?$p['images']:[];
  $image=$images[0]['src']??null;
@@ -92,7 +96,10 @@ function woocommerce_search_products(string $type,string $term): array {
   $rows=woocommerce_request($path,['mpn'=>$term,'per_page'=>10]);
  } else throw new InvalidArgumentException('invalid_search_type');
  $out=[];
- foreach ($rows as $p) if (is_array($p)) $out[]=woocommerce_normalize_product($p);
+ foreach ($rows as $p) {
+  if(!is_array($p)||($p['status']??'')!=='publish'||(int)($p['id']??0)<1)continue;
+  $out[]=woocommerce_normalize_product($p);
+ }
  return $out;
 }
 function woocommerce_find_by_sku(string $sku): ?array {
