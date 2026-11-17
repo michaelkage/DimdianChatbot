@@ -56,7 +56,7 @@ async function setAiMode(enabled){
   toggle.checked=!enabled;
   $('ai-control-error').textContent=error.message==='ai_provider_not_configured'?'AI cannot be enabled until a provider is configured.':'Could not change AI mode. Please retry.';
   refreshAiSettings();
- }finally{toggle.disabled=false}
+ }finally{await refreshAiSettings()}
 }
 async function refreshList(){
  try{
