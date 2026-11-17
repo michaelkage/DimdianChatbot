@@ -7,7 +7,7 @@ $email = strtolower(trim((string)($input['email'] ?? '')));
 $password = (string)($input['password'] ?? '');
 if (!filter_var($email,FILTER_VALIDATE_EMAIL) || $password === '' || strlen($password) > 4096) json_response(['error'=>'invalid_credentials'],422);
 $ipHash = request_ip_hash();
-if (rate_limit_exceeded('staff-login:'.$ipHash.':'.$email,10,900)) json_response(['error'=>'too_many_attempts'],429);
+if (rate_limit_exceeded('staff-login-ip:'.$ipHash,30,900) || rate_limit_exceeded('staff-login-account:'.$ipHash.':'.$email,10,900)) json_response(['error'=>'too_many_attempts'],429);
 
 $query = db()->prepare('SELECT id,email,password_hash,display_name,role,is_active FROM staff_users WHERE email=:email LIMIT 1');
 $query->execute(['email'=>$email]);
