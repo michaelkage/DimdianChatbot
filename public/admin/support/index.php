@@ -31,6 +31,17 @@ $apiBase = rtrim((string)app_config('app.base_url',''),'/') . '/api/';
         <div><p class="eyebrow">DIMDIAN / SUPPORT</p><h1>Inbox</h1></div>
         <button id="logout-button" class="quiet" type="button">Sign out</button>
       </div>
+      <section id="ai-control" class="ai-control" hidden aria-label="AI support mode">
+        <div class="ai-control-copy">
+          <strong>AI replies</strong>
+          <small id="ai-mode-note">Loading support mode…</small>
+        </div>
+        <label class="switch" aria-label="Enable AI replies">
+          <input id="ai-enabled" type="checkbox">
+          <span class="switch-track"></span>
+        </label>
+      </section>
+      <p id="ai-control-error" class="ai-control-error" role="status"></p>
       <div class="queue-tools">
         <select id="status-filter" aria-label="Filter conversations">
           <option value="active">Active</option><option value="needs_human">Needs human</option><option value="open">Open</option><option value="closed">Closed</option><option value="all">All conversations</option>
