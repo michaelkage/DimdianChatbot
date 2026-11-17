@@ -25,7 +25,7 @@ function ai_handoff_conversation(int $conversationId): void {
   }
   $pdo->prepare("UPDATE conversations SET status='needs_human',last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id")->execute(['id'=>$conversationId]);
   $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'system',:body,UTC_TIMESTAMP())")
-   ->execute(['id'=>$conversationId,'body'=>'A member of our support team will take over from here. Your message has been saved.']);
+   ->execute(['id'=>$conversationId,'body'=>'A member of our support team will take over this chat. Your message has been saved.']);
   $pdo->commit();
  } catch (Throwable $error) {
   if ($pdo->inTransaction()) $pdo->rollBack();
@@ -47,7 +47,7 @@ function ai_disable_globally(?int $actorId = null): int {
    $message = $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'system',:body,UTC_TIMESTAMP())");
    foreach ($ids as $id) {
     $update->execute(['id'=>$id]);
-    if ($update->rowCount() > 0) $message->execute(['id'=>$id,'body'=>'A member of our support team will take over from here. Your message has been saved.']);
+    if ($update->rowCount() > 0) $message->execute(['id'=>$id,'body'=>'A member of our support team will take over this chat. Your message has been saved.']);
    }
   }
   $pdo->commit();
@@ -83,8 +83,8 @@ function ai_process_customer_message(int $conversationId): void {
   $conversation = $find->fetch();
   if (!$conversation || $conversation['status'] !== 'open') return;
   // A staff handoff is sticky. Reopening the status for staff workflow must not silently re-enable AI.
-  $handoff = $pdo->prepare("SELECT 1 FROM messages WHERE conversation_id=:id AND sender_type='system' AND body=:body LIMIT 1");
-  $handoff->execute(['id'=>$conversationId,'body'=>'A member of our support team will take over from here. Your message has been saved.']);
+  $handoff = $pdo->prepare("SELECT 1 FROM messages WHERE conversation_id=:id AND sender_type='system' AND body LIKE 'A member of our support team will take over%' LIMIT 1");
+  $handoff->execute(['id'=>$conversationId]);
   if ($handoff->fetchColumn()) return;
 
   $historyQuery = $pdo->prepare("SELECT sender_type,body FROM messages WHERE conversation_id=:id ORDER BY id DESC LIMIT 12");
