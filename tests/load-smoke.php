@@ -62,7 +62,7 @@ try{
  $pollLimited=0;$pollAllowed=0;
  foreach($handles as $ch){$code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);if($code===429)$pollLimited++;elseif($code===200)$pollAllowed++;curl_multi_remove_handle($multi,$ch);curl_close($ch);}
  curl_multi_close($multi);
- assertLoad($pollAllowed===60&&$pollLimited===4,'customer polling enforces the 60-request guest window under concurrency');
+ assertLoad($pollAllowed===60&&$pollLimited===4,'customer polling enforces the 60-request guest window under concurrency (allowed='.$pollAllowed.', limited='.$pollLimited.')');
 
  $multi=curl_multi_init();$handles=[];
  for($i=0;$i<32;$i++){
