@@ -132,4 +132,9 @@ jq -e 'any(.messages[]; .sender_type == "system") and any(.messages[]; .sender_t
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"closed\"}" | jq -e '.status == "closed"' >/dev/null
 CLOSED_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$STAFF_MESSAGE_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e '.status == "closed"' <<<"$CLOSED_POLL" >/dev/null
+mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "UPDATE staff_users SET is_active=0 WHERE email='ci-admin@example.invalid'"
+REVOKED_STATUS="$(curl -sS -o /tmp/dimdian-revoked-session.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-session.php')"
+test "$REVOKED_STATUS" = "401"
+mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "UPDATE staff_users SET is_active=1 WHERE email='ci-admin@example.invalid'"
+echo 'deactivated staff sessions are revoked immediately'
 echo "API smoke test passed: guest identity, signed account link, conversation, messages, image upload/retrieval, staff login, reply, and closure."
