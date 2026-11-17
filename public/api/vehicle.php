@@ -26,12 +26,7 @@ try{
  $insert=$pdo->prepare('INSERT INTO conversation_vehicles (conversation_id,product_id,make,model,model_year,engine,transmission,trim_level,vin_ciphertext,vin_last4,created_at) VALUES (:cid,:pid,:make,:model,:year,:engine,:transmission,:trim,:vin,:last4,UTC_TIMESTAMP())');
  $insert->execute(['cid'=>$conversation['id'],'pid'=>$productId,'make'=>$make,'model'=>$model,'year'=>$year,'engine'=>$engine!==''?$engine:null,'transmission'=>$transmission!==''?$transmission:null,'trim'=>$trim!==''?$trim:null,'vin'=>$encrypted,'last4'=>$vin!==''?substr($vin,-4):null]);
  $vehicleId=(int)$pdo->lastInsertId();
- $fitment=null;
- if($productId&&$engine!==''&&$transmission!==''){
-  $q=$pdo->prepare("SELECT id,verification_source,verified_at FROM product_fitments WHERE product_id=:pid AND status='verified' AND make=:make AND model=:model AND :year BETWEEN year_from AND year_to AND engine=:engine AND transmission=:transmission AND (trim_level IS NULL OR trim_level=:trim) ORDER BY verified_at DESC LIMIT 1");
-  $q->execute(['pid'=>$productId,'make'=>$make,'model'=>$model,'year'=>$year,'engine'=>$engine,'transmission'=>$transmission,'trim'=>$trim!==''?$trim:null]);
-  $fitment=$q->fetch()?:null;
- }
+ $fitment=$productId&&$engine!==''&&$transmission!==''?vehicle_find_verified_fitment($pdo,(int)$productId,$make,$model,(int)$year,$engine,$transmission,$trim):null;
  if(!$fitment){
   $pdo->prepare("UPDATE conversations SET status='needs_human',last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id AND status='open'")->execute(['id'=>$conversation['id']]);
   $notice='Vehicle details received. A parts specialist must verify compatibility before we recommend a part.';
