@@ -1,7 +1,7 @@
 (() => {
 'use strict';
 const apiBase=document.body.dataset.apiBase||'/api/';
-const endpoint=name=>new URL(name+'.php',apiBase).href;
+const endpoint=name=>{const [path,query]=name.split('?');return new URL(path+'.php'+(query?'?'+query:''),apiBase).href;};
 let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,knownLatest=new Map();
 const $=id=>document.getElementById(id);
 const loginView=$('login-view'),inboxView=$('inbox-view'),list=$('conversation-list'),messages=$('thread-messages');
@@ -59,6 +59,7 @@ async function loadAttachment(img,id){
  try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok)img.src=URL.createObjectURL(await response.blob())}catch(_){}
 }
 function appendMessage(message){
+ const empty=messages.querySelector('.empty-state');if(empty)empty.remove();
  const bubble=node('article','bubble '+message.sender_type,message.body||'');
  if(message.attachment&&message.attachment.id){const img=node('img');img.alt='Customer image attachment';bubble.appendChild(img);loadAttachment(img,message.attachment.id)}
  bubble.appendChild(node('time','',formatTime(message.created_at)));messages.appendChild(bubble);messages.scrollTop=messages.scrollHeight;
