@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/staff.php';
-require_once dirname(__DIR__,2) . '/app/vehicle.php';
 require_method('GET');
 $staff = require_staff();
 $status = $_GET['status'] ?? 'active';
@@ -28,8 +27,7 @@ foreach ($rows as &$row) {
  $row['unread_count']=(int)$row['unread_count'];
  $parts=[$row['vehicle_make']??null,isset($row['vehicle_model'],$row['vehicle_year'])?$row['vehicle_model'].' '.$row['vehicle_year']:null,$row['vehicle_engine']??null,$row['vehicle_transmission']??null,!empty($row['vehicle_vin_last4'])?'VIN …'.$row['vehicle_vin_last4']:null];
  $row['vehicle_summary']=implode(' · ',array_values(array_filter($parts,static fn($part)=>is_string($part)&&$part!=='')));
- $row['vehicle_vin']=vehicle_decrypt_vin($row['vehicle_vin_ciphertext']??null);
- unset($row['vehicle_vin_ciphertext'],$row['vehicle_make'],$row['vehicle_model'],$row['vehicle_year'],$row['vehicle_engine'],$row['vehicle_transmission'],$row['vehicle_vin_last4']);
+ unset($row['vehicle_make'],$row['vehicle_model'],$row['vehicle_year'],$row['vehicle_engine'],$row['vehicle_transmission'],$row['vehicle_vin_last4']);
 }
 unset($row);
 json_response(['conversations'=>$rows]);
