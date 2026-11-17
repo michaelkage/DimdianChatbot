@@ -8,7 +8,7 @@ foreach (array_reverse($messages) as $message) {
  if (($message['role'] ?? '') === 'user') { $last=(string)($message['content'] ?? ''); break; }
 }
 if (str_contains($last,'TRIGGER_TIMEOUT')) {
- usleep(4000000);
+ usleep(1500000);
 }
 if (str_contains($last,'TRIGGER_QUOTA')) {
  http_response_code(429);
