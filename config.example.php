@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
  'app' => [
   'environment' => 'production',
+  'document_root' => __DIR__ . '/public', // Set to the actual web document root on the hosting account.
   'base_url' => 'https://example.com',
   'timezone' => 'UTC',
   'allowed_origins' => ['https://example.com','https://www.example.com'],
