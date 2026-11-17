@@ -47,7 +47,7 @@ ATTACHMENT_ID="$(jq -r '.attachment.id' <<<"$UPLOAD_JSON")"
 test "$ATTACHMENT_ID" -gt 0
 echo 'image upload passed'
 CUSTOMER_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
-jq -e '.messages | length == 2' <<<"$CUSTOMER_POLL" >/dev/null
+jq -e '.messages | length == 3' <<<"$CUSTOMER_POLL" >/dev/null
 curl -fsS "http://127.0.0.1:8080/api/attachment.php?id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN" -o /tmp/dimdian-downloaded.png
 cmp /tmp/dimdian-test.png /tmp/dimdian-downloaded.png
 echo 'private attachment retrieval passed'
