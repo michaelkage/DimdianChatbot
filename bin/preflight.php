@@ -71,7 +71,7 @@ if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR
   if($parentSafe)@mkdir($backupConfigured,0700,false);
  }
  $backupReal=realpath($backupConfigured)?:'';
- $safeBackupPath=$backupReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&count($webRoots)===2;
+ $safeBackupPath=$backupReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&$publicReal!==''&&$documentRootReal!=='';
  if($safeBackupPath)foreach($webRoots as $root)if($insideOrAncestor($backupReal,$root)){$safeBackupPath=false;break;}
  if($safeBackupPath&&$production)$safeBackupPath=$systemTemp!==''&&!$insideOrAncestor($backupReal,$systemTemp);
  if($safeBackupPath){@chmod($backupReal,0700);clearstatcache(true,$backupReal);}
