@@ -8,7 +8,7 @@
   const conversationKey = 'dimdian.conversation-id';
   const token = () => localStorage.getItem(tokenKey) || '';
   let conversationId = localStorage.getItem(conversationKey) || '';
-  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false;
+  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false, selectedProductId = null;
 
   const host = document.createElement('div');
   host.id = 'dimdian-chat-host';
@@ -51,6 +51,8 @@
     });
     conversationId=data.conversation.id;
     localStorage.setItem(conversationKey,conversationId);
+    selectedProductId=data.selected_product?Number(data.selected_product.id):null;
+    vehicleToggle.textContent=data.selected_product?'✓ '+data.selected_product.name+' selected · add vehicle details':'＋ Add vehicle details for a fitment check';
   }
   function showError(message){errorEl.textContent=message?String(message).replaceAll('_',' '):''}
   function appendMessage(message) {
@@ -113,12 +115,13 @@
         const stock=product.stock_status==='instock'?'In stock':product.stock_status==='outofstock'?'Out of stock':product.stock_status==='onbackorder'?'Available on backorder':'Stock status unavailable';
         const price=(data.currency?data.currency+' ':'')+(product.price||'Price unavailable');
         const meta=document.createElement('small');meta.textContent='SKU '+(product.sku||'—')+' · '+price+' · '+stock;card.appendChild(meta);
-        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent='Use for fitment check';select.disabled=!product.id||!product.permalink;
+        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?'Selected for fitment':'Use for fitment check';select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
         select.addEventListener('click',async()=>{
           if(busy||!conversationId)return;
           busy=true;select.disabled=true;select.textContent='Selecting listing…';
           try{
             await request(endpoint('product-context'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,product_id:Number(product.id)})});
+            selectedProductId=Number(product.id);
             catalogueResults.querySelectorAll('.select-product').forEach(button=>{button.disabled=true;button.textContent=button===select?'Selected for fitment':'Another listing selected';});
             vehicleToggle.textContent='✓ '+(product.name||'Product')+' selected · add vehicle details';
             vehicleForm.classList.add('open');
