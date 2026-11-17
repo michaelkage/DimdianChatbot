@@ -65,6 +65,8 @@ jobs:
           cat /tmp/dimdian-ci-provider.log || true
       - name: Run marketplace integration and hardening smoke test
         run: php tests/marketplace-smoke.php
+      - name: Run database backup and restore smoke test
+        run: php tests/backup-smoke.php
       - name: Run concurrent polling and rate-limit smoke test
         run: php tests/load-smoke.php
       - name: Verify core tables exist
