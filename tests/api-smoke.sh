@@ -69,9 +69,12 @@ jq -e '.status == "needs_human" and any(.messages[]; .sender_type == "system")' 
 AI_AFTER_TIMEOUT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == true and .ai_available == true' <<<"$AI_AFTER_TIMEOUT" >/dev/null
 echo 'AI timeout gracefully handed off without disabling the provider'
-curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
-curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Will this fit my vehicle?\"}" >/dev/null
-FITMENT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
+FITMENT_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
+FITMENT_TOKEN="$(jq -r '.token' <<<"$FITMENT_SESSION")"
+FITMENT_CONVERSATION="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $FITMENT_TOKEN" -H 'Content-Type: application/json' -d '{"subject":"Fitment test"}')"
+FITMENT_CONVERSATION_ID="$(jq -r '.conversation.id' <<<"$FITMENT_CONVERSATION")"
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $FITMENT_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_CONVERSATION_ID\",\"body\":\"Will this fit my vehicle?\"}" >/dev/null
+FITMENT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$FITMENT_CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $FITMENT_TOKEN")"
 jq -e '.status == "needs_human" and any(.messages[]; .sender_type == "system")' <<<"$FITMENT_POLL" >/dev/null
 echo 'fitment request bypassed AI and went straight to staff'
 QUOTA_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
