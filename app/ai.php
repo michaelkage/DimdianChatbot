@@ -88,7 +88,7 @@ function ai_process_customer_message(int $conversationId): void {
   $conversation = $find->fetch();
   if (!$conversation || $conversation['status'] !== 'open') return;
   // A staff handoff is sticky. Reopening the status for staff workflow must not silently re-enable AI.
-  $handoff = $pdo->prepare("SELECT 1 FROM messages WHERE conversation_id=:id AND sender_type='system' AND body LIKE 'A member of our support team will take over%' LIMIT 1");
+  $handoff = $pdo->prepare("SELECT 1 FROM messages WHERE conversation_id=:id AND sender_type IN ('system','customer_event') AND body LIKE 'A member of our support team will take over%' LIMIT 1");
   $handoff->execute(['id'=>$conversationId]);
   if ($handoff->fetchColumn()) return;
 
