@@ -36,7 +36,37 @@ The repository is structured so the web server's document root can point to \`pu
 - \`public/index.php\`: minimal database-backed health endpoint.
 - \`config.example.php\`: deployment configuration template.
 
-This is the foundation, not the complete chat product. Customer messaging, upload handling, staff authentication, inbox UI, polling, and AI triage remain to be implemented.
+The customer-facing guest chat flow is now implemented, including persistent browser identity, conversation reuse, customer text messages, delta polling, and private image attachments. The staff inbox, staff authentication, notification UX, and AI adapter are still pending.
+
+## Customer widget integration
+
+After deploying the support app, add this script to the marketplace layout (replace the SKU expression with the product page's real SKU variable):
+
+```html
+<script
+  src="https://support.example.com/widget.js"
+  data-api-base="https://support.example.com/api/"
+  data-context-sku="YOUR_PRODUCT_SKU"
+  defer
+></script>
+```
+
+The widget also captures the current page URL and document title automatically. Add the storefront's exact origin to `app.allowed_origins` in `config.php`. The widget uses browser local storage for its opaque guest token and pauses polling while it is closed or the tab is hidden.
+
+## Implemented customer API
+
+- `POST /api/session.php`: create or resume a guest identity.
+- `POST /api/conversations.php`: create or reuse the customer's active conversation and refresh listing context.
+- `GET /api/messages.php?conversation_id=…&after_id=0`: fetch only messages newer than the supplied message ID.
+- `POST /api/messages.php`: send a customer text message.
+- `POST /api/upload.php`: attach one validated JPG, PNG, or WEBP image (maximum 3 MB).
+- `GET /api/attachment.php?id=…`: retrieve an attachment only when it belongs to the authenticated guest's conversation.
+
+All customer endpoints require the `X-Dimdian-Guest-Token` header except the initial guest-session creation request. The token is 32 cryptographically random bytes represented as 64 hexadecimal characters; only its SHA-256 hash is stored in MySQL.
+
+## Validation
+
+GitHub Actions runs PHP syntax checks over `app/` and `public/` and checks the widget JavaScript syntax on pushes to `main`.
 
 ## Hostinger setup
 
