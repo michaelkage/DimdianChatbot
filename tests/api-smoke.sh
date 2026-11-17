@@ -55,7 +55,7 @@ jq -e '.source == "woocommerce_live" and .products[0].id == 101 and .products[0]
 NAME_SEARCH="$(curl -fsS "http://127.0.0.1:8080/api/products.php?type=name&q=Toyota%20Camry" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e '.products | length == 1 and .[0].sku == "ALT-CAM-25"' <<<"$NAME_SEARCH" >/dev/null
 MPN_SEARCH="$(curl -fsS "http://127.0.0.1:8080/api/products.php?type=mpn&q=DENSO-ALT-25" -H "X-Dimdian-Guest-Token: $TOKEN")"
-jq -e '.products | length == 1 and .[0].id == 101' <<<"$MPN_SEARCH" >/dev/null
+jq -e '.products | length == 1 and .[0].id == 101 and .[0].mpn == "DENSO-ALT-25"' <<<"$MPN_SEARCH" >/dev/null
 echo 'live WooCommerce SKU, name and MPN search passed'
 PRODUCT_CONTEXT="$(curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"product_id\":101}")"
 jq -e '.selected == true and .product.id == 101 and .product.sku == "ALT-CAM-25"' <<<"$PRODUCT_CONTEXT" >/dev/null
