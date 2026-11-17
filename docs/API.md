@@ -1,164 +1,75 @@
 # Public API contract
 
-Base path: `/api`. All responses are JSON and timestamps are UTC ISO-8601 strings.
+Base path: `/api`. All responses are JSON except the Meta webhook verification handshake. Timestamps are UTC ISO-8601 strings.
 
 ## Authentication
 
-All conversation endpoints require:
+All conversation endpoints require `X-DIMDIAN-GUEST-TOKEN`. The token is returned once by session creation. Only its SHA-256 hash is stored. Tokens are never accepted in query strings.
 
-```http
-X-DIMDIAN-GUEST-TOKEN: <64-character-session-token>
-```
-
-The token is returned once by session creation. Only its SHA-256 hash is stored in the database. Tokens are never accepted in query strings.
-
-## Create a guest chat session
+## Create a guest session
 
 `POST /api/session.php`
 
-Headers: `Content-Type: application/json`
-
-Body (both fields optional):
+Body fields are optional except that WhatsApp opt-in requires a phone number:
 
 ```json
 {
   "name": "Ada",
-  "phone": "+2348012345678"
+  "phone": "+2348012345678",
+  "whatsapp_opt_in": true
 }
 ```
 
-No account, password, phone verification, or OTP is required. The visitor can omit both contact fields.
+No account, password, phone verification or OTP is required. The phone must be supplied in international format if WhatsApp continuation is desired. The opt-in timestamp is stored separately from the contact number.
 
-Success: HTTP `201 Created`
-
-```json
-{
-  "data": {
-    "session_id": "uuid",
-    "conversation_id": "uuid",
-    "session_token": "64-character-random-hex-token",
-    "expires_at": "2026-11-24T12:00:00+00:00",
-    "created_at": "2026-11-17T12:00:00+00:00"
-  }
-}
-```
-
-## Send a visitor message
+## Send a website message
 
 `POST /api/messages.php`
 
 Headers: `Content-Type: application/json`, `X-DIMDIAN-GUEST-TOKEN`
 
-Body:
+Body: `{"message":"Hi, I have a question."}`
 
-```json
-{
-  "message": "Hi, I have a question about your service."
-}
-```
+Messages are stored in the authenticated conversation. The response confirms database persistence only. It never claims WhatsApp delivery.
 
-- Message text is trimmed, must not be empty, and is limited to 4,000 Unicode characters.
-- Per-session rate limit defaults to 8 messages per 60 seconds.
-- The message is stored in the conversation with `sender_type=visitor` and `delivery_status=queued`.
-- HTTP `201 Created` confirms database persistence only. It does **not** mean WhatsApp received the message.
-- The response explicitly reports `transport=not_configured` until the WhatsApp outbound adapter is implemented.
+- If WhatsApp is enabled and the visitor explicitly opted in with a phone number, a template-send job is written to the durable outbox in the same transaction.
+- Otherwise the message is marked `web_only` and remains available in the website chat.
+- The outbox worker later changes status to `sent` after Meta accepts the request; webhook status callbacks can advance it to `delivered`, `read` or `failed`.
 
-Example success:
-
-```json
-{
-  "data": {
-    "id": "uuid",
-    "sequence_id": 1,
-    "conversation_id": "uuid",
-    "sender": "visitor",
-    "message": "Hi, I have a question about your service.",
-    "delivery_status": "queued",
-    "created_at": "2026-11-17T12:00:00+00:00"
-  },
-  "meta": {
-    "transport": "not_configured",
-    "note": "Your message is saved. WhatsApp delivery will become available when the WhatsApp integration is configured."
-  }
-}
-```
-
-## Poll for new messages
+## Poll messages and delivery states
 
 `GET /api/messages.php?after=0&limit=50`
 
-Headers: `X-DIMDIAN-GUEST-TOKEN`
+The cursor returns new messages in sequence order. `meta.delivery_updates` also returns the latest 50 visitor-message delivery states, allowing the widget to reflect webhook status changes even when no new message was added.
 
-- `after` is the last `sequence_id` received; defaults to `0`.
-- `limit` is optional and clamped to 1–100; defaults to `50`.
-- Results are ordered by the monotonically increasing `sequence_id`, not UUID or timestamp.
-- Save `meta.next_cursor` and pass it as `after` on the next request.
-- Poll approximately every 3 seconds while the widget is open. Back off when the tab is hidden or requests fail.
+A valid session may continue reading history after a conversation is closed, but cannot submit new messages. Expired/revoked sessions return 401.
 
-Example response:
+## Meta webhook
 
-```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "sequence_id": 1,
-      "sender": "visitor",
-      "message": "Hi, I have a question.",
-      "delivery_status": "queued",
-      "created_at": "2026-11-17T12:00:00+00:00"
-    }
-  ],
-  "meta": {
-    "after": 0,
-    "next_cursor": 1,
-    "has_more": false,
-    "poll_after_ms": 3000
-  }
-}
-```
+`GET|POST /api/webhook.php`
 
-The endpoint returns both visitor and business messages for the authenticated conversation. At this stage only visitor messages can be created through the public API; business replies will enter through the future verified WhatsApp webhook.
+- GET validates Meta's `hub.verify_token` handshake and returns `hub.challenge`.
+- POST validates `X-Hub-Signature-256` over the exact raw body with the Meta App Secret.
+- `messages` text events from the visitor are matched by normalized sender phone.
+- `smb_message_echoes` text events from the Business app are matched by normalized recipient phone.
+- `messages.statuses` updates outbound message delivery states.
+- Unique provider event keys prevent duplicate processing.
+
+The webhook returns 200 only after the batch has been committed. Failed processing returns 500 so the provider can retry.
 
 ## Error format
 
 ```json
-{
-  "error": {
-    "code": "invalid_json",
-    "message": "Send a valid JSON object."
-  }
-}
+{"error":{"code":"invalid_field","message":"The supplied value is invalid."}}
 ```
 
-Relevant status codes:
+Relevant statuses: 400 malformed JSON, 401 invalid/expired session or webhook signature, 403 failed webhook verification, 405 method mismatch, 409 closed conversation, 413 oversized body, 415 unsupported content type, 422 invalid fields, 429 rate limited, 500 unexpected failure, 503 app not configured.
 
-| Status | Meaning |
-|---|---|
-| 400 | Malformed JSON |
-| 401 | Missing, invalid, revoked or expired guest token |
-| 403 | Disallowed browser origin |
-| 405 | Wrong HTTP method |
-| 409 | Conversation closed |
-| 413 | Request body too large |
-| 415 | Wrong content type |
-| 422 | Invalid field, cursor or limit |
-| 429 | Rate limit exceeded |
-| 500 | Unexpected server failure |
-| 503 | Application configuration missing |
+## Security notes
 
-## Security and operational notes
-
-- Session tokens contain 256 bits of cryptographic randomness.
-- Only a one-way SHA-256 token hash is persisted.
-- Session records expire after the configured TTL (default seven days).
-- Session creation is rate-limited by an HMAC of the remote IP address; raw IP addresses are not stored.
-- Message submission is rate-limited by guest session.
-- CORS is restricted to exact origins in `app.allowed_origins`; wildcard origins are not supported.
-- Phone number is optional contact metadata, never an authentication gate.
-- API responses are marked `Cache-Control: no-store`.
-- Do not log guest tokens or put them in URLs.
-
-## Current limitations
-
-Message persistence and polling are implemented. WhatsApp outbound delivery, delivery-status callbacks, inbound webhook verification, app-originated reply correlation, and the browser widget are not yet implemented. A saved visitor message currently remains `queued` until the transport worker/adapter is added.
+- Guest tokens are 256-bit random values; only hashes are persisted.
+- CORS is restricted to exact configured website origins.
+- Webhook signatures are checked before parsing.
+- Webhook payloads are not stored; only SHA-256 hashes and normalized event records are retained.
+- The cron worker is CLI-only and cannot be invoked over HTTP.
+- No production credentials belong in Git.

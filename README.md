@@ -1,86 +1,92 @@
 # DimdianChatbot
 
-A lightweight, self-hosted website chat widget that connects customer enquiries to the business's WhatsApp support channel.
+A lightweight website chat widget ↔ WhatsApp Business app bridge.
 
 ## Product direction
 
-The current project is a focused website-to-WhatsApp support bridge. It is **not** the former auto-parts marketplace support platform.
+- Website visitors start conversations as guests; no account or OTP.
+- The chat lives in an embeddable website widget, not a customer portal.
+- Phone is optional contact information. WhatsApp continuation requires an explicit opt-in and an international phone number.
+- Support staff should continue using their existing WhatsApp Business app; no separate staff dashboard is in scope.
+- No AI assistant, WooCommerce integration, product catalogue, fitment/VIN workflow or inventory system.
 
-- Visitors start conversations as guests; no account or OTP is required.
-- The chat lives in an embeddable website widget, not a separate customer portal.
-- Visitors can make quick enquiries without navigating away from the website.
-- Conversations are stored by the backend so the widget can retrieve replies.
-- Support staff should be able to use the WhatsApp Business app they already know.
-- No separate staff inbox or support dashboard is part of the target product.
-- No AI assistant, WooCommerce integration, product catalogue, fitment/VIN workflow, or inventory system is in scope.
-
-A contact phone number may be collected in the widget to help support identify and continue an enquiry. It must not become an OTP or account-registration barrier.
-
-## Target message flow
+## Target flow
 
 ```text
-Website visitor
-    ↕
-Embeddable chat widget
-    ↕
-DimdianChatbot API + MySQL
-    ↕
-WhatsApp Business Platform
-    ↕
-WhatsApp Business app used by support
+Website visitor ↔ Widget ↔ PHP API + MySQL
+                         ↕
+                  WhatsApp Cloud API
+                         ↕
+               WhatsApp Business app
 ```
 
-The exact WhatsApp app/API coexistence and inbound-reply webhook route must be confirmed for the business's +234 number before production credentials or number migration are configured. Do not register or migrate the business number as a Cloud API-only number until coexistence eligibility and the app-reply echo/webhook behavior are verified.
+The intended bridge uses an approved WhatsApp template to start an opted-in visitor's WhatsApp thread, inbound message webhooks to mirror visitor replies, and the `smb_message_echoes` webhook to mirror supported Business-app replies back into the website. This depends on actual WhatsApp Business App Coexistence support for the business number. Do not enable production transport or migrate the live number until +234-number eligibility and app-originated echo delivery have been tested.
 
-## Technology and hosting
+## Stack
 
-- PHP 8.2+ and PDO
-- MySQL / MariaDB
+- PHP 8.2+ / PDO
+- MySQL or compatible MariaDB
 - Vanilla JavaScript, HTML and CSS
-- Stateless HTTP APIs and short polling; no WebSocket daemon
-- Shared-hosting friendly deployment
-- Minimal runtime dependencies
+- Stateless HTTP and short polling; no WebSocket daemon
+- CLI cron worker for outbound queue
+- No Composer or frontend runtime dependencies
 
 ## Repository layout
 
 ```text
-app/                       Shared PHP bootstrap and application services
-config.example.php         Safe configuration template (copy to config.php)
-database/schema.sql        Initial MySQL schema
-database/migrations/       Incremental database changes
-docs/API.md                Public API contract
-docs/WIDGET.md             Widget integration and behavior
-public/api/                Public HTTP API endpoints
-public/widget.js           Embeddable browser widget
-public/widget.css          Isolated widget styling
-tests/                     API and widget acceptance criteria
+app/                       PHP bootstrap and WhatsApp services
+config.example.php         Private config template
+database/schema.sql        Fresh-install schema
+database/migrations/       Incremental upgrades
+docs/API.md                HTTP API contract
+docs/WIDGET.md             Widget integration
+docs/WHATSAPP.md           Meta setup, outbox and webhook design
+public/api/                Public API endpoints
+public/cron/               CLI-only scheduled workers
+public/widget.js           Embeddable widget
+public/widget.css          Isolated widget styles
+tests/                     PHP and Node tests
 archive/                   Retired marketplace-support implementation
 ```
 
-The previous marketplace-support implementation is preserved under `archive/legacy-marketplace-support/`. It is not loaded by the active application.
+## Database setup
 
-## Local / shared-hosting setup
+For a fresh database, import `database/schema.sql` once.
 
-1. Create an empty MySQL or MariaDB database and database user.
-2. Import `database/schema.sql` into the empty database.
-3. If you already imported the earlier schema from the previous commit, run `database/migrations/002_message_sequence.sql` instead of re-importing the schema.
-4. Copy `config.example.php` to `config.php` in the repository root, outside the public web root.
-5. Set the database DSN, username, password, a random `app.app_key` of at least 32 characters, and the exact website origins allowed to embed the widget.
-6. Point the API subdomain's document root at `public/`. Do not expose the repository root or `archive/` over HTTP.
-7. Test session creation, message submission and polling using [docs/API.md](docs/API.md).
-8. See [docs/WIDGET.md](docs/WIDGET.md) for the browser widget embed contract. Do not embed it on the live website until the API is deployed and tested.
+For an existing database created before the WhatsApp outbox work, apply migrations in order:
+1. `database/migrations/002_message_sequence.sql` if the database predates the stable message cursor.
+2. `database/migrations/003_whatsapp_outbox.sql`.
 
-The endpoint returns a one-time plaintext guest token. The database stores only its SHA-256 hash. The widget keeps the token in tab-scoped `sessionStorage` and sends it as `X-DIMDIAN-GUEST-TOKEN` on subsequent API calls. It is never placed in a URL.
+Do not run migrations on a fresh database after importing the current schema; the current schema already includes their changes.
+
+## Configuration
+
+Copy `config.example.php` to a private `config.php`. Configure database credentials, app key and exact allowed website origins. WhatsApp remains disabled by default. See [docs/WHATSAPP.md](docs/WHATSAPP.md) before adding Meta credentials or enabling outbound transport.
+
+## Tests
+
+Run locally:
+
+```sh
+php tests/run.php
+node --test tests/widget.test.mjs
+find app public tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+```
+
+GitHub Actions runs these checks on pushes and pull requests.
 
 ## Development status
 
-1. [x] Retire the previous marketplace-support direction from the active repository.
-2. [x] Establish PHP bootstrap, database schema, and guest-session API.
-3. [x] Implement message submission and polling APIs.
-4. [x] Build the first dependency-free embeddable guest chat widget.
-5. [ ] Add automated browser and PHP/MySQL runtime tests.
-6. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
-7. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
-8. [ ] Complete deployment verification and end-to-end testing with the real WhatsApp Business account.
+- [x] Retire old marketplace-support implementation from active paths.
+- [x] PHP foundation, guest sessions, message submission and polling.
+- [x] Embeddable guest widget with tab-scoped session restoration.
+- [x] Durable outbound outbox, retry/backoff and Meta Cloud API template adapter.
+- [x] Meta webhook GET verification, POST signature verification and event deduplication.
+- [x] Inbound text and Business-app text echo correlation by visitor phone.
+- [x] Automated PHP helper and widget contract tests.
+- [ ] Execute database-backed integration tests against the target MySQL/MariaDB version.
+- [ ] Verify Coexistence and `smb_message_echoes` for the actual +234 business number.
+- [ ] Configure and approve the WhatsApp template; test with a dedicated number.
+- [ ] Complete real-account end-to-end testing before production enablement.
 
-Visitor messages are persisted and can be polled by the originating widget session. Until the WhatsApp transport is implemented, newly submitted messages remain queued in the database; the API and widget do not claim they have reached the business.
+WhatsApp outbound is intentionally disabled by default. Without visitor opt-in and a configured/approved template, messages remain website-only. Text is the only synchronized message type in this implementation.
