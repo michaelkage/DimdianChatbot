@@ -9,6 +9,13 @@ function check(bool $ok,string $message): void {
 }
 
 check(woocommerce_ready(),'catalogue adapter is configured against the isolated read-only WooCommerce fixture');
+$originalStoreUrl=$GLOBALS['config']['woocommerce']['store_url'];
+$GLOBALS['config']['woocommerce']['store_url']='https://user:secret@parts.example.invalid';
+check(!woocommerce_ready(),'WooCommerce base URLs containing embedded credentials are rejected');
+$GLOBALS['config']['woocommerce']['store_url']=$originalStoreUrl;
+$GLOBALS['config']['app']['environment']='production';
+check(!woocommerce_ready(),'production WooCommerce connections reject plaintext HTTP');
+$GLOBALS['config']['app']['environment']='test';
 $product=woocommerce_normalize_product([
  'id'=>42,'name'=>'Test Alternator','sku'=>'ALT-42','price'=>'12500.00',
  'regular_price'=>'15000.00','sale_price'=>'12500.00','stock_status'=>'instock',
