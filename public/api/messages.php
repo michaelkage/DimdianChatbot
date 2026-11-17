@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
-require_once dirname(__DIR__,2) . '/app/customer.php';\n
+require_once dirname(__DIR__,2) . '/app/customer.php';
+require_method('GET','POST');
+
 $customer = require_customer();
 $pdo = db();
 
@@ -67,4 +69,3 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
  }
 }
 
-require_method('GET','POST');
