@@ -25,6 +25,7 @@ function renderList(items){
   const preview=node('div','conversation-preview',item.last_message||'No messages yet');
   const tags=node('div','conversation-tags');tags.append(node('span','tag',item.status.replace('_',' ')));
   if(item.context_sku)tags.append(node('span','tag','SKU '+item.context_sku));
+  if(item.selected_product_name)tags.append(node('span','tag','Selected: '+item.selected_product_name));
   const unread=Number(item.unread_count)||0;if(unread){tags.append(node('span','unread',String(unread)));totalUnread+=unread}
   button.append(top,preview,tags);button.addEventListener('click',()=>selectConversation(item));list.appendChild(button);
  }
@@ -76,12 +77,12 @@ function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
 async function selectConversation(item){
  current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
  $('customer-name').textContent=item.customer_name||'Guest shopper';
- $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
+ $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'Page SKU '+item.context_sku:null,item.selected_product_name?'Selected part '+item.selected_product_name+(item.selected_product_sku?' · '+item.selected_product_sku:''):null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
  $('thread-status').value=item.status;syncReplyAvailability();
  if(item.vehicle_summary){try{const vehicleData=await api('staff-vehicle?conversation_id='+encodeURIComponent(item.public_id));if(vehicleData.vehicle&&vehicleData.vehicle.vin)$('customer-meta').textContent+=' · VIN '+vehicleData.vehicle.vin;}catch(_){}}
  const fitmentPanel=$('fitment-verify');fitmentPanel.hidden=staff.role!=='admin'||!item.vehicle_summary;
- $('fitment-product-id').value=item.vehicle_product_id||'';$('fitment-source').value='';$('fitment-result').textContent='';
- const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
+ $('fitment-product-id').value=item.selected_product_id||item.vehicle_product_id||'';$('fitment-source').value='';$('fitment-result').textContent='';
+ const link=$('product-link');const listingUrl=item.selected_product_permalink||item.context_url;if(listingUrl){link.href=listingUrl;link.textContent=item.selected_product_permalink?'View selected part ↗':'View page ↗';link.hidden=false}else{link.hidden=true}
  messages.replaceChildren();$('reply-error').textContent='';
  await pollThread(true);refreshList();startThreadPolling();
 }
