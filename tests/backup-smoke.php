@@ -40,5 +40,16 @@ backupCheck($restoreExit===0,'restore command completes into a separate database
 $check=new PDO('mysql:host='.app_config('database.host').';port='.(int)app_config('database.port',3306).';dbname='.$target.';charset=utf8mb4',(string)app_config('database.username'),(string)app_config('database.password'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $tables=(int)$check->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('conversations','messages','conversation_vehicles','product_fitments','conversation_product_context')")->fetchColumn();
 backupCheck($tables===5,'restored database contains core support, vehicle, fitment and selected-product context tables');
+
+$corruptPath=$directory.'/dimdian-corrupt.sql.gz';file_put_contents($corruptPath,'not a gzip archive');
+$corruptProcess=proc_open([PHP_BINARY,dirname(__DIR__).'/bin/restore-db.php',$corruptPath,$target],[
+ 0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']
+],$corruptPipes,dirname(__DIR__));
+fwrite($corruptPipes[0],"RESTORE\n");fclose($corruptPipes[0]);
+$corruptOutput=stream_get_contents($corruptPipes[1]);$corruptError=stream_get_contents($corruptPipes[2]);
+fclose($corruptPipes[1]);fclose($corruptPipes[2]);$corruptExit=proc_close($corruptProcess);
+backupCheck($corruptExit!==0,'corrupt compressed backup is rejected before database import');
+$tablesAfter=(int)$check->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('conversations','messages','conversation_vehicles','product_fitments','conversation_product_context')")->fetchColumn();
+backupCheck($tablesAfter===5,'rejected corrupt backup leaves the restore target unchanged');
 db()->exec('DROP DATABASE '.$target);
 @unlink($backupPath);@rmdir($directory);
