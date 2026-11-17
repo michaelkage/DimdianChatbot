@@ -31,7 +31,7 @@ if ($width < 1 || $height < 1 || $width > 8000 || $height > 8000 || ($width * $h
 }
 
 $directory = (string)app_config('uploads.directory','');
-if ($directory === '' || str_starts_with(realpath($directory) ?: $directory,realpath(dirname(__DIR__)) ?: dirname(__DIR__))) {
+if ($directory === '' || !str_starts_with($directory,DIRECTORY_SEPARATOR) || str_starts_with(realpath($directory) ?: $directory,realpath(dirname(__DIR__)) ?: dirname(__DIR__))) {
  json_response(['error'=>'private_upload_directory_invalid'],503);
 }
 if (!is_dir($directory) && !mkdir($directory,0700,true) && !is_dir($directory)) {
