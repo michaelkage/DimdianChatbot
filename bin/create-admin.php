@@ -12,7 +12,7 @@ if(!filter_var($email,FILTER_VALIDATE_EMAIL)||$name===''||!in_array($role,['admi
 }
 function read_secret(string $prompt): string {
  fwrite(STDOUT,$prompt);
- $hidden = PHP_OS_FAMILY !== 'Windows' && function_exists('shell_exec') && function_exists('stream_isatty') && stream_isatty(STDIN);
+ $hidden = PHP_OS_FAMILY !== 'Windows' && function_exists('shell_exec') && function_exists('stream_isatty') && stream_isatty(STDOUT);
  if ($hidden) shell_exec('stty -echo');
  $value = fgets(STDIN) ?: '';
  if ($hidden) shell_exec('stty echo');
