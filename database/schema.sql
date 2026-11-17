@@ -52,6 +52,7 @@ CREATE TABLE guest_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE messages (
+    sequence_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
     sender_type ENUM('visitor', 'business', 'system') NOT NULL,
@@ -61,8 +62,9 @@ CREATE TABLE messages (
     sent_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_messages_sequence_id (sequence_id),
     UNIQUE KEY uq_messages_provider_message_id (provider_message_id),
-    KEY idx_messages_conversation_order (conversation_id, sent_at, id),
+    KEY idx_messages_conversation_order (conversation_id, sequence_id),
     CONSTRAINT fk_messages_conversation
         FOREIGN KEY (conversation_id) REFERENCES conversations (id)
         ON DELETE RESTRICT ON UPDATE CASCADE

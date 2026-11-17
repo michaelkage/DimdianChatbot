@@ -153,6 +153,8 @@ function client_fingerprint(): string
 
 function enforce_rate_limit(PDO $pdo, string $bucket, int $maxRequests, int $windowSeconds): void
 {
+    // rate_limits.bucket_key is fixed at 64 hex characters; hash all bucket names.
+    $bucketKey = hash('sha256', $bucket);
     $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     $cutoff = $now->modify('-' . max(1, $windowSeconds) . ' seconds')->format('Y-m-d H:i:s');
     $nowString = $now->format('Y-m-d H:i:s');
@@ -167,7 +169,7 @@ function enforce_rate_limit(PDO $pdo, string $bucket, int $maxRequests, int $win
                window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)'
         );
         $insert->execute([
-            ':bucket' => $bucket,
+            ':bucket' => $bucketKey,
             ':now' => $nowString,
             ':cutoff' => $cutoff,
             ':cutoff2' => $cutoff,
@@ -175,7 +177,7 @@ function enforce_rate_limit(PDO $pdo, string $bucket, int $maxRequests, int $win
         ]);
 
         $select = $pdo->prepare('SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
-        $select->execute([':bucket' => $bucket]);
+        $select->execute([':bucket' => $bucketKey]);
         $row = $select->fetch();
         $pdo->commit();
 
@@ -222,4 +224,43 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
         json_response(['error' => ['code' => 'invalid_field', 'message' => $field . ' is too long.']], 422);
     }
     return $value;
+}
+
+/**
+ * Resolve the bearer-like guest token to its one active conversation.
+ * The raw token is never queried or persisted; only its SHA-256 hash is used.
+ */
+function authenticate_guest_session(PDO $pdo): array
+{
+    $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
+    if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
+        json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
+    }
+
+    $tokenHash = hash('sha256', $token);
+    $statement = $pdo->prepare(
+        'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
+                c.status AS conversation_status
+         FROM guest_sessions gs
+         INNER JOIN conversations c ON c.id = gs.conversation_id
+         WHERE gs.token_hash = :token_hash
+           AND gs.revoked_at IS NULL
+           AND gs.expires_at > UTC_TIMESTAMP()
+         LIMIT 1'
+    );
+    $statement->execute([':token_hash' => $tokenHash]);
+    $session = $statement->fetch();
+
+    if (!$session) {
+        json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
+    }
+
+    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
+    $touch->execute([':id' => $session['session_id']]);
+
+    if ($session['conversation_status'] !== 'open') {
+        json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);
+    }
+
+    return $session;
 }

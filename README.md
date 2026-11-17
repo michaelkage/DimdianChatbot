@@ -44,12 +44,14 @@ The exact WhatsApp app/API coexistence and inbound-reply webhook route must be c
 ## Repository layout
 
 ```text
-app/                 Shared PHP bootstrap and application services
-config.example.php   Safe configuration template (copy to config.php)
-database/schema.sql  Initial MySQL schema
-docs/API.md          First API contract
-public/api/          Public HTTP endpoints; configure this as the web root
-archive/             Retired marketplace-support implementation
+app/                       Shared PHP bootstrap and application services
+config.example.php         Safe configuration template (copy to config.php)
+database/schema.sql        Initial MySQL schema
+database/migrations/       Incremental database changes
+docs/API.md                Public API contract
+public/api/                Public HTTP endpoints; configure this as the web root
+tests/                     API acceptance criteria
+archive/                   Retired marketplace-support implementation
 ```
 
 The previous marketplace-support implementation is preserved under `archive/legacy-marketplace-support/`. It is not loaded by the active application.
@@ -57,20 +59,12 @@ The previous marketplace-support implementation is preserved under `archive/lega
 ## Local / shared-hosting setup
 
 1. Create an empty MySQL or MariaDB database and database user.
-2. Import `database/schema.sql`.
-3. Copy `config.example.php` to `config.php` in the repository root (outside the public web root).
-4. Set the database DSN, username, password, a random `app.app_key` of at least 32 characters, and the exact website origins allowed to embed the widget.
-5. Point the domain or subdomain document root at `public/`. Do not expose the repository root or `archive/` over HTTP.
-6. Test `POST /api/session.php` using the contract in [docs/API.md](docs/API.md).
-
-Example request:
-
-```bash
-curl -i https://chat.example.com/api/session.php \
-  -H 'Origin: https://www.example.com' \
-  -H 'Content-Type: application/json' \
-  --data '{}'
-```
+2. Import `database/schema.sql` into the empty database.
+3. If you already imported the earlier schema from the previous commit, run `database/migrations/002_message_sequence.sql` instead of re-importing the schema.
+4. Copy `config.example.php` to `config.php` in the repository root, outside the public web root.
+5. Set the database DSN, username, password, a random `app.app_key` of at least 32 characters, and the exact website origins allowed to embed the widget.
+6. Point the API subdomain's document root at `public/`. Do not expose the repository root or `archive/` over HTTP.
+7. Test session creation, message submission and polling using [docs/API.md](docs/API.md).
 
 The endpoint returns a one-time plaintext guest token. The database stores only its SHA-256 hash. Keep the token in the embedding browser's storage and send it as `X-DIMDIAN-GUEST-TOKEN` on subsequent API calls. Do not place it in a URL or log it.
 
@@ -78,13 +72,11 @@ The endpoint returns a one-time plaintext guest token. The database stores only 
 
 1. [x] Retire the previous marketplace-support direction from the active repository.
 2. [x] Establish PHP bootstrap, database schema, and guest-session API.
-3. [ ] Implement message submission and polling APIs.
+3. [x] Implement message submission and polling APIs.
 4. [ ] Build the embeddable website chat widget.
 5. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
 6. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
 7. [ ] Add automated runtime tests and complete Hostinger deployment verification.
 8. [ ] Run an end-to-end test with the business's real WhatsApp Business account.
 
-The current slice is a working application foundation, not yet a complete live chat service. Message transport and the WhatsApp integration are not implemented.
-
-See [the product scope](docs/PRODUCT-SCOPE.md) and [the API contract](docs/API.md).
+Visitor messages are persisted and can be polled by the originating widget session. Until the WhatsApp transport is implemented, newly submitted messages remain queued in the database; the API does not claim they have reached the business.

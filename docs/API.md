@@ -1,15 +1,22 @@
-# Initial API contract
+# Public API contract
 
-Base path: `/api`. Responses are JSON. All timestamps are UTC ISO-8601 strings.
+Base path: `/api`. All responses are JSON and timestamps are UTC ISO-8601 strings.
+
+## Authentication
+
+All conversation endpoints require:
+
+```http
+X-DIMDIAN-GUEST-TOKEN: <64-character-session-token>
+```
+
+The token is returned once by session creation. Only its SHA-256 hash is stored in the database. Tokens are never accepted in query strings.
 
 ## Create a guest chat session
 
 `POST /api/session.php`
 
-Headers:
-
-- `Content-Type: application/json`
-- `Origin: https://the-embedding-website.example` (sent by browsers; must match `app.allowed_origins`)
+Headers: `Content-Type: application/json`
 
 Body (both fields optional):
 
@@ -36,9 +43,84 @@ Success: HTTP `201 Created`
 }
 ```
 
-The plaintext `session_token` is returned once. The browser should keep it in its own storage and send it on later chat API requests as `X-DIMDIAN-GUEST-TOKEN`. The database stores only its SHA-256 hash. Do not put the token in a URL, log it, or expose it to the embedding page's server.
+## Send a visitor message
 
-Errors use this shape:
+`POST /api/messages.php`
+
+Headers: `Content-Type: application/json`, `X-DIMDIAN-GUEST-TOKEN`
+
+Body:
+
+```json
+{
+  "message": "Hi, I have a question about your service."
+}
+```
+
+- Message text is trimmed, must not be empty, and is limited to 4,000 Unicode characters.
+- Per-session rate limit defaults to 8 messages per 60 seconds.
+- The message is stored in the conversation with `sender_type=visitor` and `delivery_status=queued`.
+- HTTP `201 Created` confirms database persistence only. It does **not** mean WhatsApp received the message.
+- The response explicitly reports `transport=not_configured` until the WhatsApp outbound adapter is implemented.
+
+Example success:
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "sequence_id": 1,
+    "conversation_id": "uuid",
+    "sender": "visitor",
+    "message": "Hi, I have a question about your service.",
+    "delivery_status": "queued",
+    "created_at": "2026-11-17T12:00:00+00:00"
+  },
+  "meta": {
+    "transport": "not_configured",
+    "note": "Your message is saved. WhatsApp delivery will become available when the WhatsApp integration is configured."
+  }
+}
+```
+
+## Poll for new messages
+
+`GET /api/messages.php?after=0&limit=50`
+
+Headers: `X-DIMDIAN-GUEST-TOKEN`
+
+- `after` is the last `sequence_id` received; defaults to `0`.
+- `limit` is optional and clamped to 1–100; defaults to `50`.
+- Results are ordered by the monotonically increasing `sequence_id`, not UUID or timestamp.
+- Save `meta.next_cursor` and pass it as `after` on the next request.
+- Poll approximately every 3 seconds while the widget is open. Back off when the tab is hidden or requests fail.
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "sequence_id": 1,
+      "sender": "visitor",
+      "message": "Hi, I have a question.",
+      "delivery_status": "queued",
+      "created_at": "2026-11-17T12:00:00+00:00"
+    }
+  ],
+  "meta": {
+    "after": 0,
+    "next_cursor": 1,
+    "has_more": false,
+    "poll_after_ms": 3000
+  }
+}
+```
+
+The endpoint returns both visitor and business messages for the authenticated conversation. At this stage only visitor messages can be created through the public API; business replies will enter through the future verified WhatsApp webhook.
+
+## Error format
 
 ```json
 {
@@ -49,17 +131,34 @@ Errors use this shape:
 }
 ```
 
-Relevant status codes: `400` malformed JSON, `403` disallowed origin, `405` wrong method, `413` oversized body, `415` wrong content type, `422` invalid optional field, `429` rate limited, `500` unexpected server failure, `503` missing configuration.
+Relevant status codes:
 
-## Session security model
+| Status | Meaning |
+|---|---|
+| 400 | Malformed JSON |
+| 401 | Missing, invalid, revoked or expired guest token |
+| 403 | Disallowed browser origin |
+| 405 | Wrong HTTP method |
+| 409 | Conversation closed |
+| 413 | Request body too large |
+| 415 | Wrong content type |
+| 422 | Invalid field, cursor or limit |
+| 429 | Rate limit exceeded |
+| 500 | Unexpected server failure |
+| 503 | Application configuration missing |
 
-- Tokens contain 256 bits of cryptographic randomness.
+## Security and operational notes
+
+- Session tokens contain 256 bits of cryptographic randomness.
 - Only a one-way SHA-256 token hash is persisted.
 - Session records expire after the configured TTL (default seven days).
 - Session creation is rate-limited by an HMAC of the remote IP address; raw IP addresses are not stored.
+- Message submission is rate-limited by guest session.
 - CORS is restricted to exact origins in `app.allowed_origins`; wildcard origins are not supported.
-- Phone number is contact metadata only. It is not used to authenticate or gate access.
+- Phone number is optional contact metadata, never an authentication gate.
+- API responses are marked `Cache-Control: no-store`.
+- Do not log guest tokens or put them in URLs.
 
-## Not implemented yet
+## Current limitations
 
-Message submission, message polling, WhatsApp outbound delivery, webhook verification, and widget JavaScript are deliberately not claimed as available by this first slice.
+Message persistence and polling are implemented. WhatsApp outbound delivery, delivery-status callbacks, inbound webhook verification, app-originated reply correlation, and the browser widget are not yet implemented. A saved visitor message currently remains `queued` until the transport worker/adapter is added.
