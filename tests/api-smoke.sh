@@ -57,15 +57,18 @@ CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
 AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
-curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
 AI_ON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
 jq -e '.ai_enabled == true and .mode == "ai_assisted"' <<<"$AI_ON" >/dev/null
-curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_NORMAL\"}" >/dev/null
-AI_NORMAL_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$INITIAL_AFTER_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
+AI_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
+AI_TOKEN="$(jq -r '.token' <<<"$AI_SESSION")"
+AI_CONVERSATION="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $AI_TOKEN" -H 'Content-Type: application/json' -d '{"subject":"AI completion test"}')"
+AI_CONVERSATION_ID="$(jq -r '.conversation.id' <<<"$AI_CONVERSATION")"
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $AI_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$AI_CONVERSATION_ID\",\"body\":\"TRIGGER_NORMAL\"}" >/dev/null
+AI_NORMAL_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$AI_CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $AI_TOKEN")"
 jq -e '.messages[] | select(.sender_type == "assistant" and .body == "Thanks for contacting DIMDIAN. Our team can help with that.")' <<<"$AI_NORMAL_POLL" >/dev/null
 echo 'AI provider completion passed'
-curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"TRIGGER_TIMEOUT\"}" >/dev/null
-TIMEOUT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
+curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $AI_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$AI_CONVERSATION_ID\",\"body\":\"TRIGGER_TIMEOUT\"}" >/dev/null
+TIMEOUT_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$AI_CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $AI_TOKEN")"
 jq -e '.status == "needs_human" and any(.messages[]; .sender_type == "system")' <<<"$TIMEOUT_POLL" >/dev/null
 AI_AFTER_TIMEOUT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == true and .ai_available == true' <<<"$AI_AFTER_TIMEOUT" >/dev/null
