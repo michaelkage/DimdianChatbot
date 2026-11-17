@@ -60,6 +60,11 @@ check(is_array($verified)&&$verified['verification_source']==='CI verified fixtu
 check($wrongEngine===null,'fitment matcher rejects a different engine instead of guessing');
 db()->prepare('DELETE FROM product_fitments WHERE product_id=:product')->execute(['product'=>$fitmentProduct]);
 
+$eventCount=(int)db()->query("SELECT COUNT(*) FROM messages WHERE sender_type='customer_event' AND body LIKE 'A member of our support team will take over%'")->fetchColumn();
+check($eventCount>0,'unresolved vehicle submissions persist as explicit human-handoff events');
+$unreadEvents=(int)db()->query("SELECT COUNT(*) FROM messages m INNER JOIN conversations c ON c.id=m.conversation_id WHERE m.sender_type='customer_event' AND m.id>COALESCE(c.staff_last_read_message_id,0)")->fetchColumn();
+check($unreadEvents>0,'unresolved vehicle events remain unread until staff marks the conversation read');
+
 $pdo=db();
 $staffId=(int)$pdo->query("SELECT id FROM staff_users WHERE email='ci-admin@example.invalid' LIMIT 1")->fetchColumn();
 $guestToken=bin2hex(random_bytes(32));$publicId=bin2hex(random_bytes(13));
@@ -82,11 +87,6 @@ $pdo->prepare('DELETE FROM customers WHERE id=:id')->execute(['id'=>$customerId]
 $scope='marketplace-smoke-'.bin2hex(random_bytes(8));
 check(rate_limit_exceeded($scope,1,60)===false,'first request is allowed within a fixed window');
 check(rate_limit_exceeded($scope,1,60)===true,'subsequent request is rejected at the configured limit');
-
-$eventCount=(int)db()->query("SELECT COUNT(*) FROM messages WHERE sender_type='customer_event' AND body LIKE 'A member of our support team will take over%'")->fetchColumn();
-check($eventCount>0,'unresolved vehicle submissions persist as explicit human-handoff events');
-$unreadEvents=(int)db()->query("SELECT COUNT(*) FROM messages m INNER JOIN conversations c ON c.id=m.conversation_id WHERE m.sender_type='customer_event' AND m.id>COALESCE(c.staff_last_read_message_id,0)")->fetchColumn();
-check($unreadEvents>0,'unresolved vehicle events remain unread until staff marks the conversation read');
 
 $tables=db()->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('rate_limit_buckets','conversation_vehicles','product_fitments')")->fetchColumn();
 check((int)$tables===3,'marketplace and hardening migration tables are present');
