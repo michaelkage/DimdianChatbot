@@ -85,7 +85,15 @@ jq -e '.messages | length == 5' <<<"$CUSTOMER_POLL" >/dev/null
 INITIAL_AFTER_ID="$(jq -r '.next_after_id' <<<"$CUSTOMER_POLL")"
 curl -fsS "http://127.0.0.1:8080/api/attachment.php?id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN" -o /tmp/dimdian-downloaded.png
 cmp /tmp/dimdian-test.png /tmp/dimdian-downloaded.png
-echo 'private attachment retrieval passed'
+UPLOAD_STORAGE_KEY="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT storage_key FROM attachments WHERE id=$ATTACHMENT_ID")"
+UPLOAD_STORAGE_PATH="/tmp/dimdian-ci-private-uploads/$UPLOAD_STORAGE_KEY"
+printf 'tampered' > "$UPLOAD_STORAGE_PATH"
+TAMPER_STATUS="$(curl -sS -o /tmp/dimdian-tampered-attachment.json -w '%{http_code}' "http://127.0.0.1:8080/api/attachment.php?id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
+test "$TAMPER_STATUS" = "500"
+jq -e '.error == "attachment_integrity_failed"' /tmp/dimdian-tampered-attachment.json >/dev/null
+cp /tmp/dimdian-test.png "$UPLOAD_STORAGE_PATH"
+chmod 600 "$UPLOAD_STORAGE_PATH"
+echo 'private attachment retrieval and integrity verification passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
