@@ -18,7 +18,7 @@ return [
 ];
 PHP
 mkdir -p /tmp/dimdian-ci-private-uploads
-php -S 127.0.0.1:8083 -t tests >/tmp/dimdian-ci-woo.log 2>&1 &
+php -S 127.0.0.1:8083 -t tests tests/woocommerce-stub.php >/tmp/dimdian-ci-woo.log 2>&1 &
 for attempt in $(seq 1 30); do
   if curl -fsS -u ci-woo-key:ci-woo-secret 'http://127.0.0.1:8083/wp-json/wc/v3/products?sku=ALT-CAM-25' >/tmp/dimdian-woo-health.json; then break; fi
   sleep 1
