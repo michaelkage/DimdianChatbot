@@ -88,13 +88,15 @@ function ai_process_customer_message(int $conversationId): void {
   $history = array_reverse($historyQuery->fetchAll());
   $latestCustomer = '';
   foreach (array_reverse($history) as $message) {
-   if ($message['sender_type'] === 'customer') { $latestCustomer=(string)$message['body']; break; }
+   if ($message['sender_type'] !== 'customer') continue;
+   if ($latestCustomer === '') $latestCustomer=(string)$message['body'];
+   // A later harmless message must not erase an earlier request that requires a specialist.
+   if (ai_requires_human((string)$message['body'])) {
+    ai_handoff_conversation($conversationId);
+    return;
+   }
   }
   if ($latestCustomer === '') return;
-  if (ai_requires_human($latestCustomer)) {
-   ai_handoff_conversation($conversationId);
-   return;
-  }
 
   $messages = [['role'=>'system','content'=>ai_system_prompt()]];
   if (!empty($conversation['context_sku'])) $messages[] = ['role'=>'system','content'=>'Current listing SKU context (not proof of compatibility or stock): '.(string)$conversation['context_sku']];
