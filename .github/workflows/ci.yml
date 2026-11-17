@@ -58,6 +58,11 @@ jobs:
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < tests/schema-smoke.sql
       - name: Run customer and staff API smoke test
         run: bash tests/api-smoke.sh
+      - name: Show API server diagnostics on failure
+        if: failure()
+        run: |
+          cat /tmp/dimdian-ci-server.log || true
+          cat /tmp/dimdian-ci-provider.log || true
       - name: Run marketplace integration and hardening smoke test
         run: php tests/marketplace-smoke.php
       - name: Verify core tables exist
