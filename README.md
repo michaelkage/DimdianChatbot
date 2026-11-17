@@ -32,7 +32,7 @@ WhatsApp Business app used by support
 
 The exact WhatsApp app/API coexistence and inbound-reply webhook route must be confirmed for the business's +234 number before production credentials or number migration are configured. Do not register or migrate the business number as a Cloud API-only number until coexistence eligibility and the app-reply echo/webhook behavior are verified.
 
-## Intended implementation constraints
+## Technology and hosting
 
 - PHP 8.2+ and PDO
 - MySQL / MariaDB
@@ -40,22 +40,51 @@ The exact WhatsApp app/API coexistence and inbound-reply webhook route must be c
 - Stateless HTTP APIs and short polling; no WebSocket daemon
 - Shared-hosting / Hostinger-friendly deployment
 - Minimal runtime dependencies
-- Rate limiting, secure guest-session tokens, webhook verification and message deduplication
 
 ## Repository layout
 
-The previous marketplace-support implementation has been moved intact to `archive/legacy-marketplace-support/`. It is retained for reference and is not part of the active application.
+```text
+app/                 Shared PHP bootstrap and application services
+config.example.php   Safe configuration template (copy to config.php)
+database/schema.sql  Initial MySQL schema
+docs/API.md          First API contract
+public/api/          Public HTTP endpoints; configure this as the web root
+archive/             Retired marketplace-support implementation
+```
 
-The active application is being rebuilt around the scope above. Until the new widget, API, schema and WhatsApp webhook are implemented and configured, this repository should be treated as a development scaffold, not a deployable support service.
+The previous marketplace-support implementation is preserved under `archive/legacy-marketplace-support/`. It is not loaded by the active application.
+
+## Local / shared-hosting setup
+
+1. Create an empty MySQL or MariaDB database and database user.
+2. Import `database/schema.sql`.
+3. Copy `config.example.php` to `config.php` in the repository root (outside the public web root).
+4. Set the database DSN, username, password, a random `app.app_key` of at least 32 characters, and the exact website origins allowed to embed the widget.
+5. Point the domain or subdomain document root at `public/`. Do not expose the repository root or `archive/` over HTTP.
+6. Test `POST /api/session.php` using the contract in [docs/API.md](docs/API.md).
+
+Example request:
+
+```bash
+curl -i https://chat.example.com/api/session.php \
+  -H 'Origin: https://www.example.com' \
+  -H 'Content-Type: application/json' \
+  --data '{}'
+```
+
+The endpoint returns a one-time plaintext guest token. The database stores only its SHA-256 hash. Keep the token in the embedding browser's storage and send it as `X-DIMDIAN-GUEST-TOKEN` on subsequent API calls. Do not place it in a URL or log it.
 
 ## Development status
 
 1. [x] Retire the previous marketplace-support direction from the active repository.
-2. [ ] Implement guest sessions and the embeddable chat widget.
-3. [ ] Implement conversation persistence and message polling.
-4. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
-5. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
-6. [ ] Add automated tests and Hostinger deployment instructions.
-7. [ ] Run an end-to-end test with the business's real WhatsApp Business account.
+2. [x] Establish PHP bootstrap, database schema, and guest-session API.
+3. [ ] Implement message submission and polling APIs.
+4. [ ] Build the embeddable website chat widget.
+5. [ ] Verify WhatsApp Business App Coexistence for the actual business number.
+6. [ ] Implement Cloud API outbound delivery and verified inbound app-reply webhooks.
+7. [ ] Add automated runtime tests and complete Hostinger deployment verification.
+8. [ ] Run an end-to-end test with the business's real WhatsApp Business account.
 
-See [the product scope](docs/PRODUCT-SCOPE.md) for the active requirements.
+The current slice is a working application foundation, not yet a complete live chat service. Message transport and the WhatsApp integration are not implemented.
+
+See [the product scope](docs/PRODUCT-SCOPE.md) and [the API contract](docs/API.md).
