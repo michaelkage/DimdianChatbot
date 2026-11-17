@@ -22,27 +22,35 @@ for attempt in $(seq 1 30); do
   sleep 1
 done
 jq -e '.status == "ok" and .database == "connected"' /tmp/dimdian-health.json >/dev/null
+echo 'health check passed'
 printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" | php bin/create-admin.php ci-admin@example.invalid "CI Admin" admin >/dev/null
+echo 'staff provisioning passed'
 SIGNATURE="$(php -r "echo hash_hmac('sha256', 'customer-123', 'ci-identity-secret');")"
 SESSION_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d "{\"external_user_id\":\"customer-123\",\"identity_signature\":\"$SIGNATURE\"}")"
 TOKEN="$(jq -r '.token' <<<"$SESSION_JSON")"
 test "$(printf '%s' "$TOKEN" | wc -c)" -eq 64
+echo 'guest session passed'
 CONVERSATION_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/brake-pad","context_sku":"BP-100","subject":"Brake pad listing"}')"
 CONVERSATION_ID="$(jq -r '.conversation.id' <<<"$CONVERSATION_JSON")"
 test "$(printf '%s' "$CONVERSATION_ID" | wc -c)" -eq 26
+echo 'conversation creation passed'
 curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Will this fit my vehicle?\"}" >/tmp/dimdian-customer-message.json
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' | base64 -d >/tmp/dimdian-test.png
 UPLOAD_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/upload.php -H "X-Dimdian-Guest-Token: $TOKEN" -F "conversation_id=$CONVERSATION_ID" -F 'file=@/tmp/dimdian-test.png;type=image/png')"
 ATTACHMENT_ID="$(jq -r '.attachment.id' <<<"$UPLOAD_JSON")"
 test "$ATTACHMENT_ID" -gt 0
+echo 'image upload passed'
 CUSTOMER_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e '.messages | length == 2' <<<"$CUSTOMER_POLL" >/dev/null
 curl -fsS "http://127.0.0.1:8080/api/attachment.php?id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN" -o /tmp/dimdian-downloaded.png
 cmp /tmp/dimdian-test.png /tmp/dimdian-downloaded.png
+echo 'private attachment retrieval passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
+echo 'staff login passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
 jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
+echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Please share your vehicle model and year.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
 CUSTOMER_REPLY="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
