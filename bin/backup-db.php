@@ -13,7 +13,8 @@ if(!$real||$real===DIRECTORY_SEPARATOR||($production&&$systemTemp!==false&&($rea
 @chmod($real,0700);clearstatcache(true,$real);$directoryPermissions=fileperms($real);
 if($directoryPermissions===false||($directoryPermissions&0077)!==0){fwrite(STDERR,"Backup directory must be owner-only (0700).\n");exit(1);}
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod($tmp,0600);
-$ini="[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n";
+$mysqlOption=static fn(string $value):string=>'"'.str_replace(['\\\\','"'],['\\\\\\\\','\\\\"'],$value).'"';
+$ini="[client]\nhost=".$mysqlOption((string)$db['host'])."\nport=".(int)($db['port']??3306)."\nuser=".$mysqlOption((string)$db['username'])."\npassword=".$mysqlOption((string)$db['password'])."\n";
 file_put_contents($tmp,$ini,LOCK_EX);chmod($tmp,0600);
 $file=$real.'/dimdian-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sql.gz';
 $gz=gzopen($file,'wb6');
