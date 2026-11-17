@@ -17,7 +17,7 @@ $product=woocommerce_normalize_product([
 ]);
 check($product['id']===42&&$product['sku']==='ALT-42'&&$product['price']==='12500.00','WooCommerce product normalization preserves live listing fields');
 check($product['stock_status']==='instock'&&$product['permalink']==='','unsafe product link is omitted when its host is not the configured store');
-check(woocommerce_public_permalink('https://parts.example.invalid/product/brake-pad/')==='https://parts.example.invalid/product/brake-pad/','canonical HTTPS storefront product links are retained');
+check(woocommerce_public_permalink('http://127.0.0.1:8083/product/alt-cam-25/')==='http://127.0.0.1:8083/product/alt-cam-25/','configured storefront product links are retained in isolated test mode');
 check(woocommerce_public_permalink('https://attacker.example/phishing')==='','external product links are rejected before reaching staff or shoppers');
 check(woocommerce_public_image('data:image/png;base64,AAAA')===null,'non-HTTP product image schemes are rejected');
 
