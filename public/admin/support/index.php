@@ -63,6 +63,14 @@ $apiBase = rtrim((string)app_config('app.base_url',''),'/') . '/api/';
             <select id="thread-status" aria-label="Conversation status"><option value="open">Open</option><option value="needs_human">Needs human</option><option value="closed">Closed</option></select>
           </div>
         </header>
+        <section id="fitment-verify" class="fitment-verify" hidden>
+          <strong>Vehicle fitment review</strong>
+          <p>Only mark this verified after checking a trusted parts catalogue or manufacturer source.</p>
+          <label>WooCommerce product ID <input id="fitment-product-id" type="number" min="1" inputmode="numeric"></label>
+          <label>Verification source <input id="fitment-source" maxlength="255" placeholder="Manufacturer catalogue / supplier confirmation" required></label>
+          <button id="fitment-save" type="button" class="primary">Record verified fitment</button>
+          <small id="fitment-result" role="status"></small>
+        </section>
         <div id="thread-messages" class="thread-messages" aria-live="polite"></div>
         <form id="reply-form" class="reply-form">
           <p id="reply-error" class="form-error" role="status"></p>
