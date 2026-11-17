@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__).'/app/woocommerce.php';
+require_once dirname(__DIR__).'/app/ai_provider.php';
 require_once dirname(__DIR__).'/app/vehicle.php';
 
 function check(bool $ok,string $message): void {
@@ -9,6 +10,12 @@ function check(bool $ok,string $message): void {
 }
 
 check(woocommerce_ready(),'catalogue adapter is configured against the isolated read-only WooCommerce fixture');
+$providerFingerprint=ai_provider_fingerprint();
+$originalModel=$GLOBALS['config']['ai']['provider']['model'];
+$GLOBALS['config']['ai']['provider']['model']=$originalModel.'-changed';
+check($providerFingerprint!==ai_provider_fingerprint(),'changing the provider model invalidates its successful-test fingerprint');
+$GLOBALS['config']['ai']['provider']['model']=$originalModel;
+check($providerFingerprint===ai_provider_fingerprint(),'restoring the tested provider model restores its fingerprint');
 $originalStoreUrl=$GLOBALS['config']['woocommerce']['store_url'];
 $GLOBALS['config']['woocommerce']['store_url']='https://user:secret@parts.example.invalid';
 check(!woocommerce_ready(),'WooCommerce base URLs containing embedded credentials are rejected');
