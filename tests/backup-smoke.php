@@ -17,7 +17,7 @@ $backupOutput=stream_get_contents($backupPipes[1]);$backupError=stream_get_conte
 fclose($backupPipes[1]);fclose($backupPipes[2]);
 $backupExit=proc_close($backupProcess);
 backupCheck($backupExit===0,'database backup command exits successfully: '.trim((string)$backupError));
-$backupPath=trim((string)$backupOutput);
+$backupPath=explode(' (',trim((string)$backupOutput),2)[0];
 backupCheck(is_file($backupPath)&&filesize($backupPath)>0,'compressed SQL backup is created in private storage');
 
 $target='dimdian_restore_'.bin2hex(random_bytes(4));
