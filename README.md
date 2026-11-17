@@ -126,13 +126,14 @@ Configure the same random secret as `integration.customer_identity_secret` in th
 - `GET /api/messages.php?conversation_id=…&after_id=0`: fetch only messages newer than the supplied message ID.
 - `POST /api/messages.php`: send a customer text message.
 - `POST /api/upload.php`: attach one validated JPG, PNG, or WEBP image (maximum 3 MB).
+- `POST /api/product-context.php`: attach a shopper-selected, server-revalidated live WooCommerce listing to the conversation before submitting vehicle details.
 - `GET /api/attachment.php?id=…`: retrieve an attachment only when it belongs to the authenticated guest's conversation.
 
 All customer endpoints require the `X-Dimdian-Guest-Token` header except the initial guest-session creation request. The token is 32 cryptographically random bytes represented as 64 hexadecimal characters; only its SHA-256 hash is stored in MySQL.
 
 ## Validation
 
-GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including image upload, AI completion, timeout handoff, quota-triggered global shutdown, and the administrator kill switch.
+GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema and additive migration into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including trusted listing URL validation, image upload, AI completion, timeout handoff, quota-triggered global shutdown, the administrator provider probe, backup/restore recovery, and concurrent polling/rate-limit checks.
 
 ## Hostinger setup
 
@@ -170,7 +171,7 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 
 ## Live WooCommerce catalogue
 
-The customer widget now has a live catalogue search panel. The server calls the WooCommerce REST API; it does not read the historical Shop HTML snapshot.
+The customer widget now has a live catalogue search panel. Shoppers can explicitly select a result as the subject of a vehicle fitment check; the server re-fetches the product by ID before saving its context. Product links are accepted only when they use the configured store's canonical HTTPS host. The server calls the WooCommerce REST API; it does not read the historical Shop HTML snapshot.
 
 Add this to private `config.php`:
 
