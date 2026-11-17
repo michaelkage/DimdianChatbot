@@ -11,7 +11,7 @@ $params = [];
 if ($status === 'active') $where = "WHERE c.status IN ('open','needs_human')";
 elseif ($status !== 'all') { $where = 'WHERE c.status=:status'; $params['status']=$status; }
 $sql = "SELECT c.public_id,c.status,c.context_url,c.context_sku,c.subject,c.last_message_at,c.created_at,
- cu.display_name AS customer_name,cu.email AS customer_email,
+ cu.display_name AS customer_name,cu.email AS customer_email,cu.external_user_id AS customer_account_id,
  assigned.display_name AS assigned_staff,
  (SELECT m.body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
  (SELECT m.sender_type FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_sender_type,
