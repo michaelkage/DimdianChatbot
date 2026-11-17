@@ -137,4 +137,6 @@ REVOKED_STATUS="$(curl -sS -o /tmp/dimdian-revoked-session.json -w '%{http_code}
 test "$REVOKED_STATUS" = "401"
 mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "UPDATE staff_users SET is_active=1 WHERE email='ci-admin@example.invalid'"
 echo 'deactivated staff sessions are revoked immediately'
+DIMDIAN_BACKUP_DIRECTORY=/tmp/dimdian-ci-preflight-backups php bin/preflight.php
+rm -rf /tmp/dimdian-ci-preflight-backups
 echo "API smoke test passed: guest identity, signed account link, conversation, messages, image upload/retrieval, staff login, reply, and closure."
