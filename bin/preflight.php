@@ -16,6 +16,8 @@ function preflight(string $label,bool $ok,string $detail='',bool $warning=false)
 $production=app_config('app.environment','production')==='production';
 preflight('PHP runtime',version_compare(PHP_VERSION,'8.2.0','>='),PHP_VERSION);
 foreach(['pdo','pdo_mysql','fileinfo','openssl'] as $extension)preflight('PHP extension '.$extension,extension_loaded($extension));
+preflight('PHP zlib extension',extension_loaded('zlib'),'required for compressed CLI backups; use phpMyAdmin export/import if unavailable',!extension_loaded('zlib'));
+preflight('CLI process support',function_exists('proc_open'),'required for mysqldump/mysql scripts; use phpMyAdmin export/import if unavailable',!function_exists('proc_open'));
 if((bool)app_config('woocommerce.enabled',false)||(bool)app_config('ai.provider_ready',false))preflight('PHP extension curl',extension_loaded('curl'));
 function preflight_ini_bytes(string $value): int {
  $value=trim($value);if($value===''||$value==='0')return 0;if($value==='-1')return PHP_INT_MAX;
