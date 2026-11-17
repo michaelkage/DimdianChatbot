@@ -25,6 +25,10 @@ if($product['permalink']==='')json_response(['error'=>'product_link_unavailable'
 $pdo=db();
 $pdo->beginTransaction();
 try{
+ $lock=$pdo->prepare('SELECT id,status FROM conversations WHERE id=:id AND customer_id=:customer_id FOR UPDATE');
+ $lock->execute(['id'=>$conversation['id'],'customer_id'=>$customer['id']]);$locked=$lock->fetch();
+ if(!$locked){$pdo->rollBack();json_response(['error'=>'conversation_not_found'],404);}
+ if($locked['status']==='closed'){$pdo->rollBack();json_response(['error'=>'conversation_closed'],409);}
  $upsert=$pdo->prepare('INSERT INTO conversation_product_context (conversation_id,product_id,sku,product_name,product_permalink,selected_at) VALUES (:conversation_id,:product_id,:sku,:name,:permalink,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE product_id=VALUES(product_id),sku=VALUES(sku),product_name=VALUES(product_name),product_permalink=VALUES(product_permalink),selected_at=UTC_TIMESTAMP()');
  $upsert->execute(['conversation_id'=>$conversation['id'],'product_id'=>$product['id'],'sku'=>$product['sku']!==''?$product['sku']:null,'name'=>$product['name'],'permalink'=>$product['permalink']]);
  $pdo->prepare('UPDATE conversations SET updated_at=UTC_TIMESTAMP() WHERE id=:id')->execute(['id'=>$conversation['id']]);
