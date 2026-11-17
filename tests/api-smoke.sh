@@ -62,7 +62,7 @@ echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Please share your vehicle model and year.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
 CUSTOMER_REPLY="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$ATTACHMENT_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
-jq -e '.messages[0].sender_type == "system" and .messages[1].sender_type == "staff"' <<<"$CUSTOMER_REPLY" >/dev/null
+jq -e '.messages[1].sender_type == "system" and .messages[2].sender_type == "staff"' <<<"$CUSTOMER_REPLY" >/dev/null
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"closed\"}" | jq -e '.status == "closed"' >/dev/null
 CLOSED_POLL="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=$STAFF_MESSAGE_ID" -H "X-Dimdian-Guest-Token: $TOKEN")"
 jq -e '.status == "closed"' <<<"$CLOSED_POLL" >/dev/null
