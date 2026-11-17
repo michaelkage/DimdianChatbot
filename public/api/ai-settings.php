@@ -19,7 +19,11 @@ if (($staff['role'] ?? '') !== 'admin') json_response(['error'=>'admin_required'
 require_staff_csrf();
 $input = request_json();
 if (($input['test_provider'] ?? false) === true) {
- if (!$providerReady){ai_provider_clear_verification();json_response(['test_ok'=>false,'error'=>'ai_provider_not_configured'],409);}
+ if (!$providerReady){
+  $enabled=db()->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
+  if($enabled==='1')ai_disable_globally((int)$staff['id']);else ai_provider_clear_verification();
+  json_response(['test_ok'=>false,'error'=>'ai_provider_not_configured'],409);
+ }
  $probe=ai_provider_complete([
   ['role'=>'system','content'=>'You are a connectivity test. Reply with exactly: DIMDIAN_PROVIDER_OK'],
   ['role'=>'user','content'=>'Return the required test phrase.'],
