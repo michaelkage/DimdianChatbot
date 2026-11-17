@@ -15,7 +15,7 @@ if (is_string($token) && preg_match('/^[a-f0-9]{64}$/D',$token)) {
  }
 }
 
-$bytes = max(32,(int)app_config('security.guest_token_bytes',32));
+$bytes = 32; // Token format is fixed at 64 lowercase hexadecimal characters.
 $token = bin2hex(random_bytes($bytes));
 $digest = hash('sha256',$token);
 $insert = db()->prepare('INSERT INTO customers (guest_token_hash,created_at,last_seen_at) VALUES (:digest,UTC_TIMESTAMP(),UTC_TIMESTAMP())');
