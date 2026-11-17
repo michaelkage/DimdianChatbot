@@ -34,6 +34,7 @@ try{
  json_response(['error'=>'catalogue_product_verification_failed'],502);
 }
 if(!$product||$product['permalink']==='')json_response(['error'=>'catalogue_product_not_found'],404);
+if(!woocommerce_fitment_product_supported($product))json_response(['error'=>'specific_product_variant_required'],422);
 
 // Treat verification as one atomic, repeat-safe operation. Re-submitting the same
 // exact vehicle/product tuple updates its evidence instead of creating duplicates.
