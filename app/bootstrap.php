@@ -92,8 +92,6 @@ function rate_limit_exceeded(string $scope,int $limit,int $windowSeconds): bool 
  $upsert->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
  $count=$pdo->prepare('SELECT hit_count FROM rate_limit_buckets WHERE bucket_key=:bucket AND window_start=:window_start');
  $count->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
- // Opportunistic cleanup avoids a DELETE scan on every API request.
- if((time()%600)===0) $pdo->exec('DELETE FROM rate_limit_buckets WHERE updated_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 DAY)');
  return (int)$count->fetchColumn()>$limit;
 }
 
