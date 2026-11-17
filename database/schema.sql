@@ -61,7 +61,7 @@ CREATE TABLE messages (
     sender_type ENUM('visitor', 'business', 'system') NOT NULL,
     body TEXT NOT NULL,
     provider_message_id VARCHAR(191) NULL,
-    delivery_status ENUM('queued', 'sent', 'delivered', 'read', 'failed', 'received') NOT NULL DEFAULT 'received',
+    delivery_status ENUM('queued', 'sent', 'delivered', 'read', 'failed', 'received', 'web_only') NOT NULL DEFAULT 'received',
     sent_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),

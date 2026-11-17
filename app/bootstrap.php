@@ -240,7 +240,7 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
     $tokenHash = hash('sha256', $token);
     $statement = $pdo->prepare(
         'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
-                g.display_name, g.phone, g.phone_normalized,
+                g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
                 c.status AS conversation_status
          FROM guest_sessions gs
          INNER JOIN conversations c ON c.id = gs.conversation_id

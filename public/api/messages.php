@@ -46,12 +46,13 @@ try {
                 'INSERT INTO messages
                     (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES
-                    (:id, :conversation_id, "visitor", :body, "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    (:id, :conversation_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
             $insert->execute([
                 ':id' => $messageId,
                 ':conversation_id' => $session['conversation_id'],
                 ':body' => $messageText,
+                ':delivery_status' => $outboundEnabled ? 'queued' : 'web_only',
             ]);
 
             $sequenceQuery = $pdo->prepare('SELECT sequence_id, sent_at FROM messages WHERE id = :id LIMIT 1');
@@ -85,7 +86,7 @@ try {
                 'conversation_id' => $session['conversation_id'],
                 'sender' => 'visitor',
                 'message' => $messageText,
-                'delivery_status' => 'queued',
+                'delivery_status' => $outboundEnabled ? 'queued' : 'web_only',
                 'created_at' => (new DateTimeImmutable($saved['sent_at'], new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
             ],
             'meta' => [

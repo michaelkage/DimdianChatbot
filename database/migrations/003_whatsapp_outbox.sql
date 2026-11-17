@@ -5,6 +5,9 @@ ALTER TABLE guests
     ADD COLUMN whatsapp_opt_in_at DATETIME NULL AFTER phone_normalized,
     ADD KEY idx_guests_phone_normalized (phone_normalized);
 
+ALTER TABLE messages
+    MODIFY COLUMN delivery_status ENUM('queued', 'sent', 'delivered', 'read', 'failed', 'received', 'web_only') NOT NULL DEFAULT 'received';
+
 CREATE TABLE message_outbox (
     id CHAR(36) NOT NULL,
     message_id CHAR(36) NOT NULL,
