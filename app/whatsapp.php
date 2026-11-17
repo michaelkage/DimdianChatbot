@@ -259,23 +259,16 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
                     $eventId = 'status:' . $wamid . ':' . $state . ':' . $timestamp;
                     if (!webhook_event_insert($pdo, $eventId, 'message_status', $payloadHash)) continue;
 
-                    $update = $pdo->prepare(
-                        'UPDATE messages
-                         SET delivery_status = CASE
-                           WHEN :new_status = "failed" THEN "failed"
-                           WHEN delivery_status = "failed" THEN "failed"
-                           WHEN :rank_status >= CASE delivery_status
-                             WHEN "read" THEN 3 WHEN "delivered" THEN 2 WHEN "sent" THEN 1 ELSE 0 END
-                           THEN :stored_status
-                           ELSE delivery_status END
-                         WHERE provider_message_id = :provider_id'
+                    $storeStatus = $pdo->prepare(
+                        'INSERT IGNORE INTO message_status_events
+                            (provider_message_id, status, event_timestamp, created_at)
+                         VALUES (:provider_id, :status, :event_timestamp, UTC_TIMESTAMP())'
                     );
-                    $rank = ['sent' => 1, 'delivered' => 2, 'read' => 3, 'failed' => 4][$state];
-                    $update->execute([
-                        ':new_status' => $state, ':rank_status' => $rank,
-                        ':stored_status' => $state, ':provider_id' => $wamid,
+                    $storeStatus->execute([
+                        ':provider_id' => $wamid, ':status' => $state,
+                        ':event_timestamp' => ctype_digit($timestamp) ? (int)$timestamp : 0,
                     ]);
-                    $found = $update->rowCount() > 0;
+                    $found = apply_provider_message_status($pdo, $wamid);
                     mark_webhook_event($pdo, $eventId, $found ? 'processed' : 'ignored');
                     $found ? $processed++ : $ignored++;
                 }
@@ -283,6 +276,24 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
     }
 
     return ['processed' => $processed, 'ignored' => $ignored];
+}
+
+
+function apply_provider_message_status(PDO $pdo, string $providerMessageId): bool
+{
+    $lookup = $pdo->prepare(
+        'SELECT status FROM message_status_events
+         WHERE provider_message_id = :provider_id
+         ORDER BY CASE status WHEN "failed" THEN 4 WHEN "read" THEN 3 WHEN "delivered" THEN 2 ELSE 1 END DESC,
+                  event_timestamp DESC LIMIT 1'
+    );
+    $lookup->execute([':provider_id' => $providerMessageId]);
+    $status = $lookup->fetchColumn();
+    if (!is_string($status)) return false;
+
+    $update = $pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
+    $update->execute([':status' => $status, ':provider_id' => $providerMessageId]);
+    return $update->rowCount() > 0;
 }
 
 function mark_webhook_event(PDO $pdo, string $eventId, string $status): void
@@ -368,6 +379,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
                      WHERE id = :message_id'
                 );
                 $message->execute([':provider_id' => $result['provider_message_id'], ':message_id' => $job['message_id']]);
+                apply_provider_message_status($pdo, $result['provider_message_id']);
                 $summary['sent']++;
             }
             $pdo->commit();

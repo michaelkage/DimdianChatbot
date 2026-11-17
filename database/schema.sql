@@ -58,6 +58,7 @@ CREATE TABLE messages (
     sequence_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
+    client_message_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
     sender_type ENUM('visitor', 'business', 'system') NOT NULL,
     body TEXT NOT NULL,
     provider_message_id VARCHAR(191) NULL,
@@ -67,6 +68,7 @@ CREATE TABLE messages (
     PRIMARY KEY (id),
     UNIQUE KEY uq_messages_sequence_id (sequence_id),
     UNIQUE KEY uq_messages_provider_message_id (provider_message_id),
+    UNIQUE KEY uq_messages_client_message (conversation_id, client_message_id),
     KEY idx_messages_conversation_order (conversation_id, sequence_id),
     CONSTRAINT fk_messages_conversation
         FOREIGN KEY (conversation_id) REFERENCES conversations (id)
@@ -116,4 +118,16 @@ CREATE TABLE message_outbox (
     CONSTRAINT fk_message_outbox_message
         FOREIGN KEY (message_id) REFERENCES messages (id)
         ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE message_status_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    provider_message_id VARCHAR(191) NOT NULL,
+    status ENUM('sent', 'delivered', 'read', 'failed') NOT NULL,
+    event_timestamp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_message_status_event (provider_message_id, status, event_timestamp),
+    KEY idx_message_status_provider (provider_message_id, event_timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

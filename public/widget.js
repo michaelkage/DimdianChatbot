@@ -25,6 +25,8 @@ $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon a
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 const messageNodes=new Map();
+let pendingSubmission=null;
+function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
  if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
@@ -90,11 +92,13 @@ async function poll(){
 function stop(){if(timer)clearTimeout(timer);timer=null;}
 function schedule(){stop();if(opened&&session)timer=setTimeout(async()=>{await poll();schedule();},delay);}
 async function send(text){
- if(busy)return;busy=true;$('.send').disabled=true;input.disabled=true;status('Sending…');
+ if(busy)return;busy=true;
+ if(!pendingSubmission||pendingSubmission.text!==text)pendingSubmission={id:newMessageId(),text};$('.send').disabled=true;input.disabled=true;status('Sending…');
  try{
   if(!session)await startSession();
-  const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+  const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,client_message_id:pendingSubmission.id})});
   if(result.data)render(result.data);
+  pendingSubmission=null;
   input.value='';$('.count').textContent='0 / 4000';status('Message saved. Waiting for a reply.');
   delay=1000;await poll();schedule();
  }catch(e){

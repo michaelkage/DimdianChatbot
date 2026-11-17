@@ -6,6 +6,8 @@ ALTER TABLE guests
     ADD KEY idx_guests_phone_normalized (phone_normalized);
 
 ALTER TABLE messages
+    ADD COLUMN client_message_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL AFTER conversation_id,
+    ADD UNIQUE KEY uq_messages_client_message (conversation_id, client_message_id),
     MODIFY COLUMN delivery_status ENUM('queued', 'sent', 'delivered', 'read', 'failed', 'received', 'web_only') NOT NULL DEFAULT 'received';
 
 CREATE TABLE message_outbox (
@@ -29,4 +31,16 @@ CREATE TABLE message_outbox (
     CONSTRAINT fk_message_outbox_message
         FOREIGN KEY (message_id) REFERENCES messages (id)
         ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE message_status_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    provider_message_id VARCHAR(191) NOT NULL,
+    status ENUM('sent', 'delivered', 'read', 'failed') NOT NULL,
+    event_timestamp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_message_status_event (provider_message_id, status, event_timestamp),
+    KEY idx_message_status_provider (provider_message_id, event_timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
