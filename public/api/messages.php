@@ -43,7 +43,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
  $body = trim((string)($input['body'] ?? ''));
  $maxChars = max(1,(int)app_config('security.message_max_chars',5000));
  if (!is_string($publicId) || !preg_match('/^[a-f0-9]{26}$/D',$publicId)) json_response(['error'=>'invalid_conversation_id'],422);
- if ($body === '' || mb_strlen($body) > $maxChars) json_response(['error'=>'invalid_message_length','max_chars'=>$maxChars],422);
+ $charCount = preg_match_all('/./us',$body,$unused);
+ if ($body === '' || $charCount === false || $charCount > $maxChars) json_response(['error'=>'invalid_message_length','max_chars'=>$maxChars],422);
 
  $pdo->beginTransaction();
  try {
