@@ -13,6 +13,14 @@ $config = require $configPath;
 date_default_timezone_set($config['app']['timezone'] ?? 'UTC');
 if (($config['app']['environment'] ?? 'production') === 'production') ini_set('display_errors','0');
 
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+$baseUrlParts=parse_url((string)($config['app']['base_url']??''));
+if(($config['app']['environment']??'production')==='production'&&is_array($baseUrlParts)&&strtolower((string)($baseUrlParts['scheme']??''))==='https'){
+ header('Strict-Transport-Security: max-age=31536000');
+}
 
 set_exception_handler(static function (Throwable $error): void {
  error_log('[DimdianChatbot] Unhandled exception: '.$error->getMessage());
