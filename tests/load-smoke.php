@@ -43,6 +43,25 @@ try{
  curl_multi_close($multi);
  assertLoad($pollOk===24,'24 concurrent delta-poll requests complete successfully');
 
+ $pollToken=bin2hex(random_bytes(32));
+ $pollCustomer=$pdo->prepare('INSERT INTO customers (guest_token_hash,created_at,last_seen_at) VALUES (:token,UTC_TIMESTAMP(),UTC_TIMESTAMP())');
+ $pollCustomer->execute(['token'=>hash('sha256',$pollToken)]);
+ $pollCustomerId=(int)$pdo->lastInsertId();
+ $pollPublicId=bin2hex(random_bytes(13));
+ $pollConversation=$pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,'needs_human',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
+ $pollConversation->execute(['public_id'=>$pollPublicId,'customer_id'=>$pollCustomerId]);
+ $multi=curl_multi_init();$handles=[];
+ for($i=0;$i<64;$i++){
+  $ch=curl_init('http://127.0.0.1:8082/api/messages.php?conversation_id='.$pollPublicId.'&after_id=0');
+  curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_HTTPHEADER=>['X-Dimdian-Guest-Token: '.$pollToken],CURLOPT_TIMEOUT=>8]);
+  curl_multi_add_handle($multi,$ch);$handles[]=$ch;
+ }
+ do{$status=curl_multi_exec($multi,$running);if($running)curl_multi_select($multi,0.2);}while($running&&$status===CURLM_OK);
+ $pollLimited=0;$pollAllowed=0;
+ foreach($handles as $ch){$code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);if($code===429)$pollLimited++;elseif($code===200)$pollAllowed++;curl_multi_remove_handle($multi,$ch);curl_close($ch);}
+ curl_multi_close($multi);
+ assertLoad($pollAllowed===60&&$pollLimited===4,'customer polling enforces the 60-request guest window under concurrency');
+
  $multi=curl_multi_init();$handles=[];
  for($i=0;$i<32;$i++){
   $ch=curl_init('http://127.0.0.1:8082/api/products.php?type=name&q=alternator');
@@ -56,6 +75,8 @@ try{
  assertLoad($limited===12&&$allowed===20,'concurrent catalogue requests enforce 12 rate-limit rejections and 20 admitted requests atomically');
 }finally{
  proc_terminate($server);proc_close($server);
+ if(isset($pollPublicId))$pdo->prepare('DELETE FROM conversations WHERE public_id=:id')->execute(['id'=>$pollPublicId]);
+ if(isset($pollCustomerId))$pdo->prepare('DELETE FROM customers WHERE id=:id')->execute(['id'=>$pollCustomerId]);
  $pdo->prepare('DELETE FROM conversations WHERE public_id=:id')->execute(['id'=>$publicId]);
  $pdo->prepare('DELETE FROM customers WHERE id=:id')->execute(['id'=>$customerId]);
 }
