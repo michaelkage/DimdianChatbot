@@ -38,6 +38,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+ if (rate_limit_exceeded('customer-message:'.$customer['id'],20,60)) json_response(['error'=>'message_rate_limited'],429);
  $input = request_json();
  $publicId = $input['conversation_id'] ?? '';
  $body = trim((string)($input['body'] ?? ''));
