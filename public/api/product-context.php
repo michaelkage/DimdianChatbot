@@ -4,7 +4,7 @@ require_once dirname(__DIR__,2).'/app/customer.php';
 require_once dirname(__DIR__,2).'/app/woocommerce.php';
 require_method('POST');
 $customer=require_customer();
-if(rate_limit_exceeded('product-context:'.$customer['id'],30,3600))json_response(['error'=>'too_many_requests'],429);
+if(rate_limit_exceeded('product-context-ip:'.request_ip_hash(),90,3600)||rate_limit_exceeded('product-context:'.$customer['id'],30,3600))json_response(['error'=>'too_many_requests'],429);
 $input=request_json();
 $conversationId=$input['conversation_id']??null;
 $productId=isset($input['product_id'])?filter_var($input['product_id'],FILTER_VALIDATE_INT):false;
