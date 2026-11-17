@@ -15,6 +15,7 @@ if (is_string($token) && preg_match('/^[a-f0-9]{64}$/D',$token)) {
  }
 }
 
+if (rate_limit_exceeded('guest-session-ip:'.request_ip_hash(),40,3600)) json_response(['error'=>'too_many_sessions'],429);
 $bytes = 32; // Token format is fixed at 64 lowercase hexadecimal characters.
 $token = bin2hex(random_bytes($bytes));
 $digest = hash('sha256',$token);
