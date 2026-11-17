@@ -155,7 +155,7 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 - Configuration and uploads are intended to remain outside the public document root.
 - CORS is an explicit allowlist; it is not authentication.
 - Guest identity uses a random browser token whose hash is stored server-side; the raw token is never stored in the database.
-- Staff authentication uses password hashing, secure HTTP-only cookies, session rotation, CSRF protection, and IP/account login throttling.
+- Staff authentication uses password hashing, secure HTTP-only cookies, session rotation, CSRF protection, IP/account login throttling, an eight-hour idle/twelve-hour absolute session limit, and a live account-active check that revokes sessions when an administrator disables a staff account.
 - Guest message and image upload endpoints are rate-limited by both guest identity and source address.
 - Uploads must be checked by detected MIME type and image decoding, not filename extension alone.
 - User-provided text must be escaped at the point it is rendered.
