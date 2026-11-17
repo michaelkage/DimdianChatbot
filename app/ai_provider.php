@@ -108,15 +108,18 @@ function ai_provider_complete(array $messages): array {
  if (is_array($decoded)) {
   $error = $decoded['error'] ?? [];
   if (is_array($error)) {
-   $providerCode = strtolower((string)($error['code'] ?? $error['type'] ?? ''));
+   $providerCode = strtolower((string)($error['code'] ?? $error['type'] ?? $error['status'] ?? ''));
    $providerMessage = strtolower((string)($error['message'] ?? ''));
   }
  }
- $quota = $status === 402 || in_array($providerCode,['insufficient_quota','quota_exceeded','billing_hard_limit','resource_exhausted'],true)
+ $quota = $status === 402 || in_array($providerCode,['insufficient_quota','quota_exceeded','billing_hard_limit','billing_limit_reached','billing_not_active','resource_exhausted','credits_exhausted','payment_required'],true)
   || str_contains($providerMessage,'insufficient quota')
   || str_contains($providerMessage,'billing hard limit')
   || str_contains($providerMessage,'quota exceeded')
-  || str_contains($providerMessage,'resource exhausted');
+  || str_contains($providerMessage,'resource exhausted')
+  || str_contains($providerMessage,'out of credits')
+  || str_contains($providerMessage,'no credits remaining')
+  || str_contains($providerMessage,'billing limit reached');
  if ($quota) return ['kind'=>'quota_exhausted'];
  if ($status === 401 || $status === 403) {
   error_log('[DimdianChatbot AI] Provider rejected configured credentials (HTTP '.$status.').');
