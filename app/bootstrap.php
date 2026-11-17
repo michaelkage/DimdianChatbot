@@ -69,6 +69,18 @@ function request_ip_hash(): string {
  return hash_hmac('sha256',$ip,(string)app_config('security.rate_limit_secret','dimdian-local-fallback'));
 }
 
+function rate_limit_exceeded(string $scope,int $limit,int $windowSeconds): bool {
+ $secret = (string)app_config('security.rate_limit_secret','');
+ $bucket = hash_hmac('sha256',$scope,$secret);
+ $cutoff = gmdate('Y-m-d H:i:s',time()-$windowSeconds);
+ $pdo = db();
+ $pdo->prepare('INSERT INTO rate_limit_events (bucket_key,occurred_at) VALUES (:bucket,UTC_TIMESTAMP())')->execute(['bucket'=>$bucket]);
+ $count = $pdo->prepare('SELECT COUNT(*) FROM rate_limit_events WHERE bucket_key=:bucket AND occurred_at >= :cutoff');
+ $count->execute(['bucket'=>$bucket,'cutoff'=>$cutoff]);
+ $pdo->prepare('DELETE FROM rate_limit_events WHERE occurred_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)')->execute();
+ return (int)$count->fetchColumn() > $limit;
+}
+
 function apply_cors(): void {
  $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
  $allowed = app_config('app.allowed_origins',[]);
