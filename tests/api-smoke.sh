@@ -48,6 +48,14 @@ echo 'private attachment retrieval passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
+AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
+jq -e '.ai_enabled == false and .ai_available == false and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
+curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
+AI_OFF="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":false}')"
+jq -e '.ai_enabled == false and .mode == "human_only" and .routed_to_human == 1' <<<"$AI_OFF" >/dev/null
+HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=needs_human')"
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
+echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
 jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
