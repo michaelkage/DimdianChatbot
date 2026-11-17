@@ -51,7 +51,7 @@ try{
  $fitment=$productId&&$productType==='simple'&&$engine!==''&&$transmission!==''?vehicle_find_verified_fitment($pdo,(int)$productId,$make,$model,(int)$year,$engine,$transmission,$trim):null;
  if(!$fitment){
   $pdo->prepare("UPDATE conversations SET status='needs_human',last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id AND status='open'")->execute(['id'=>$conversation['id']]);
-  $notice=$productType==='variable'?'This listing has product variants. A parts specialist must confirm the exact variant before we recommend a part.':'Vehicle details submitted for a fitment check. A parts specialist must verify compatibility before we recommend a part.';
+  $notice=$productType==='variable'?'A member of our support team will take over this vehicle compatibility check. This listing has product variants, so a parts specialist must confirm the exact variant before we recommend a part.':'A member of our support team will take over this vehicle compatibility check. Your vehicle details have been saved for specialist verification.';
  }else{
   $notice='A verified fitment record was found for the selected listing and vehicle details.';
  }
