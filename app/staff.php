@@ -16,9 +16,25 @@ function start_staff_session(): void {
 
 function require_staff(): array {
  start_staff_session();
- $staff = $_SESSION['staff'] ?? null;
- if (!is_array($staff) || !isset($staff['id'],$staff['role'])) json_response(['error'=>'staff_auth_required'],401);
- return $staff;
+ $staff=$_SESSION['staff']??null;
+ if(!is_array($staff)||!isset($staff['id'],$staff['role']))json_response(['error'=>'staff_auth_required'],401);
+ $now=time();
+ $authenticatedAt=(int)($_SESSION['authenticated_at']??$now);
+ $lastActivity=(int)($_SESSION['last_activity']??$authenticatedAt);
+ if($now-$lastActivity>8*3600||$now-$authenticatedAt>12*3600){
+  $_SESSION=[];session_regenerate_id(true);
+  json_response(['error'=>'staff_session_expired'],401);
+ }
+ $query=db()->prepare('SELECT id,email,display_name,\`role\`,is_active FROM staff_users WHERE id=:id LIMIT 1');
+ $query->execute(['id'=>(int)$staff['id']]);$current=$query->fetch();
+ if(!$current||(int)$current['is_active']!==1){
+  $_SESSION=[];session_regenerate_id(true);
+  json_response(['error'=>'staff_auth_required'],401);
+ }
+ $_SESSION['staff']=['id'=>(int)$current['id'],'email'=>$current['email'],'display_name'=>$current['display_name'],'role'=>$current['role']];
+ $_SESSION['authenticated_at']=$authenticatedAt;
+ $_SESSION['last_activity']=$now;
+ return $_SESSION['staff'];
 }
 
 function require_staff_csrf(): void {
