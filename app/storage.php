@@ -9,7 +9,8 @@ function private_upload_directory(bool $create=false): ?string {
  if($create&&!is_dir($configured)&&!mkdir($configured,0700,true)&&!is_dir($configured))return null;
  if(!is_dir($configured))return null;
  $directory=realpath($configured);$public=realpath(dirname(__DIR__).'/public');
- if($directory===false||$public===false||$directory===$public||str_starts_with($directory.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))return null;
+ $systemTemp=realpath(sys_get_temp_dir());
+ if($directory===false||$public===false||$directory===DIRECTORY_SEPARATOR||$directory===$public||($systemTemp!==false&&$directory===$systemTemp)||str_starts_with($directory.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR)||str_starts_with($public.DIRECTORY_SEPARATOR,$directory.DIRECTORY_SEPARATOR))return null;
  @chmod($directory,0700);
  clearstatcache(true,$directory);
  $permissions=fileperms($directory);
