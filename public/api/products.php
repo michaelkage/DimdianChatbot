@@ -9,7 +9,7 @@ $type=$_GET['type']??'name';$q=$_GET['q']??'';
 if(!is_string($type)||!in_array($type,['name','sku','mpn'],true)||!is_string($q)||trim($q)===''||strlen($q)>100)json_response(['error'=>'invalid_search'],422);
 try{
  $products=woocommerce_search_products($type,$q);
- json_response(['products'=>$products,'source'=>'woocommerce_live','as_of'=>gmdate('c')]);
+ json_response(['products'=>$products,'source'=>'woocommerce_live','currency'=>(string)(woocommerce_config()['currency_code']??''),'as_of'=>gmdate('c')]);
 }catch(InvalidArgumentException $e){json_response(['error'=>'invalid_search'],422);}
 catch(RuntimeException $e){
  $code=$e->getMessage();
