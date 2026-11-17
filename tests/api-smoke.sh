@@ -123,7 +123,7 @@ HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/a
 jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
-jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "ALT-CAM-25" and .context_url == "http://127.0.0.1:8083/product/alt-cam-25/")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Our support team can help with that.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
