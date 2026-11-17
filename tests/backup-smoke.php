@@ -8,6 +8,8 @@ function backupCheck(bool $ok,string $message): void {
 }
 $directory=sys_get_temp_dir().'/dimdian-backup-'.bin2hex(random_bytes(6));
 mkdir($directory,0700,true);
+$expiredBackup=$directory.'/dimdian-20200101-000000-deadbeef.sql.gz';
+file_put_contents($expiredBackup,'expired fixture');touch($expiredBackup,time()-(20*86400));
 putenv('DIMDIAN_BACKUP_DIRECTORY='.$directory);
 $backupProcess=proc_open([PHP_BINARY,dirname(__DIR__).'/bin/backup-db.php'],[
  0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']
@@ -23,6 +25,7 @@ backupCheck((fileperms($backupPath)&0777)===0600,'backup file permissions are ow
 backupCheck(preg_match('/^dimdian-\\d{8}-\\d{6}-[a-f0-9]{8}\\.sql\\.gz$/D',basename($backupPath))===1,'backup filename is collision-resistant and predictable for retention');
 $publicPath=realpath(dirname(__DIR__).'/public');$realBackupPath=realpath($backupPath);
 backupCheck($publicPath!==false&&$realBackupPath!==false&&!str_starts_with($realBackupPath,$publicPath.DIRECTORY_SEPARATOR),'backup file is outside the public document root');
+backupCheck(!is_file($expiredBackup),'expired backups are pruned after a successful backup');
 
 $target='dimdian_restore_'.bin2hex(random_bytes(4));
 db()->exec('CREATE DATABASE '.$target.' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
