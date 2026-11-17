@@ -33,6 +33,7 @@ The repository is structured so the web server's document root can point to `pub
 
 - `database/schema.sql`: initial relational schema for staff, customers, conversations, messages, attachments, and rate-limit events.
 - `app/bootstrap.php`: shared PDO, JSON response, request parsing, CORS, and method helpers.
+- `app/ai.php`: fail-safe AI mode checks, per-conversation human handoff, and global AI shutdown for provider quota exhaustion.
 - `public/index.php`: minimal database-backed health endpoint.
 - `public/widget.js`: zero-dependency, shadow-DOM customer chat widget.
 - `public/api/`: guest session, conversation, message, image upload, and staff endpoints.
@@ -51,7 +52,8 @@ The customer-facing guest chat flow and staff inbox are implemented, including p
 - An administrator sees the **AI replies** control in `/admin/support/`. Turning AI off moves every currently `open` conversation to `needs_human`; existing human-handled conversations are never automatically returned to AI.
 - Agents can view and reply to conversations, but only administrators can change the global AI setting.
 - The switch cannot enable AI until a provider adapter is installed and `ai.provider_ready` is explicitly set to `true` in the private `config.php`. This guard is deliberate: enabling a setting without a working provider must never strand a customer in an unattended AI queue.
-- When a provider is added, its runtime must treat `needs_human` as a hard no-AI state and fall back to the human queue on quota exhaustion, provider errors, or timeouts. Provider errors must never be shown to customers.
+- `app/ai.php` provides `ai_handoff_conversation()` for a single failed/uncertain AI turn and `ai_disable_globally()` for quota exhaustion or an administrator shutdown. The global helper disables AI, moves all open conversations to `needs_human`, and inserts a neutral customer-facing handoff notice in one database transaction.
+- When a provider is added, its runtime must call these helpers on quota exhaustion/provider failures, treat `needs_human` as a hard no-AI state, and never show raw provider errors to customers. The helper is in place; no provider adapter is wired yet.
 
 ## Customer widget integration
 
