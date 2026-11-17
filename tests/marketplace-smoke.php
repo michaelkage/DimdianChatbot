@@ -16,7 +16,10 @@ $product=woocommerce_normalize_product([
  'images'=>[['src'=>'https://store.example/image.jpg']]
 ]);
 check($product['id']===42&&$product['sku']==='ALT-42'&&$product['price']==='12500.00','WooCommerce product normalization preserves live listing fields');
-check($product['stock_status']==='instock'&&$product['permalink']==='https://store.example/product/test-alternator/','stock status and canonical product link are returned');
+check($product['stock_status']==='instock'&&$product['permalink']==='','unsafe product link is omitted when its host is not the configured store');
+check(woocommerce_public_permalink('https://parts.example.invalid/product/brake-pad/')==='https://parts.example.invalid/product/brake-pad/','canonical HTTPS storefront product links are retained');
+check(woocommerce_public_permalink('https://attacker.example/phishing')==='','external product links are rejected before reaching staff or shoppers');
+check(woocommerce_public_image('http://parts.example.invalid/image.jpg')===null,'non-HTTPS product images are rejected');
 
 $sample='TESTVIN1234567890';
 $encrypted=vehicle_encrypt_vin($sample);
