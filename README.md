@@ -198,13 +198,13 @@ Create the WooCommerce REST API key in WordPress with **Read** permission only. 
 
 ### Manufacturer part numbers
 
-Standard WooCommerce `/wc/v3/products?search=` does not guarantee a search across arbitrary custom product metadata. This repository includes `integrations/wordpress/dimdian-mpn-lookup.php`, a small read-only WordPress plugin route. Install it in WordPress, then define the exact meta key DIMDIAN uses for manufacturer part numbers in `wp-config.php`:
+Standard WooCommerce `/wc/v3/products?search=` does not guarantee a search across arbitrary custom product metadata. This repository includes `integrations/wordpress/dimdian-mpn-lookup.php`, a small read-only WordPress plugin route that requires the WooCommerce read-only API credentials. Install it in WordPress, then define the exact meta key DIMDIAN uses for manufacturer part numbers in `wp-config.php`:
 
 ```php
 define('DIMDIAN_MPN_META_KEY', 'YOUR_ACTUAL_PRODUCT_META_KEY');
 ```
 
-Do not copy the example placeholder as the real key. Confirm the field key used by the current product editor/custom-fields plugin first. The support app's `woocommerce.mpn_lookup_path` must point to `/wp-json/dimdian/v1/products`. The route returns only published, visible products and public listing fields.
+Do not copy the example placeholder as the real key. Confirm the field key used by the current product editor/custom-fields plugin first. The support app's `woocommerce.mpn_lookup_path` must point to `/wp-json/dimdian/v1/products`. The route requires an authenticated WordPress user with read capability (the configured WooCommerce API key supplies this) and returns only published, visible products and public listing fields.
 
 ## Structured vehicle and verified-fitment workflow
 
