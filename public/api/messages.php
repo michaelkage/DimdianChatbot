@@ -39,7 +39,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
- if (rate_limit_exceeded('customer-message:'.$customer['id'],20,60)) json_response(['error'=>'message_rate_limited'],429);
+ if (rate_limit_exceeded('customer-message-ip:'.request_ip_hash(),120,60) || rate_limit_exceeded('customer-message:'.$customer['id'],20,60)) json_response(['error'=>'message_rate_limited'],429);
  $input = request_json();
  $publicId = $input['conversation_id'] ?? '';
  $bodyInput = $input['body'] ?? null;
