@@ -78,6 +78,8 @@ async function selectConversation(item){
  $('customer-name').textContent=item.customer_name||'Guest shopper';
  $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
  $('thread-status').value=item.status;syncReplyAvailability();
+ const fitmentPanel=$('fitment-verify');fitmentPanel.hidden=staff.role!=='admin'||!item.vehicle_summary;
+ $('fitment-product-id').value=item.vehicle_product_id||'';$('fitment-source').value='';$('fitment-result').textContent='';
  const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
  messages.replaceChildren();$('reply-error').textContent='';
  await pollThread(true);refreshList();startThreadPolling();
@@ -131,6 +133,14 @@ $('thread-status').addEventListener('change',async()=>{
  try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;syncReplyAvailability();refreshList()}
  catch(error){$('reply-error').textContent='Could not update conversation status.';$('thread-status').value=current.status}
 });
+$('fitment-save').addEventListener('click',async()=>{
+ if(!current)return;const source=$('fitment-source').value.trim();if(!source){$('fitment-result').textContent='Enter the trusted verification source first.';return;}
+ const button=$('fitment-save');button.disabled=true;$('fitment-result').textContent='Checking product and saving verified record…';
+ try{const productValue=$('fitment-product-id').value;const body={conversation_id:current.public_id,verification_source:source};if(productValue)body.product_id=Number(productValue);
+ const data=await api('fitments',{method:'POST',body});$('fitment-result').textContent='Verified fitment recorded for '+(data.product_name||('product #'+data.product_id))+'.';refreshList();}
+ catch(error){$('fitment-result').textContent=error.message==='catalogue_not_configured'?'Connect the read-only WooCommerce API first.':error.message==='complete_vehicle_and_product_details_required'?'The vehicle must include engine, transmission and a product ID.':'Could not record verification. Check the source and product details.';}
+ finally{button.disabled=false;}
+ });
 $('reply-form').addEventListener('submit',async event=>{
  event.preventDefault();if(!current)return;const body=$('reply-body').value.trim();if(!body)return;
  const button=event.currentTarget.querySelector('button');button.disabled=true;$('reply-error').textContent='';
