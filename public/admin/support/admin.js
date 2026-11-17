@@ -2,7 +2,7 @@
 'use strict';
 const apiBase=document.body.dataset.apiBase||'/api/';
 const endpoint=name=>{const [path,query]=name.split('?');return new URL(path+'.php'+(query?'?'+query:''),apiBase).href;};
-let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,listRequestId=0,knownLatest=new Map();
+let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,listRequestId=0,threadPollInFlight=false,knownLatest=new Map();
 const $=id=>document.getElementById(id);
 const loginView=$('login-view'),inboxView=$('inbox-view'),list=$('conversation-list'),messages=$('thread-messages');
 async function api(name,{method='GET',body=null}={}){
@@ -75,6 +75,7 @@ async function refreshList(){
   }
   renderList(items);
  }catch(error){if(error.message==='staff_auth_required')showLogin()}
+ finally{threadPollInFlight=false;}
 }
 function startListPolling(){stopListPolling();refreshList();listTimer=setInterval(refreshList,8000)}
 function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
@@ -112,7 +113,8 @@ function appendMessage(message){
 }
 async function pollThread(initial=false){
  const target=current;
- if(!target||document.hidden)return;
+ if(!target||document.hidden||threadPollInFlight)return;
+ threadPollInFlight=true;
  const afterId=lastId;
  try{
   const data=await api('staff-messages?conversation_id='+encodeURIComponent(target.public_id)+'&after_id='+afterId);
