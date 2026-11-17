@@ -75,7 +75,7 @@ function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
 async function selectConversation(item){
  current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
  $('customer-name').textContent=item.customer_name||'Guest shopper';
- $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null].filter(Boolean).join(' · ');
+ $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'SKU '+item.context_sku:null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
  $('thread-status').value=item.status;syncReplyAvailability();
  const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
  messages.replaceChildren();$('reply-error').textContent='';
