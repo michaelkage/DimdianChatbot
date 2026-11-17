@@ -36,13 +36,22 @@ The repository is structured so the web server's document root can point to `pub
 - `public/index.php`: minimal database-backed health endpoint.
 - `public/widget.js`: zero-dependency, shadow-DOM customer chat widget.
 - `public/api/`: guest session, conversation, message, image upload, and staff endpoints.
-- `public/admin/support/`: responsive split-screen staff inbox with polling and sound/title alerts.
+- `public/admin/support/`: responsive split-screen staff inbox with polling, sound/title alerts, and an administrator-only AI mode control.
+- `public/api/ai-settings.php`: administrator-only AI mode endpoint; AI remains fail-closed until a provider adapter is configured.
 - `app/staff.php`: hardened staff sessions and CSRF checks.
 - `bin/create-admin.php`: CLI-only staff account provisioning.
 - `.github/workflows/ci.yml`: PHP, JavaScript, and MySQL schema validation.
-- `config.example.php`: deployment configuration template.
+- `config.example.php`: deployment configuration template, including the fail-closed AI provider readiness flag.
 
-The customer-facing guest chat flow and staff inbox are implemented, including persistent browser identity, listing context, customer/staff text messages, delta polling, private image attachments, staff login, CSRF-protected state changes, unread counts, and staff notifications. Optional AI triage and authenticated marketplace-account linking remain integration work.
+The customer-facing guest chat flow and staff inbox are implemented, including persistent browser identity, listing context, customer/staff text messages, delta polling, private image attachments, staff login, CSRF-protected state changes, unread counts, and staff notifications. The backend AI kill switch and human-routing path are implemented. AI provider integration and authenticated marketplace-account linking remain integration work.
+
+### AI / human support control
+
+- AI is off by default. New conversations are created with `needs_human` status and appear in the staff inbox.
+- An administrator sees the **AI replies** control in `/admin/support/`. Turning AI off moves every currently `open` conversation to `needs_human`; existing human-handled conversations are never automatically returned to AI.
+- Agents can view and reply to conversations, but only administrators can change the global AI setting.
+- The switch cannot enable AI until a provider adapter is installed and `ai.provider_ready` is explicitly set to `true` in the private `config.php`. This guard is deliberate: enabling a setting without a working provider must never strand a customer in an unattended AI queue.
+- When a provider is added, its runtime must treat `needs_human` as a hard no-AI state and fall back to the human queue on quota exhaustion, provider errors, or timeouts. Provider errors must never be shown to customers.
 
 ## Customer widget integration
 
@@ -91,7 +100,7 @@ All customer endpoints require the `X-Dimdian-Guest-Token` header except the ini
 
 ## Validation
 
-GitHub Actions lints PHP source (including the CLI provisioning script), checks widget JavaScript syntax, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs an end-to-end customer-to-staff API smoke test including a real image upload.
+GitHub Actions lints PHP source (including the CLI provisioning script), checks widget JavaScript syntax, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs an end-to-end customer-to-staff API smoke test including a real image upload and the administrator AI-off / human-routing path.
 
 ## Hostinger setup
 
