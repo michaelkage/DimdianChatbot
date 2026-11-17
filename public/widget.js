@@ -72,7 +72,7 @@
   async function loadAttachment(img,id) {
     try {
       const response=await fetch(endpoint('attachment')+'?id='+encodeURIComponent(id),{headers:headers(),credentials:'omit'});
-      if(response.ok) img.src=URL.createObjectURL(await response.blob());
+      if(response.ok){const objectUrl=URL.createObjectURL(await response.blob());img.addEventListener('load',()=>URL.revokeObjectURL(objectUrl),{once:true});img.addEventListener('error',()=>URL.revokeObjectURL(objectUrl),{once:true});img.src=objectUrl;}
     }catch(_){}
   }
   async function poll() {
