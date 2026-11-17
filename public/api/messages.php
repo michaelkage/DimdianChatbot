@@ -42,7 +42,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
  if (rate_limit_exceeded('customer-message:'.$customer['id'],20,60)) json_response(['error'=>'message_rate_limited'],429);
  $input = request_json();
  $publicId = $input['conversation_id'] ?? '';
- $body = trim((string)($input['body'] ?? ''));
+ $bodyInput = $input['body'] ?? null;
+ if (!is_string($bodyInput)) json_response(['error'=>'invalid_message_body'],422);
+ $body = trim($bodyInput);
  $maxChars = max(1,(int)app_config('security.message_max_chars',5000));
  if (!is_string($publicId) || !preg_match('/^[a-f0-9]{26}$/D',$publicId)) json_response(['error'=>'invalid_conversation_id'],422);
  $charCount = preg_match_all('/./us',$body,$unused);
