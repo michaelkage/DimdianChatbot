@@ -116,14 +116,14 @@
         const stock=product.stock_status==='instock'?'In stock':product.stock_status==='outofstock'?'Out of stock':product.stock_status==='onbackorder'?'Available on backorder':'Stock status unavailable';
         const price=(data.currency?data.currency+' ':'')+(product.price||'Price unavailable')+(product.sale_price&&product.regular_price&&product.sale_price!==product.regular_price?' · was '+product.regular_price:'');
         const meta=document.createElement('small');meta.textContent='SKU '+(product.sku||'—')+' · '+price+' · '+stock;card.appendChild(meta);
-        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?'Selected for fitment':'Use for fitment check';select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
+        const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):(product.type==='simple'?'Use for fitment check':'Ask specialist to check variants');select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
         select.addEventListener('click',async()=>{
           if(busy||!conversationId)return;
           busy=true;select.disabled=true;select.textContent='Selecting listing…';
           try{
             await request(endpoint('product-context'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,product_id:Number(product.id)})});
             selectedProductId=Number(product.id);
-            catalogueResults.querySelectorAll('.select-product').forEach(button=>{button.disabled=true;button.textContent=button===select?'Selected for fitment':'Another listing selected';});
+            catalogueResults.querySelectorAll('.select-product').forEach(button=>{button.disabled=true;button.textContent=button===select?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):'Another listing selected';});
             vehicleToggle.textContent='✓ '+(product.name||'Product')+' selected · add vehicle details';
             vehicleForm.classList.add('open');
           }catch(error){
