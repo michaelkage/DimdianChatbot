@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/staff.php';
+require_once dirname(__DIR__,2) . '/app/vehicle.php';
 require_method('GET');
 $staff = require_staff();
 $status = $_GET['status'] ?? 'active';
@@ -13,6 +14,7 @@ elseif ($status !== 'all') { $where = 'WHERE c.status=:status'; $params['status'
 $sql = "SELECT c.public_id,c.status,c.context_url,c.context_sku,c.subject,c.last_message_at,c.created_at,
  cu.display_name AS customer_name,cu.email AS customer_email,cu.external_user_id AS customer_account_id,
  assigned.display_name AS assigned_staff,\n (SELECT CONCAT_WS(' · ',v.make,CONCAT(v.model,' ',v.model_year),NULLIF(v.engine,''),NULLIF(v.transmission,''),IF(v.vin_last4 IS NOT NULL,CONCAT('VIN …',v.vin_last4),NULL)) FROM conversation_vehicles v WHERE v.conversation_id=c.id ORDER BY v.id DESC LIMIT 1) AS vehicle_summary,\n (SELECT v.product_id FROM conversation_vehicles v WHERE v.conversation_id=c.id ORDER BY v.id DESC LIMIT 1) AS vehicle_product_id,
+ (SELECT v.vin_ciphertext FROM conversation_vehicles v WHERE v.conversation_id=c.id ORDER BY v.id DESC LIMIT 1) AS vehicle_vin_ciphertext,
  (SELECT m.body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
  (SELECT m.sender_type FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_sender_type,
  (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id) AS last_message_id,
@@ -23,6 +25,10 @@ $sql = "SELECT c.public_id,c.status,c.context_url,c.context_sku,c.subject,c.last
 $query = db()->prepare($sql);
 $query->execute($params);
 $rows = $query->fetchAll();
-foreach ($rows as &$row) $row['unread_count']=(int)$row['unread_count'];
+foreach ($rows as &$row) {
+ $row['unread_count']=(int)$row['unread_count'];
+ $row['vehicle_vin']=vehicle_decrypt_vin($row['vehicle_vin_ciphertext']??null);
+ unset($row['vehicle_vin_ciphertext']);
+}
 unset($row);
 json_response(['conversations'=>$rows]);
