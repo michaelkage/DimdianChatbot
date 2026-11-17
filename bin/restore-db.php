@@ -5,9 +5,11 @@ if($argc!==2||!is_file($argv[1])){fwrite(STDERR,"Usage: php bin/restore-db.php /
 fwrite(STDERR,"WARNING: this overwrites matching database objects/data. Type RESTORE to continue: ");
 $answer=trim((string)fgets(STDIN));if($answer!=='RESTORE'){fwrite(STDERR,"Cancelled.\n");exit(1);}
 $config=require dirname(__DIR__).'/config.php';$db=$config['database']??[];
+$targetDatabase=$argc===3?(string)$argv[2]:(string)$db['name'];
+if(!preg_match('/^[A-Za-z0-9_]{1,64}$/D',$targetDatabase)){fwrite(STDERR,"Invalid target database name.\\n");exit(2);}
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod($tmp,0600);
 file_put_contents($tmp,"[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n",LOCK_EX);chmod($tmp,0600);
-$proc=proc_open(['mysql','--defaults-extra-file='.$tmp,(string)$db['name']],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+$proc=proc_open(['mysql','--defaults-extra-file='.$tmp,$targetDatabase],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
 if(!is_resource($proc)){unlink($tmp);fwrite(STDERR,"mysql client unavailable.\n");exit(1);}
 $input=str_ends_with(strtolower($argv[1]),'.gz')?gzopen($argv[1],'rb'):fopen($argv[1],'rb');
 if(!$input){fclose($pipes[0]);$exit=proc_close($proc);unlink($tmp);exit(1);}
