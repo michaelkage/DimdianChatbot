@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once dirname(__DIR__,2) . '/app/customer.php';
-
+require_once dirname(__DIR__,2) . '/app/customer.php';\n
 $customer = require_customer();
 $pdo = db();
 
