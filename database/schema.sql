@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS messages (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
  conversation_id BIGINT UNSIGNED NOT NULL,
- sender_type ENUM('customer','staff','assistant','system') NOT NULL,
+ sender_type ENUM('customer','staff','assistant','system','customer_event') NOT NULL,
  sender_id BIGINT UNSIGNED NULL,
  body TEXT NOT NULL,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
