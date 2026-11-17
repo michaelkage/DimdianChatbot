@@ -20,6 +20,20 @@ return [
   'max_bytes' => 3 * 1024 * 1024,
   'allowed_mime_types' => ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'],
  ],
+ 'woocommerce' => [
+  // Create a WooCommerce REST API key with READ-ONLY permissions in WordPress.
+  'enabled' => false,
+  'store_url' => 'https://your-store.example',
+  'consumer_key' => '',
+  'consumer_secret' => '',
+  // Optional WordPress REST route returning WooCommerce product objects for ?mpn=...
+  // Example: /wp-json/dimdian/v1/products. Required for manufacturer-part-number search.
+  'mpn_lookup_path' => '',
+ ],
+ 'backup' => [
+  // Absolute private directory outside public_html; SSH mysqldump/mysql clients are required.
+  'directory' => dirname(__DIR__) . '/dimdian-private-backups',
+ ],
  'ai' => [
   // Set true only after the selected provider is configured and tested.
   'provider_ready' => false,
@@ -38,6 +52,8 @@ return [
  'integration' => [
   // Optional shared secret for signed marketplace-account identity linking.
   'customer_identity_secret' => 'replace-with-a-separate-random-secret',
+  // 32+ random characters. VINs are encrypted with AES-256-GCM before storage.
+  'vehicle_data_encryption_key' => 'replace-with-a-unique-random-encryption-secret',
  ],
  'security' => [
   'guest_token_bytes' => 32, 'message_max_chars' => 5000, 'poll_limit' => 100,
