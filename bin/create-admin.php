@@ -10,8 +10,17 @@ if(!filter_var($email,FILTER_VALIDATE_EMAIL)||$name===''||!in_array($role,['admi
  fwrite(STDERR,"Usage: php bin/create-admin.php email@example.com \"Display Name\" [admin|agent]\n");
  exit(2);
 }
-$password=readline('New staff password (minimum 12 characters): ');
-$confirm=readline('Confirm password: ');
+function read_secret(string $prompt): string {
+ fwrite(STDOUT,$prompt);
+ $hidden = PHP_OS_FAMILY !== 'Windows' && function_exists('shell_exec');
+ if ($hidden) shell_exec('stty -echo');
+ $value = fgets(STDIN) ?: '';
+ if ($hidden) shell_exec('stty echo');
+ fwrite(STDOUT,"\n");
+ return rtrim($value,"\r\n");
+}
+$password=read_secret('New staff password (minimum 12 characters): ');
+$confirm=read_secret('Confirm password: ');
 if(strlen($password)<12||!hash_equals($password,$confirm)){
  fwrite(STDERR,"Password confirmation failed or password is too short.\n");exit(2);
 }
