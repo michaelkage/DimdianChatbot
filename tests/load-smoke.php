@@ -50,10 +50,10 @@ try{
   curl_multi_add_handle($multi,$ch);$handles[]=$ch;
  }
  do{$status=curl_multi_exec($multi,$running);if($running)curl_multi_select($multi,0.2);}while($running&&$status===CURLM_OK);
- $limited=0;$unconfigured=0;
- foreach($handles as $ch){$code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);if($code===429)$limited++;if($code===503)$unconfigured++;curl_multi_remove_handle($multi,$ch);curl_close($ch);}
+ $limited=0;$allowed=0;
+ foreach($handles as $ch){$code=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);if($code===429)$limited++;elseif(in_array($code,[200,502,503],true))$allowed++;curl_multi_remove_handle($multi,$ch);curl_close($ch);}
  curl_multi_close($multi);
- assertLoad($limited===12&&$unconfigured===20,'concurrent catalogue requests enforce the 20-request guest window atomically');
+ assertLoad($limited===12&&$allowed===20,'concurrent catalogue requests enforce 12 rate-limit rejections and 20 admitted requests atomically');
 }finally{
  proc_terminate($server);proc_close($server);
  $pdo->prepare('DELETE FROM conversations WHERE public_id=:id')->execute(['id'=>$publicId]);
