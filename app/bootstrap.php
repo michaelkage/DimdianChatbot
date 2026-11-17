@@ -82,15 +82,19 @@ function request_ip_hash(): string {
 }
 
 function rate_limit_exceeded(string $scope,int $limit,int $windowSeconds): bool {
- $secret = (string)app_config('security.rate_limit_secret','');
- $bucket = hash_hmac('sha256',$scope,$secret);
- $cutoff = gmdate('Y-m-d H:i:s',time()-$windowSeconds);
- $pdo = db();
- $pdo->prepare('INSERT INTO rate_limit_events (bucket_key,occurred_at) VALUES (:bucket,UTC_TIMESTAMP())')->execute(['bucket'=>$bucket]);
- $count = $pdo->prepare('SELECT COUNT(*) FROM rate_limit_events WHERE bucket_key=:bucket AND occurred_at >= :cutoff');
- $count->execute(['bucket'=>$bucket,'cutoff'=>$cutoff]);
- $pdo->prepare('DELETE FROM rate_limit_events WHERE occurred_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY)')->execute();
- return (int)$count->fetchColumn() > $limit;
+ $secret=(string)app_config('security.rate_limit_secret','');
+ if($secret===''||str_starts_with($secret,'replace-with-')) throw new RuntimeException('rate_limit_secret_not_configured');
+ $windowSeconds=max(1,$windowSeconds);
+ $bucket=hash_hmac('sha256',$scope,$secret);
+ $windowStart=intdiv(time(),$windowSeconds)*$windowSeconds;
+ $pdo=db();
+ $upsert=$pdo->prepare('INSERT INTO rate_limit_buckets (bucket_key,window_start,hit_count,updated_at) VALUES (:bucket,:window_start,1,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE hit_count=hit_count+1,updated_at=UTC_TIMESTAMP()');
+ $upsert->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
+ $count=$pdo->prepare('SELECT hit_count FROM rate_limit_buckets WHERE bucket_key=:bucket AND window_start=:window_start');
+ $count->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
+ // Opportunistic cleanup avoids a DELETE scan on every API request.
+ if((time()%600)===0) $pdo->exec('DELETE FROM rate_limit_buckets WHERE updated_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 DAY)');
+ return (int)$count->fetchColumn()>$limit;
 }
 
 function apply_cors(): void {
