@@ -8,9 +8,9 @@ if(!function_exists('proc_open')||!function_exists('gzopen')){fwrite(STDERR,"CLI
 $directory=(string)($config['backup']['directory']??getenv('DIMDIAN_BACKUP_DIRECTORY')?:'');
 if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)||is_link($directory)){fwrite(STDERR,"Set backup.directory to an absolute private directory outside public_html.\n");exit(1);}
 if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory)){fwrite(STDERR,"Cannot create backup directory.\n");exit(1);}
-$real=realpath($directory);$public=realpath(dirname(__DIR__).'/public');
-if(!$real||($public&&str_starts_with($real.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))){fwrite(STDERR,"Backup directory must be outside public/.\n");exit(1);}
-@chmod($real,0700);$directoryPermissions=fileperms($real);
+$real=realpath($directory);$public=realpath(dirname(__DIR__).'/public');$systemTemp=realpath(sys_get_temp_dir());
+if(!$real||$real===DIRECTORY_SEPARATOR||($systemTemp!==false&&$real===$systemTemp)||($public&&($real===$public||str_starts_with($real.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR)||str_starts_with($public.DIRECTORY_SEPARATOR,$real.DIRECTORY_SEPARATOR)))){fwrite(STDERR,"Backup directory must be outside public/.\n");exit(1);}
+@chmod($real,0700);clearstatcache(true,$real);$directoryPermissions=fileperms($real);
 if($directoryPermissions===false||($directoryPermissions&0077)!==0){fwrite(STDERR,"Backup directory must be owner-only (0700).\\n");exit(1);}
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod($tmp,0600);
 $ini="[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n";
