@@ -84,6 +84,23 @@ echo 'private attachment retrieval passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
+FITMENT_REVIEW_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
+FITMENT_REVIEW_TOKEN="$(jq -r '.token' <<<"$FITMENT_REVIEW_SESSION")"
+FITMENT_REVIEW_CONVERSATION="$(curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d '{"subject":"Staff fitment verification test"}')"
+FITMENT_REVIEW_ID="$(jq -r '.conversation.id' <<<"$FITMENT_REVIEW_CONVERSATION")"
+curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":102}" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $FITMENT_REVIEW_TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"make\":\"Honda\",\"model\":\"Civic\",\"year\":2018,\"engine\":\"2.0L\",\"transmission\":\"CVT\",\"trim\":\"EX\",\"vin\":\"\"}" >/dev/null
+UNAUTH_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-unauth-fitment.json -w '%{http_code}' -X POST http://127.0.0.1:8080/api/fitments.php -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Manufacturer catalogue\"}")"
+test "$UNAUTH_FITMENT_STATUS" = "401"
+BAD_CSRF_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-bad-csrf-fitment.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H 'X-CSRF-Token: invalid' -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Manufacturer catalogue\"}")"
+test "$BAD_CSRF_FITMENT_STATUS" = "403"
+FITMENT_VERIFY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Honda electronic parts catalogue\"}")"
+jq -e '.verified == true and .created == true and .product_id == 102' <<<"$FITMENT_VERIFY" >/dev/null
+FITMENT_REPEAT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Honda electronic parts catalogue, rechecked\"}")"
+jq -e '.verified == true and .created == false and .fitment_id == '$(jq -r '.fitment_id' <<<"$FITMENT_VERIFY")' <<<"$FITMENT_REPEAT" >/dev/null
+VERIFIED_FITMENT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM product_fitments WHERE product_id=102 AND make='Honda' AND model='Civic' AND year_from=2018 AND year_to=2018 AND engine='2.0L' AND transmission='CVT' AND trim_level='EX' AND status='verified'")"
+test "$VERIFIED_FITMENT_COUNT" = "1"
+echo 'admin-only fitment verification, CSRF protection and repeat-safe persistence passed'
 AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
 AI_ON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
