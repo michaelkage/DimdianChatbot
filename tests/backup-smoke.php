@@ -1,0 +1,37 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__).'/app/bootstrap.php';
+
+function backupCheck(bool $ok,string $message): void {
+ if(!$ok){fwrite(STDERR,"FAIL: ".$message."\n");exit(1);}
+ echo "PASS: ".$message."\n";
+}
+$directory=sys_get_temp_dir().'/dimdian-backup-'.bin2hex(random_bytes(6));
+mkdir($directory,0700,true);
+putenv('DIMDIAN_BACKUP_DIRECTORY='.$directory);
+$backupProcess=proc_open([PHP_BINARY,dirname(__DIR__).'/bin/backup-db.php'],[
+ 0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']
+],$backupPipes,dirname(__DIR__));
+fclose($backupPipes[0]);
+$backupOutput=stream_get_contents($backupPipes[1]);$backupError=stream_get_contents($backupPipes[2]);
+fclose($backupPipes[1]);fclose($backupPipes[2]);
+$backupExit=proc_close($backupProcess);
+backupCheck($backupExit===0,'database backup command exits successfully: '.trim((string)$backupError));
+$backupPath=trim((string)$backupOutput);
+backupCheck(is_file($backupPath)&&filesize($backupPath)>0,'compressed SQL backup is created in private storage');
+
+$target='dimdian_restore_'.bin2hex(random_bytes(4));
+db()->exec('CREATE DATABASE '.$target.' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+$restoreProcess=proc_open([PHP_BINARY,dirname(__DIR__).'/bin/restore-db.php',$backupPath,$target],[
+ 0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']
+],$restorePipes,dirname(__DIR__));
+fwrite($restorePipes[0],"RESTORE\n");fclose($restorePipes[0]);
+$restoreOutput=stream_get_contents($restorePipes[1]);$restoreError=stream_get_contents($restorePipes[2]);
+fclose($restorePipes[1]);fclose($restorePipes[2]);
+$restoreExit=proc_close($restoreProcess);
+backupCheck($restoreExit===0,'restore command completes into a separate database: '.trim((string)$restoreError));
+$check=new PDO('mysql:host='.app_config('database.host').';port='.(int)app_config('database.port',3306).';dbname='.$target.';charset=utf8mb4',(string)app_config('database.username'),(string)app_config('database.password'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$tables=(int)$check->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('conversations','messages','conversation_vehicles','product_fitments')")->fetchColumn();
+backupCheck($tables===4,'restored database contains core support and fitment tables');
+db()->exec('DROP DATABASE '.$target);
+@unlink($backupPath);@rmdir($directory);
