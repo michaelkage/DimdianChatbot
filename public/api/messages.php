@@ -37,8 +37,9 @@ try {
         $messageId = uuid_v4();
         $transportState = 'not_configured';
         $whatsappConfig = app_config('whatsapp') ?? [];
-        $notificationRecipient = is_array($whatsappConfig) ? normalize_whatsapp_number((string)($whatsappConfig['notification_recipient'] ?? '')) : '';
-        $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $notificationRecipient !== '';
+        $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
+        $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
+        $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare(
@@ -65,13 +66,7 @@ try {
             $update->execute([':id' => $session['conversation_id']]);
 
             if ($outboundEnabled) {
-                $guestLabel = trim((string)($session['display_name'] ?? ''));
-                $guestPhone = trim((string)($session['phone'] ?? ''));
-                $notification = "New website chat enquiry\\n";
-                $notification .= 'Name: ' . ($guestLabel !== '' ? $guestLabel : 'Not provided') . "\\n";
-                $notification .= 'Phone: ' . ($guestPhone !== '' ? $guestPhone : 'Not provided') . "\\n\\n";
-                $notification .= 'Message: ' . $messageText;
-                enqueue_whatsapp_notification($pdo, $messageId, $notificationRecipient, mb_substr_safe($notification, 0, 4000));
+                enqueue_whatsapp_notification($pdo, $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
                 $transportState = 'queued';
             }
 
@@ -96,8 +91,8 @@ try {
             'meta' => [
                 'transport' => $transportState,
                 'note' => $transportState === 'queued'
-                    ? 'Your message is saved and queued for WhatsApp notification. Delivery is confirmed separately.'
-                    : 'Your message is saved. WhatsApp notification transport is not configured.',
+                    ? 'Your message is saved and queued for WhatsApp delivery. Delivery is confirmed separately.'
+                    : 'Your message is saved in this website chat. WhatsApp delivery is not enabled for this conversation.',
             ],
         ], 201);
     }

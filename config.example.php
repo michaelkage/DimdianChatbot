@@ -30,8 +30,9 @@ return [
         'access_token' => '',
         'app_secret' => '',
         'verify_token' => '',
-        // A separate staff WhatsApp number, not the business sender number.
-        'notification_recipient' => '',
+        // Create and approve a WhatsApp template with exactly one BODY text parameter.
+        'template_name' => '',
+        'template_language' => 'en',
     ],
     'database' => [
         'dsn' => 'mysql:host=localhost;dbname=dimdian_chatbot;charset=utf8mb4',

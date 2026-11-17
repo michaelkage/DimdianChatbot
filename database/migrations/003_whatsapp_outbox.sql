@@ -2,6 +2,7 @@
 -- Apply once after the original schema and migration 002.
 ALTER TABLE guests
     ADD COLUMN phone_normalized VARCHAR(32) NULL AFTER phone,
+    ADD COLUMN whatsapp_opt_in_at DATETIME NULL AFTER phone_normalized,
     ADD KEY idx_guests_phone_normalized (phone_normalized);
 
 CREATE TABLE message_outbox (

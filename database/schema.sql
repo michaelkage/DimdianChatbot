@@ -10,6 +10,7 @@ CREATE TABLE guests (
     display_name VARCHAR(100) NULL,
     phone VARCHAR(32) NULL,
     phone_normalized VARCHAR(32) NULL,
+    whatsapp_opt_in_at DATETIME NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),

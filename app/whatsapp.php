@@ -9,7 +9,7 @@ declare(strict_types=1);
 interface WhatsAppTextTransport
 {
     /** @return array{provider_message_id:string} */
-    public function sendText(string $recipient, string $text): array;
+    public function sendTemplate(string $recipient, string $bodyParameter): array;
 }
 
 final class WhatsAppTransportException extends RuntimeException
@@ -24,7 +24,7 @@ final class MetaCloudApiTransport implements WhatsAppTextTransport
 {
     public function __construct(private readonly array $config) {}
 
-    public function sendText(string $recipient, string $text): array
+    public function sendTemplate(string $recipient, string $bodyParameter): array
     {
         $version = (string)($this->config['graph_api_version'] ?? '');
         $phoneNumberId = (string)($this->config['phone_number_id'] ?? '');
@@ -33,7 +33,9 @@ final class MetaCloudApiTransport implements WhatsAppTextTransport
         if (!preg_match('/^v\d+\.\d+$/', $version) || $phoneNumberId === '' || $accessToken === '') {
             throw new WhatsAppTransportException('WhatsApp transport configuration is incomplete.', false);
         }
-        if ($recipient === '' || $text === '') {
+        $templateName = (string)($this->config['template_name'] ?? '');
+        $templateLanguage = (string)($this->config['template_language'] ?? 'en');
+        if ($recipient === '' || $bodyParameter === '' || $templateName === '') {
             throw new WhatsAppTransportException('WhatsApp recipient and message are required.', false);
         }
 
@@ -42,8 +44,15 @@ final class MetaCloudApiTransport implements WhatsAppTextTransport
             'messaging_product' => 'whatsapp',
             'recipient_type' => 'individual',
             'to' => $recipient,
-            'type' => 'text',
-            'text' => ['preview_url' => false, 'body' => $text],
+            'type' => 'template',
+            'template' => [
+                'name' => $templateName,
+                'language' => ['code' => $templateLanguage],
+                'components' => [[
+                    'type' => 'body',
+                    'parameters' => [['type' => 'text', 'text' => $bodyParameter]],
+                ]],
+            ],
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
         $context = stream_context_create(['http' => [
@@ -187,6 +196,57 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
                     }
                 }
             } elseif ($field === 'messages') {
+                foreach (($value['messages'] ?? []) as $incoming) {
+                    if (!is_array($incoming)) continue;
+                    $wamid = (string)($incoming['id'] ?? '');
+                    $sender = normalize_whatsapp_number((string)($incoming['from'] ?? ''));
+                    $body = (string)($incoming['text']['body'] ?? '');
+                    if ($wamid === '') { $ignored++; continue; }
+                    $eventId = 'inbound:' . $wamid;
+                    if (!webhook_event_insert($pdo, $eventId, 'inbound_message', $payloadHash)) continue;
+
+                    if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
+                        mark_webhook_event($pdo, $eventId, 'ignored');
+                        $ignored++;
+                        continue;
+                    }
+
+                    $conversationQuery = $pdo->prepare(
+                        'SELECT c.id FROM guests g
+                         INNER JOIN conversations c ON c.guest_id = g.id
+                         WHERE g.phone_normalized = :phone AND c.status = "open"
+                         ORDER BY c.updated_at DESC LIMIT 1'
+                    );
+                    $conversationQuery->execute([':phone' => $sender]);
+                    $conversationId = $conversationQuery->fetchColumn();
+                    if (!is_string($conversationId)) {
+                        mark_webhook_event($pdo, $eventId, 'ignored');
+                        $ignored++;
+                        continue;
+                    }
+
+                    $sentAt = webhook_timestamp((string)($incoming['timestamp'] ?? ''));
+                    $insertMessage = $pdo->prepare(
+                        'INSERT IGNORE INTO messages
+                            (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
+                         VALUES
+                            (:id, :conversation_id, "visitor", :body, :provider_id, "received", :sent_at, UTC_TIMESTAMP())'
+                    );
+                    $insertMessage->execute([
+                        ':id' => uuid_v4(), ':conversation_id' => $conversationId,
+                        ':body' => $body, ':provider_id' => $wamid, ':sent_at' => $sentAt,
+                    ]);
+                    if ($insertMessage->rowCount() === 1) {
+                        $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id');
+                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
+                        mark_webhook_event($pdo, $eventId, 'processed');
+                        $processed++;
+                    } else {
+                        mark_webhook_event($pdo, $eventId, 'ignored');
+                        $ignored++;
+                    }
+                }
+
                 foreach (($value['statuses'] ?? []) as $status) {
                     if (!is_array($status)) continue;
                     $wamid = (string)($status['id'] ?? '');
@@ -212,16 +272,13 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
                     );
                     $rank = ['sent' => 1, 'delivered' => 2, 'read' => 3, 'failed' => 4][$state];
                     $update->execute([
-                        ':new_status' => $state,
-                        ':rank_status' => $rank,
-                        ':stored_status' => $state,
-                        ':provider_id' => $wamid,
+                        ':new_status' => $state, ':rank_status' => $rank,
+                        ':stored_status' => $state, ':provider_id' => $wamid,
                     ]);
                     $found = $update->rowCount() > 0;
                     mark_webhook_event($pdo, $eventId, $found ? 'processed' : 'ignored');
                     $found ? $processed++ : $ignored++;
                 }
-            }
         }
     }
 
@@ -297,7 +354,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
         }
 
         try {
-            $result = $transport->sendText((string)$job['recipient'], (string)$job['payload_text']);
+            $result = $transport->sendTemplate((string)$job['recipient'], (string)$job['payload_text']);
             $pdo->beginTransaction();
             $complete = $pdo->prepare(
                 'UPDATE message_outbox
@@ -316,9 +373,9 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
             $pdo->commit();
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            $retryable = !$error instanceof WhatsAppTransportException || $error->retryable;
+            $retryable = !($error instanceof WhatsAppTransportException) || $error->retryable;
             $shouldRetry = $retryable && $attempt < $maxAttempts;
-            $delay = min(3600, 15 * (2 ** min(8, max(0, $attempt - 1))));
+            $delay = whatsapp_retry_delay_seconds($attempt);
             $messageText = mb_substr_safe($error->getMessage(), 0, 900);
 
             $pdo->beginTransaction();
@@ -353,5 +410,13 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
 function mb_substr_safe(string $value, int $start, int $length): string
 {
     if (function_exists('mb_substr')) return mb_substr($value, $start, $length);
+    if (preg_match_all('/./us', $value, $matches) !== false) {
+        return implode('', array_slice($matches[0], $start, $length));
+    }
     return substr($value, $start, $length);
+}
+
+function whatsapp_retry_delay_seconds(int $attempt): int
+{
+    return min(3600, 15 * (2 ** min(8, max(0, $attempt - 1))));
 }

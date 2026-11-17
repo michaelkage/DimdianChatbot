@@ -14,7 +14,7 @@ wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false"><
 '<section class="panel" role="dialog" aria-label="Customer support chat" hidden>' +
 '<header><div class="mark">D</div><div class="heading"><h2></h2><p></p></div><button class="close" type="button" aria-label="Close chat">×</button></header>' +
 '<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">WELCOME</span><h3>How can we help?</h3><p>Send us a message and our team will get back to you here.</p>' +
-'<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div></div>' +
+'<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
 '<div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
 '<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by Dimdian</footer></section>';
 shadow.append(wrap); document.body.append(root);
@@ -61,14 +61,14 @@ function render(m){
 function notice(t){const n=document.createElement('div');n.className='notice';n.textContent=t;messages.append(n);scroll();}
 function clear(){messages.replaceChildren();seen.clear();cursor=0;welcome.hidden=false;}
 async function startSession(){
- const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:$('.phone').value.trim()||null})});
+ const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:$('.phone').value.trim()||null,whatsapp_opt_in:$('.wa-opt-in').checked})});
  if(!body.data||!/^[a-f0-9]{64}$/.test(body.data.session_token||''))throw new Error('Could not initialize a chat session.');
  session={token:body.data.session_token,expiresAt:body.data.expires_at||null};cursor=0;persist();
- $('.name').disabled=true;$('.phone').disabled=true;welcome.hidden=true;
+ $('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;welcome.hidden=true;
 }
 function expired(){
  session=null;cursor=0;try{sessionStorage.removeItem(key);}catch(_){}
- $('.name').disabled=false;$('.phone').disabled=false;clear();
+ $('.name').disabled=false;$('.phone').disabled=false;$('.wa-opt-in').disabled=false;clear();
  notice('Your previous chat session expired. Send a new message to start again.');
 }
 async function poll(){
@@ -98,11 +98,11 @@ async function send(text){
   input.value='';$('.count').textContent='0 / 4000';status('Message saved. Waiting for a reply.');
   delay=1000;await poll();schedule();
  }catch(e){
-  if(e.status===401&&session){expired();input.value=text;status('Session expired. Send again to start a new chat.','warning');}
+  if((e.status===401||e.status===409)&&session){expired();input.value=text;status('Your chat session ended. Send again to start a new chat.','warning');}
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
 }
-function open(){opened=true;panel.hidden=false;launcher.hidden=true;if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
+function open(){opened=true;panel.hidden=false;launcher.hidden=true;if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
 function close(){opened=false;panel.hidden=true;launcher.hidden=false;stop();}
 launcher.addEventListener('click',open);$('.close').addEventListener('click',close);
 form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim();if(text)send(text);});

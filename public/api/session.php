@@ -16,6 +16,17 @@ if ($contentType !== 'application/json') {
 $body = request_json();
 $name = clean_optional_string($body['name'] ?? null, 100, 'name');
 $phone = clean_optional_string($body['phone'] ?? null, 32, 'phone');
+$whatsappOptIn = $body['whatsapp_opt_in'] ?? false;
+if (!is_bool($whatsappOptIn)) {
+    json_response(['error' => ['code' => 'invalid_field', 'message' => 'whatsapp_opt_in must be true or false.']], 422);
+}
+$normalizedPhone = $phone !== null ? normalize_whatsapp_number($phone) : null;
+if ($phone !== null && $normalizedPhone === '') {
+    json_response(['error' => ['code' => 'invalid_field', 'message' => 'Enter a valid phone number including its country code.']], 422);
+}
+if ($whatsappOptIn && $normalizedPhone === null) {
+    json_response(['error' => ['code' => 'whatsapp_phone_required', 'message' => 'Enter your WhatsApp number to opt in.']], 422);
+}
 
 try {
     $pdo = database();
@@ -38,10 +49,10 @@ try {
     $pdo->beginTransaction();
 
     $guest = $pdo->prepare(
-        'INSERT INTO guests (id, display_name, phone, phone_normalized, created_at, updated_at)
-         VALUES (:id, :name, :phone, :phone_normalized, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+        'INSERT INTO guests (id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
+         VALUES (:id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
-    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $phone !== null ? normalize_whatsapp_number($phone) : null]);
+    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $normalizedPhone, ':whatsapp_opt_in_at' => $whatsappOptIn ? $createdAt->format('Y-m-d H:i:s') : null]);
 
     $conversation = $pdo->prepare(
         'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
