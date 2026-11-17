@@ -138,8 +138,7 @@
     busy=true;vehicleForm.querySelector('button').disabled=true;showError('');
     try{
       const data=await request(endpoint('vehicle'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,make:details.make,model:details.model,year:Number(details.year),engine:details.engine,transmission:details.transmission,trim:details.trim,vin:details.vin})});
-      appendMessage({sender_type:'system',body:data.fitment.status==='verified'?'We found a verified fitment record for this vehicle and the selected listing. A support specialist can help with any remaining questions.':'Vehicle details received. A parts specialist will verify compatibility before recommending a part.'});
-      vehicleForm.reset();vehicleForm.classList.remove('open');poll();
+      vehicleForm.reset();vehicleForm.classList.remove('open');await poll();
     }catch(error){showError(error.message==='vin_encryption_not_configured'?'VIN submission is temporarily unavailable. You can leave the VIN blank or contact support.':'Vehicle details could not be submitted. Please retry.');}
     finally{busy=false;vehicleForm.querySelector('button').disabled=false;}
   });
