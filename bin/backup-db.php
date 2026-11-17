@@ -13,7 +13,7 @@ $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod(
 $ini="[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n";
 file_put_contents($tmp,$ini,LOCK_EX);chmod($tmp,0600);
 $file=$real.'/dimdian-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sql.gz';
-$proc=proc_open(['mysqldump','--defaults-extra-file='.$tmp,'--single-transaction','--quick','--routines','--triggers',(string)$db['name']],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+$proc=proc_open(['mysqldump','--defaults-extra-file='.$tmp,'--single-transaction','--quick',(string)$db['name']],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
 if(!is_resource($proc)){unlink($tmp);fwrite(STDERR,"mysqldump is unavailable. Use Hostinger phpMyAdmin export instead.\n");exit(1);}
 fclose($pipes[0]);$gz=gzopen($file,'wb6');$bytes=0;
 while(!feof($pipes[1])){$chunk=fread($pipes[1],65536);if($chunk===false)break;$bytes+=strlen($chunk);gzwrite($gz,$chunk);}
