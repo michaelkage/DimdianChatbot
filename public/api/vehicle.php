@@ -29,8 +29,10 @@ if(woocommerce_ready()){
   // Only concrete simple products are attached to the vehicle record. The separate
   // conversation listing context retains variable parents for staff review without
   // allowing a parent-level compatibility claim.
-  $productId=$product&&woocommerce_fitment_product_supported($product)?$product['id']:null;
-  $productType=$product['type']??'unknown';
+  if(is_array($product)){
+   $productType=(string)($product['type']??'unknown');
+   $productId=$productType==='simple'?(int)$product['id']:null;
+  }
  }catch(Throwable $e){$productId=null;}
 }
 $pdo->beginTransaction();
