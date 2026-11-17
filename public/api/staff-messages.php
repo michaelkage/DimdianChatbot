@@ -34,7 +34,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 require_staff_csrf();
 $input=request_json();
 $publicId=$input['conversation_id']??'';
-$body=trim((string)($input['body']??''));
+$bodyInput=$input['body']??null;
+if(!is_string($bodyInput))json_response(['error'=>'invalid_message_body'],422);
+$body=trim($bodyInput);
 $maxChars=max(1,(int)app_config('security.message_max_chars',5000));
 $count=preg_match_all('/./us',$body,$unused);
 if(!is_string($publicId)||!preg_match('/^[a-f0-9]{26}$/D',$publicId))json_response(['error'=>'invalid_conversation_id'],422);
