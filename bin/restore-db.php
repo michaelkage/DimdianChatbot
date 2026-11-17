@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
-if($argc!==2||!is_file($argv[1])){fwrite(STDERR,"Usage: php bin/restore-db.php /absolute/path/backup.sql[.gz]\n");exit(2);}
+if(($argc!==2&&$argc!==3)||!is_file($argv[1])){fwrite(STDERR,"Usage: php bin/restore-db.php /absolute/path/backup.sql[.gz] [target_database]\n");exit(2);}
 fwrite(STDERR,"WARNING: this overwrites matching database objects/data. Type RESTORE to continue: ");
 $answer=trim((string)fgets(STDIN));if($answer!=='RESTORE'){fwrite(STDERR,"Cancelled.\n");exit(1);}
 $config=require dirname(__DIR__).'/config.php';$db=$config['database']??[];
