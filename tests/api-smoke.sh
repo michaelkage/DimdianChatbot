@@ -12,12 +12,17 @@ return [
  'database'=>['host'=>'127.0.0.1','port'=>3306,'name'=>'dimdian_test','username'=>'root','password'=>'root','charset'=>'utf8mb4'],
  'uploads'=>['directory'=>'/tmp/dimdian-ci-private-uploads','max_bytes'=>3*1024*1024,'allowed_mime_types'=>['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp']],
  'integration'=>['customer_identity_secret'=>'ci-identity-secret','vehicle_data_encryption_key'=>'ci-vehicle-encryption-secret-32-bytes-minimum'],
- 'woocommerce'=>['enabled'=>false,'store_url'=>'https://parts.example.invalid'],
+ 'woocommerce'=>['enabled'=>true,'store_url'=>'http://127.0.0.1:8083','consumer_key'=>'ci-woo-key','consumer_secret'=>'ci-woo-secret','currency_code'=>'NGN','mpn_lookup_path'=>'/wp-json/dimdian/v1/products'],
  'ai'=>['provider_ready'=>true,'provider'=>['name'=>'openai_compatible','api_key'=>'ci-provider-key','model'=>'ci-stub-model','base_url'=>'http://127.0.0.1:8081/ai-provider-stub.php','connect_timeout_seconds'=>1,'timeout_seconds'=>1,'max_tokens'=>100]],
  'security'=>['guest_token_bytes'=>32,'message_max_chars'=>5000,'poll_limit'=>100,'rate_limit_secret'=>'ci-rate-limit-secret'],
 ];
 PHP
 mkdir -p /tmp/dimdian-ci-private-uploads
+php -S 127.0.0.1:8083 -t tests >/tmp/dimdian-ci-woo.log 2>&1 &
+for attempt in $(seq 1 30); do
+  if curl -fsS -u ci-woo-key:ci-woo-secret 'http://127.0.0.1:8083/wp-json/wc/v3/products?sku=ALT-CAM-25' >/tmp/dimdian-woo-health.json; then break; fi
+  sleep 1
+done
 php -S 127.0.0.1:8081 -t tests >/tmp/dimdian-ci-provider.log 2>&1 &
 for attempt in $(seq 1 30); do
   if curl -fsS http://127.0.0.1:8081/ai-provider-stub.php >/tmp/dimdian-provider-health.json; then break; fi
@@ -45,6 +50,21 @@ UNTRUSTED_CONTEXT_STATUS="$(curl -sS -o /tmp/dimdian-untrusted-context.json -w '
 test "$UNTRUSTED_CONTEXT_STATUS" = "422"
 jq -e '.error == "context_origin_not_allowed"' /tmp/dimdian-untrusted-context.json >/dev/null
 echo 'untrusted listing URL rejected'
+SKU_SEARCH="$(curl -fsS "http://127.0.0.1:8080/api/products.php?type=sku&q=ALT-CAM-25" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.source == "woocommerce_live" and .products[0].id == 101 and .products[0].price == "25000.00" and .products[0].stock_status == "instock"' <<<"$SKU_SEARCH" >/dev/null
+NAME_SEARCH="$(curl -fsS "http://127.0.0.1:8080/api/products.php?type=name&q=Toyota%20Camry" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.products | length == 1 and .[0].sku == "ALT-CAM-25"' <<<"$NAME_SEARCH" >/dev/null
+MPN_SEARCH="$(curl -fsS "http://127.0.0.1:8080/api/products.php?type=mpn&q=DENSO-ALT-25" -H "X-Dimdian-Guest-Token: $TOKEN")"
+jq -e '.products | length == 1 and .[0].id == 101' <<<"$MPN_SEARCH" >/dev/null
+echo 'live WooCommerce SKU, name and MPN search passed'
+PRODUCT_CONTEXT="$(curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"product_id\":101}")"
+jq -e '.selected == true and .product.id == 101 and .product.sku == "ALT-CAM-25"' <<<"$PRODUCT_CONTEXT" >/dev/null
+mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,verification_source,verified_at,status) VALUES (101,'Toyota','Camry',2015,2020,'2.5L','Automatic','CI manufacturer catalogue fixture',UTC_TIMESTAMP(),'verified')"
+VEHICLE_MATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"2.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"\"}")"
+jq -e '.fitment.status == "verified" and .product_id == 101' <<<"$VEHICLE_MATCH" >/dev/null
+VEHICLE_MISMATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"3.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"\"}")"
+jq -e '.fitment.status == "needs_specialist"' <<<"$VEHICLE_MISMATCH" >/dev/null
+echo 'selected live listing and exact verified fitment/mismatch handling passed'
 curl -fsS -X POST http://127.0.0.1:8080/api/messages.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"What are your opening hours?\"}" >/tmp/dimdian-customer-message.json
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' | base64 -d >/tmp/dimdian-test.png
 UPLOAD_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/upload.php -H "X-Dimdian-Guest-Token: $TOKEN" -F "conversation_id=$CONVERSATION_ID" -F 'file=@/tmp/dimdian-test.png;type=image/png')"
