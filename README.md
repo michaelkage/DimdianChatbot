@@ -36,7 +36,7 @@ The repository is structured so the web server's document root can point to \`pu
 - \`public/index.php\`: minimal database-backed health endpoint.
 - \`config.example.php\`: deployment configuration template.
 
-The customer-facing guest chat flow is now implemented, including persistent browser identity, conversation reuse, customer text messages, delta polling, and private image attachments. The staff inbox, staff authentication, notification UX, and AI adapter are still pending.
+The customer-facing guest chat flow and staff inbox are implemented, including persistent browser identity, listing context, customer/staff text messages, delta polling, private image attachments, staff login, CSRF-protected state changes, unread counts, and staff notifications. Optional AI triage and authenticated marketplace-account linking remain integration work.
 
 ## Customer widget integration
 
