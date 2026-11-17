@@ -96,11 +96,11 @@ function rate_limit_exceeded(string $scope,int $limit,int $windowSeconds): bool 
  $bucket=hash_hmac('sha256',$scope,$secret);
  $windowStart=intdiv(time(),$windowSeconds)*$windowSeconds;
  $pdo=db();
- $upsert=$pdo->prepare('INSERT INTO rate_limit_buckets (bucket_key,window_start,hit_count,updated_at) VALUES (:bucket,:window_start,1,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE hit_count=hit_count+1,updated_at=UTC_TIMESTAMP()');
+ // LAST_INSERT_ID captures this request's incremented count on the same connection,
+ // avoiding a race where later concurrent requests inflate a separate SELECT result.
+ $upsert=$pdo->prepare('INSERT INTO rate_limit_buckets (bucket_key,window_start,hit_count,updated_at) VALUES (:bucket,:window_start,LAST_INSERT_ID(1),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE hit_count=LAST_INSERT_ID(hit_count+1),updated_at=UTC_TIMESTAMP()');
  $upsert->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
- $count=$pdo->prepare('SELECT hit_count FROM rate_limit_buckets WHERE bucket_key=:bucket AND window_start=:window_start');
- $count->execute(['bucket'=>$bucket,'window_start'=>$windowStart]);
- return (int)$count->fetchColumn()>$limit;
+ return (int)$pdo->query('SELECT LAST_INSERT_ID()')->fetchColumn()>$limit;
 }
 
 function apply_cors(): void {
