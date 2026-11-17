@@ -26,7 +26,7 @@ if(strlen($password)<12||!hash_equals($password,$confirm)){
 }
 $hash=password_hash($password,PASSWORD_DEFAULT);
 try{
- $insert=db()->prepare('INSERT INTO staff_users (email,password_hash,display_name,role,is_active,created_at,updated_at) VALUES (:email,:hash,:name,:role,1,UTC_TIMESTAMP(),UTC_TIMESTAMP())');
+ $insert=db()->prepare('INSERT INTO staff_users (email,password_hash,display_name,`role`,is_active,created_at,updated_at) VALUES (:email,:hash,:name,:role,1,UTC_TIMESTAMP(),UTC_TIMESTAMP())');
  $insert->execute(['email'=>$email,'hash'=>$hash,'name'=>$name,'role'=>$role]);
  fwrite(STDOUT,"Staff account created: {$email} ({$role})\n");
 }catch(PDOException $error){
