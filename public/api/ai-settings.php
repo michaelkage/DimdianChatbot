@@ -24,6 +24,12 @@ if (($input['test_provider'] ?? false) === true) {
   if($enabled==='1')ai_disable_globally((int)$staff['id']);else ai_provider_clear_verification();
   json_response(['test_ok'=>false,'error'=>'ai_provider_not_configured'],409);
  }
+ // A changed endpoint/model/key invalidates the previous test. Do not let a new successful probe
+ // silently reactivate an old ai_enabled=1 setting after a configuration change.
+ if(!ai_provider_verified()){
+  $enabled=db()->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
+  if($enabled==='1')ai_disable_globally((int)$staff['id']);
+ }
  $probe=ai_provider_complete([
   ['role'=>'system','content'=>'You are a connectivity test. Reply with exactly: DIMDIAN_PROVIDER_OK'],
   ['role'=>'user','content'=>'Return the required test phrase.'],
