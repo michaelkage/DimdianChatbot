@@ -12,11 +12,7 @@ if (is_string($token) && preg_match('/^[a-f0-9]{64}$/D',$token)) {
  $find->execute(['digest'=>$digest]);
  $customer = $find->fetch();
  if ($customer) {
-  if ($externalUserId !== null) {
-   db()->prepare('UPDATE customers SET external_user_id=:external_user_id,last_seen_at=UTC_TIMESTAMP() WHERE id=:id')->execute(['external_user_id'=>$externalUserId,'id'=>$customer['id']]);
-  } else {
-   db()->prepare('UPDATE customers SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id')->execute(['id'=>$customer['id']]);
-  }
+  db()->prepare('UPDATE customers SET external_user_id=:external_user_id,last_seen_at=UTC_TIMESTAMP() WHERE id=:id')->execute(['external_user_id'=>$externalUserId,'id'=>$customer['id']]);
   json_response(['token'=>$token,'customer'=>['id'=>(int)$customer['id'],'display_name'=>$customer['display_name']]]);
  }
 }
