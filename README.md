@@ -23,7 +23,7 @@ A lightweight, self-hosted customer support chat system for an auto-parts market
 
 - PHP 8.2 or newer.
 - MySQL 8.0+ or MariaDB 10.5+.
-- PHP extensions: PDO MySQL, fileinfo, JSON, and cURL when AI is enabled.
+- PHP extensions: PDO MySQL, fileinfo, JSON, and OpenSSL for VIN encryption; cURL is required when WooCommerce or AI integration is enabled.
 - HTTPS enabled.
 - No Composer or npm runtime dependency is required by the core application.
 
@@ -34,6 +34,10 @@ The repository is structured so the web server's document root can point to `pub
 - `database/schema.sql`: initial relational schema for staff, customers, conversations, messages, attachments, and rate-limit events.
 - `app/bootstrap.php`: shared PDO, JSON response, request parsing, CORS, and method helpers.
 - `app/ai.php` and `app/ai_provider.php`: guarded provider calls, short timeouts, deterministic escalation, per-conversation handoff, and global AI shutdown on exhausted quota or invalid credentials.
+- `app/woocommerce.php`: server-side read-only WooCommerce product lookup and safe product URL normalization.
+- `app/vehicle.php`: AES-256-GCM VIN protection and exact verified-fitment matching.
+- `app/storage.php`: canonical private attachment path validation.
+- `bin/preflight.php`, `bin/backup-db.php`, `bin/restore-db.php`, and `bin/cleanup-rate-limits.php`: production checks, database recovery and scheduled maintenance.
 - `public/index.php`: minimal database-backed health endpoint.
 - `public/widget.js`: zero-dependency, shadow-DOM customer chat widget.
 - `public/api/`: guest session, conversation, message, image upload, and staff endpoints.
@@ -133,7 +137,7 @@ All customer endpoints require the `X-Dimdian-Guest-Token` header except the ini
 
 ## Validation
 
-GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema and additive migration into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including trusted listing URL validation, image upload, AI completion, timeout handoff, quota-triggered global shutdown, the administrator provider probe, backup/restore recovery, and concurrent polling/rate-limit checks.
+GitHub Actions lints PHP source and staff/widget JavaScript, imports the schema and additive migration into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs end-to-end customer/staff API tests including live WooCommerce fixture lookups, selected-product context, exact fitment/mismatch handling, trusted listing URL validation, image upload, AI completion, timeout handoff, quota-triggered global shutdown, the administrator provider probe, backup/restore recovery, and multi-client polling/rate-limit burst checks.
 
 ## Hostinger setup
 
