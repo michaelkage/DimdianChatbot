@@ -12,7 +12,7 @@ if(!$real||($public&&str_starts_with($real.DIRECTORY_SEPARATOR,$public.DIRECTORY
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');if($tmp===false)exit(1);chmod($tmp,0600);
 $ini="[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n";
 file_put_contents($tmp,$ini,LOCK_EX);chmod($tmp,0600);
-$file=$real.'/dimdian-'.gmdate('Ymd-His').'.sql.gz';
+$file=$real.'/dimdian-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sql.gz';
 $proc=proc_open(['mysqldump','--defaults-extra-file='.$tmp,'--single-transaction','--quick','--routines','--triggers',(string)$db['name']],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
 if(!is_resource($proc)){unlink($tmp);fwrite(STDERR,"mysqldump is unavailable. Use Hostinger phpMyAdmin export instead.\n");exit(1);}
 fclose($pipes[0]);$gz=gzopen($file,'wb6');$bytes=0;
@@ -24,7 +24,7 @@ $retentionDays=max(1,min(365,(int)($config['backup']['retention_days']??14)));
 $cutoff=time()-($retentionDays*86400);
 foreach(glob($real.'/dimdian-*.sql.gz')?:[] as $oldFile){
  if($oldFile===$file||is_link($oldFile)||!is_file($oldFile))continue;
- if(!preg_match('/^dimdian-\\d{8}-\\d{6}\\.sql\\.gz$/D',basename($oldFile)))continue;
+ if(!preg_match('/^dimdian-\\d{8}-\\d{6}-[a-f0-9]{8}\\.sql\\.gz$/D',basename($oldFile)))continue;
  $modified=filemtime($oldFile);
  if($modified!==false&&$modified<$cutoff)@unlink($oldFile);
 }
