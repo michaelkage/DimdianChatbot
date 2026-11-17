@@ -52,12 +52,14 @@ $encrypted=vehicle_encrypt_vin($sample);
 check($encrypted!==$sample&&vehicle_decrypt_vin($encrypted)===$sample,'vehicle identifier encryption round-trips without storing plaintext');
 
 $fitmentProduct=random_int(100000,900000);
-$fitmentInsert=db()->prepare("INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,verification_source,verified_at,status) VALUES (:product,'Honda','Civic',2016,2020,'2.0L','CVT','CI verified fixture',UTC_TIMESTAMP(),'verified')");
+$fitmentInsert=db()->prepare("INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,trim_level,verification_source,verified_at,status) VALUES (:product,'Honda','Civic',2016,2020,'2.0L','CVT','LX','CI verified fixture',UTC_TIMESTAMP(),'verified')");
 $fitmentInsert->execute(['product'=>$fitmentProduct]);
 $verified=vehicle_find_verified_fitment(db(),$fitmentProduct,'Honda','Civic',2018,'2.0L','CVT','LX');
 $wrongEngine=vehicle_find_verified_fitment(db(),$fitmentProduct,'Honda','Civic',2018,'1.5L','CVT','LX');
+$missingTrim=vehicle_find_verified_fitment(db(),$fitmentProduct,'Honda','Civic',2018,'2.0L','CVT','');
 check(is_array($verified)&&$verified['verification_source']==='CI verified fixture','fitment matcher accepts an exact verified catalogue record');
 check($wrongEngine===null,'fitment matcher rejects a different engine instead of guessing');
+check($missingTrim===null,'fitment matcher rejects a trim-specific record when customer trim is missing');
 db()->prepare('DELETE FROM product_fitments WHERE product_id=:product')->execute(['product'=>$fitmentProduct]);
 
 $eventCount=(int)db()->query("SELECT COUNT(*) FROM messages WHERE sender_type='customer_event' AND body LIKE 'A member of our support team will take over%'")->fetchColumn();
