@@ -28,7 +28,7 @@ $imageInfo = @getimagesizefromstring($contents);
 if (!is_array($imageInfo) || ($imageInfo['mime'] ?? '') !== $mime) json_response(['error'=>'invalid_image'],415);
 $width = (int)$imageInfo[0];
 $height = (int)$imageInfo[1];
-if ($width < 1 || $height < 1 || $width > 8000 || $height > 8000 || ($width * $height) > 30000000) {
+if ($width < 1 || $height < 1 || $width > 8000 || $height > 8000 || ($width * $height) > 12000000) {
  json_response(['error'=>'image_dimensions_exceeded'],422);
 }
 
