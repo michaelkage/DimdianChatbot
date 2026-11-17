@@ -165,6 +165,7 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 - Guest message and image upload endpoints are rate-limited by both guest identity and source address.
 - Uploads must be checked by detected MIME type and image decoding, not filename extension alone.
 - User-provided text must be escaped at the point it is rendered.
+- Responses include frame denial, MIME sniffing protection, a restrictive referrer policy, disabled unused device permissions and HSTS when the production base URL is HTTPS.
 
 ## Build sequence
 
@@ -211,6 +212,7 @@ Do not copy the example placeholder as the real key. Confirm the field key used 
 - Configure a unique random `integration.vehicle_data_encryption_key` (at least 32 characters) in private `config.php`. If this key is missing, identifier submission is rejected; the customer can still submit the other vehicle details.
 - Back up this encryption key separately and securely. Losing it makes previously encrypted vehicle identifiers unreadable; changing it requires a planned re-encryption migration. The database backup does not include private `config.php` secrets.
 - A customer submission is not itself proof of compatibility. A match is returned as verified only when an exact product ID, make, model, year range, engine and transmission match a row whose `product_fitments.status` is `verified`. Trim-specific records are also respected.
+- Automatic matching and staff verification currently require a simple WooCommerce product. Variable/grouped listings remain searchable, but their parent product is not treated as a single compatible part; those requests go to a parts specialist until variation-level fitment is implemented.
 - If no verified record matches, the conversation is routed to `needs_human`. The assistant is bypassed for fitment questions.
 - An administrator can record a verified fitment from the conversation panel after checking the vehicle against a trusted manufacturer/supplier catalogue. The app first checks that the product ID exists in the live WooCommerce store and records the source, staff account and verification timestamp. Do not mark a row verified based only on product-name similarity.
 - Existing compatibility data is not included in the source baseline. Until DIMDIAN's verified fitment records are entered, uncertain requests correctly go to a parts specialist.
