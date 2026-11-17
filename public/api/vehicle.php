@@ -16,10 +16,17 @@ try{$encrypted=$vin!==''?vehicle_encrypt_vin($vin):null;}catch(RuntimeException 
 $pdo=db();$find=$pdo->prepare("SELECT id,context_sku,status FROM conversations WHERE public_id=:id AND customer_id=:customer AND status<>'closed' LIMIT 1");
 $find->execute(['id'=>$id,'customer'=>$customer['id']]);$conversation=$find->fetch();
 if(!$conversation)json_response(['error'=>'conversation_not_found'],404);
-// Never trust a product ID supplied by the browser. Resolve the listing context against WooCommerce server-side.
+// Resolve either an explicitly selected live listing or the page SKU against WooCommerce server-side.
 $productId=null;
-if($conversation['context_sku']&&woocommerce_ready()){
- try{$product=woocommerce_find_by_sku((string)$conversation['context_sku']);$productId=$product['id']??null;}catch(Throwable $e){$productId=null;}
+if(woocommerce_ready()){
+ try{
+  $selected=db()->prepare('SELECT product_id FROM conversation_product_context WHERE conversation_id=:id LIMIT 1');
+  $selected->execute(['id'=>$conversation['id']]);
+  $selectedId=$selected->fetchColumn();
+  $product=$selectedId?woocommerce_find_by_id((int)$selectedId):null;
+  if(!$product&&$conversation['context_sku'])$product=woocommerce_find_by_sku((string)$conversation['context_sku']);
+  $productId=$product['id']??null;
+ }catch(Throwable $e){$productId=null;}
 }
 $pdo->beginTransaction();
 try{
