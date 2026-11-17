@@ -17,7 +17,7 @@ function require_customer(): array {
  $statement->execute(['digest'=>$digest]);
  $customer = $statement->fetch();
  if (!$customer) json_response(['error'=>'guest_session_invalid'],401);
- db()->prepare('UPDATE customers SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id')->execute(['id'=>$customer['id']]);
+ db()->prepare('UPDATE customers SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)')->execute(['id'=>$customer['id']]);
  return $customer;
 }
 
