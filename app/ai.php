@@ -125,7 +125,7 @@ function ai_process_customer_message(int $conversationId): void {
 
   $answer = trim((string)$result['content']);
   if ($answer === '') { ai_handoff_conversation($conversationId); return; }
-  $answer = mb_substr($answer,0,4000);
+  $answer = function_exists('mb_substr') ? mb_substr($answer,0,4000) : substr($answer,0,4000);
   $pdo->beginTransaction();
   try {
    $lock = $pdo->prepare("SELECT status FROM conversations WHERE id=:id FOR UPDATE");
