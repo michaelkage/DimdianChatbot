@@ -34,7 +34,7 @@ $apiBase = rtrim((string)app_config('app.base_url',''),'/') . '/api/';
       <section id="ai-control" class="ai-control" hidden aria-label="AI support mode">
         <div class="ai-control-copy">
           <strong>AI replies</strong>
-          <small id="ai-mode-note">Loading support mode…</small>
+          <small id="ai-mode-note">Loading support mode…</small><button id="ai-test-button" class="quiet" type="button">Test provider</button>
         </div>
         <label class="switch" aria-label="Enable AI replies">
           <input id="ai-enabled" type="checkbox">
