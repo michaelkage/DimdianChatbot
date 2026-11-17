@@ -38,6 +38,11 @@ try {
  $publicId = create_public_conversation_id();
  $insert = $pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,subject,context_url,context_sku,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,:status,:subject,:context_url,:context_sku,UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
  $insert->execute(['public_id'=>$publicId,'customer_id'=>$customer['id'],'status'=>$initialStatus,'subject'=>$subject,'context_url'=>$contextUrl,'context_sku'=>$sku]);
+ if ($initialStatus === 'needs_human') {
+  $conversationDbId = (int)$pdo->lastInsertId();
+  $notice = $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,'system',:body,UTC_TIMESTAMP())");
+  $notice->execute(['id'=>$conversationDbId,'body'=>'A member of our support team will take over from here. Your message has been saved.']);
+ }
  $pdo->commit();
  json_response(['conversation'=>['id'=>$publicId,'status'=>$initialStatus],'created'=>true,'support_mode'=>$aiEnabled?'ai':'human'],201);
 } catch (Throwable $error) {
