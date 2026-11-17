@@ -70,7 +70,7 @@ async function refreshList(){
   const items=data.conversations||[];
   for(const item of items){
    const latestId=Number(item.last_message_id)||0,old=knownLatest.get(item.public_id);
-   if(old!==undefined&&latestId>old&&item.last_sender_type==='customer')playAlert();
+   if(old!==undefined&&latestId>old&&['customer','customer_event'].includes(item.last_sender_type))playAlert();
    knownLatest.set(item.public_id,latestId);
   }
   renderList(items);
@@ -112,7 +112,8 @@ async function loadAttachment(img,id){
 function syncReplyAvailability(){const closed=current&&current.status==='closed';$('reply-body').disabled=!!closed;$('reply-form').querySelector('button').disabled=!!closed;$('reply-body').placeholder=closed?'This conversation is closed.':'Reply to customer…'}
 function appendMessage(message){
  const empty=messages.querySelector('.empty-state');if(empty)empty.remove();
- const bubble=node('article','bubble '+message.sender_type,message.body||'');
+ const displaySender=message.sender_type==='customer_event'?'system':message.sender_type;
+ const bubble=node('article','bubble '+displaySender,message.body||'');
  if(message.attachment&&message.attachment.id){const img=node('img');img.alt='Customer image attachment';bubble.appendChild(img);loadAttachment(img,message.attachment.id)}
  bubble.appendChild(node('time','',formatTime(message.created_at)));messages.appendChild(bubble);messages.scrollTop=messages.scrollHeight;
 }
