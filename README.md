@@ -232,10 +232,10 @@ Set `backup.directory` to an absolute private directory outside the configured w
 
 ```sh
 php bin/backup-db.php
-php bin/restore-db.php /absolute/private/path/dimdian-YYYYMMDD-HHMMSS.sql.gz
+php bin/restore-db.php /absolute/private/path/dimdian-YYYYMMDD-HHMMSS-randomhex.sql.gz test_database_name
 ```
 
-The restore command requires typing `RESTORE` and overwrites database objects/data. Test recovery on a disposable database before using it on production. These scripts require the `mysqldump` and `mysql` command-line clients; if Hostinger's plan does not expose them, use phpMyAdmin's export/import tools and keep exports outside the public web root. Backups contain customer and support data and must be access-restricted.
+The restore command requires typing `RESTORE` and overwrites database objects/data. Test recovery on a disposable database before using it on production. These scripts require the `mysqldump` and `mysql` command-line clients; if Hostinger's plan does not expose them, use phpMyAdmin's export/import tools and keep exports outside the public web root. Backups contain customer and support data and must be access-restricted. Files are created with owner-only permissions, collision-resistant names, and a configurable retention window (`backup.retention_days`, default 14 days; clamped to 1–365). Expired matching backups are pruned only after a new backup succeeds.
 
 ## Live provider activation
 
