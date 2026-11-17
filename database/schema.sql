@@ -78,5 +78,5 @@ CREATE TABLE IF NOT EXISTS rate_limit_events (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
  bucket_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
- PRIMARY KEY (id), KEY idx_rate_limit_bucket_time (bucket_key,occurred_at)
+ PRIMARY KEY (id), KEY idx_rate_limit_bucket_time (bucket_key,occurred_at), KEY idx_rate_limit_occurred_at (occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
