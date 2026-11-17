@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/customer.php';
+require_once dirname(__DIR__,2) . '/app/ai.php';
 require_method('GET','POST');
 
 $customer = require_customer();
@@ -64,6 +65,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
   $update = $pdo->prepare('UPDATE conversations SET last_message_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP() WHERE id=:id');
   $update->execute(['id'=>$conversation['id']]);
   $pdo->commit();
+  // The customer message is already safely stored. AI failures are swallowed and converted to staff handoff.
+  if ($conversation['status'] === 'open') ai_process_customer_message((int)$conversation['id']);
   json_response(['message'=>['id'=>$messageId,'sender_type'=>'customer','body'=>$body],'accepted'=>true],201);
  } catch (Throwable $error) {
   if ($pdo->inTransaction()) $pdo->rollBack();
