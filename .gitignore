@@ -1,0 +1,12 @@
+/config.php
+/.env
+/.env.*
+!/config.example.php
+/vendor/
+/node_modules/
+/storage/
+/uploads/
+/dimdian-private-uploads/
+/.DS_Store
+Thumbs.db
+*.log
