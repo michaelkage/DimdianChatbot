@@ -85,6 +85,12 @@ echo 'private attachment retrieval passed'
 LOGIN_JSON="$(curl -fsS -c /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-login.php -H 'Content-Type: application/json' -d "{\"email\":\"ci-admin@example.invalid\",\"password\":\"$PASSWORD\"}")"
 CSRF="$(jq -r '.csrf_token' <<<"$LOGIN_JSON")"
 echo 'staff login passed'
+EARLY_AI_ENABLE_STATUS="$(curl -sS -o /tmp/dimdian-ai-unverified.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
+test "$EARLY_AI_ENABLE_STATUS" = "409"
+jq -e '.error == "ai_provider_test_required"' /tmp/dimdian-ai-unverified.json >/dev/null
+AI_PROVIDER_PROBE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"test_provider":true}')"
+jq -e '.test_ok == true and .ai_provider_tested == true' <<<"$AI_PROVIDER_PROBE" >/dev/null
+echo 'AI activation requires a successful current-provider probe'
 STAFF_VEHICLE_STATUS="$(curl -sS -o /tmp/dimdian-unauth-staff-vehicle.json -w '%{http_code}' "http://127.0.0.1:8080/api/staff-vehicle.php?conversation_id=$CONVERSATION_ID")"
 test "$STAFF_VEHICLE_STATUS" = "401"
 STAFF_VEHICLE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt "http://127.0.0.1:8080/api/staff-vehicle.php?conversation_id=$CONVERSATION_ID")"
@@ -115,7 +121,7 @@ test "$VARIABLE_FITMENT_STATUS" = "422"
 jq -e '.error == "specific_product_variant_required"' /tmp/dimdian-variable-fitment.json >/dev/null
 echo 'admin-only fitment verification, CSRF protection, idempotency and variable-product safety passed'
 AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
-jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
+jq -e '.ai_enabled == false and .ai_available == true and .ai_provider_tested == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
 AI_ON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
 jq -e '.ai_enabled == true and .mode == "ai_assisted"' <<<"$AI_ON" >/dev/null
 AI_SESSION="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d '{}')"
@@ -152,7 +158,7 @@ jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id ==
 echo 'AI quota exhaustion disabled AI globally and routed open chats to staff'
 curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$QUOTA_CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
 AI_OFF="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":false}')"
-jq -e '.ai_enabled == false and .mode == "human_only" and .routed_to_human == 1' <<<"$AI_OFF" >/dev/null
+jq -e '.ai_enabled == false and .ai_provider_tested == false and .mode == "human_only" and .routed_to_human == 1' <<<"$AI_OFF" >/dev/null
 HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=needs_human')"
 jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'admin AI-off switch and human routing passed'
