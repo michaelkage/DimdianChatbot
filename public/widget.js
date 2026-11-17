@@ -8,7 +8,7 @@
   const conversationKey = 'dimdian.conversation-id';
   const token = () => localStorage.getItem(tokenKey) || '';
   let conversationId = localStorage.getItem(conversationKey) || '';
-  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false, selectedProductId = null, conversationEpoch = 0, catalogueSearchId = 0;
+  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false, selectedProductId = null, conversationEpoch = 0, catalogueSearchId = 0, pollInFlight = false;
 
   const host = document.createElement('div');
   host.id = 'dimdian-chat-host';
@@ -75,7 +75,8 @@
     }catch(_){}
   }
   async function poll() {
-    if(!isOpen||document.hidden||busy||!conversationId)return;
+    if(!isOpen||document.hidden||busy||pollInFlight||!conversationId)return;
+    pollInFlight=true;
     const targetConversationId=conversationId,epoch=conversationEpoch,afterId=lastMessageId;
     try {
       const url=endpoint('messages')+'?conversation_id='+encodeURIComponent(targetConversationId)+'&after_id='+afterId;
@@ -85,7 +86,7 @@
       if(data.status==='closed'){textarea.disabled=true;sendButton.disabled=true;fileInput.disabled=true;showError('This conversation is closed. Close and reopen chat to start a new inquiry.');}
     }catch(error){
       if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId&&error.message==='guest_session_invalid'){localStorage.removeItem(tokenKey);showError('Your chat session expired. Close and reopen to reconnect.')}
-    }
+    }finally{pollInFlight=false;}
   }
   function stopPolling(){if(pollTimer!==null)clearInterval(pollTimer);pollTimer=null}
   function startPolling(){stopPolling();poll();pollTimer=setInterval(poll,4000)}
