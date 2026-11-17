@@ -6,6 +6,8 @@ if(!hash_equals('Basic '.base64_encode('ci-woo-key:ci-woo-secret'),$auth)){http_
 $products=[
  ['id'=>101,'name'=>'Toyota Camry 2.5L Alternator','sku'=>'ALT-CAM-25','price'=>'25000.00','regular_price'=>'28000.00','sale_price'=>'25000.00','stock_status'=>'instock','stock_quantity'=>4,'permalink'=>'http://127.0.0.1:8083/product/alt-cam-25/','images'=>[['src'=>'http://127.0.0.1:8083/images/alt-cam-25.jpg']],'type'=>'simple','status'=>'publish'],
  ['id'=>102,'name'=>'Honda Civic Brake Pad Set','sku'=>'BP-CIVIC-18','price'=>'12500.00','regular_price'=>'12500.00','sale_price'=>'','stock_status'=>'outofstock','stock_quantity'=>0,'permalink'=>'http://127.0.0.1:8083/product/bp-civic-18/','images'=>[],'type'=>'simple','status'=>'publish'],
+ ['id'=>103,'name'=>'Variable Assembly','sku'=>'VAR-103','price'=>'30000.00','regular_price'=>'30000.00','sale_price'=>'','stock_status'=>'instock','stock_quantity'=>2,'permalink'=>'http://127.0.0.1:8083/product/variable-assembly/','images'=>[],'type'=>'variable','status'=>'publish'],
+ ['id'=>104,'name'=>'Draft Alternator','sku'=>'DRAFT-104','price'=>'10000.00','regular_price'=>'10000.00','sale_price'=>'','stock_status'=>'instock','stock_quantity'=>1,'permalink'=>'http://127.0.0.1:8083/product/draft-alternator/','images'=>[],'type'=>'simple','status'=>'draft'],
 ];
 $path=parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH);
 if($path==='/wp-json/dimdian/v1/products'){
