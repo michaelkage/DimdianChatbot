@@ -4,6 +4,7 @@ if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 $configPath=dirname(__DIR__).'/config.php';
 if(!is_file($configPath)){fwrite(STDERR,"config.php is missing\n");exit(1);}
 $config=require $configPath;$db=$config['database']??[];
+if(!function_exists('proc_open')||!function_exists('gzopen')){fwrite(STDERR,"CLI process support and PHP zlib are required; use Hostinger phpMyAdmin export instead.\\n");exit(1);}
 $directory=(string)($config['backup']['directory']??getenv('DIMDIAN_BACKUP_DIRECTORY')?:'');
 if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)||is_link($directory)){fwrite(STDERR,"Set backup.directory to an absolute private directory outside public_html.\n");exit(1);}
 if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory)){fwrite(STDERR,"Cannot create backup directory.\n");exit(1);}
