@@ -59,7 +59,8 @@
   function appendMessage(message) {
     const empty=messagesEl.querySelector('.empty'); if(empty) empty.remove();
     const bubble=document.createElement('article');
-    bubble.className='message '+(['customer','staff','assistant','system'].includes(message.sender_type)?message.sender_type:'system');
+    const displaySender=message.sender_type==='customer_event'?'system':message.sender_type;
+    bubble.className='message '+(['customer','staff','assistant','system'].includes(displaySender)?displaySender:'system');
     const body=document.createElement('div'); body.textContent=message.body||''; bubble.appendChild(body);
     if(message.attachment&&message.attachment.id) {
       const img=document.createElement('img'); img.alt='Image attachment'; img.loading='lazy';
