@@ -28,6 +28,9 @@ $uploadLimit=preflight_ini_bytes((string)ini_get('upload_max_filesize'));
 $postLimit=preflight_ini_bytes((string)ini_get('post_max_size'));
 preflight('PHP upload_max_filesize',!$production||$uploadLimit>=3*1024*1024,ini_get('upload_max_filesize'));
 preflight('PHP post_max_size',!$production||$postLimit>=4*1024*1024,ini_get('post_max_size'));
+$configuredDocumentRoot=(string)app_config('app.document_root',dirname(__DIR__).'/public');
+$documentRootReal=realpath($configuredDocumentRoot)?:'';
+preflight('Configured web document root',$documentRootReal!==''&&is_dir($documentRootReal),$configuredDocumentRoot);
 $baseUrl=(string)app_config('app.base_url','');
 $baseParts=parse_url($baseUrl);
 preflight('Application base URL',is_array($baseParts)&&!empty($baseParts['host'])&&(!$production||strtolower((string)($baseParts['scheme']??''))==='https'),$baseUrl);
@@ -58,17 +61,19 @@ $backupOk=false;$backupReal='';
 if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR)&&!is_link($backupConfigured)){
  $publicReal=realpath(dirname(__DIR__).'/public')?:'';
  $systemTemp=realpath(sys_get_temp_dir())?:'';
- $parentSafe=false;
+ $webRoots=array_values(array_unique(array_filter([$publicReal,$documentRootReal])));
+ $insideOrAncestor=static fn(string $path,string $root):bool=>$path===$root||str_starts_with($path.DIRECTORY_SEPARATOR,$root.DIRECTORY_SEPARATOR)||str_starts_with($root.DIRECTORY_SEPARATOR,$path.DIRECTORY_SEPARATOR);
  if(!is_dir($backupConfigured)){
   $backupParent=realpath(dirname($backupConfigured))?:'';
-  $parentSafe=$backupParent!==''&&$publicReal!==''&&$backupParent!==$publicReal&&!str_starts_with($backupParent.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&
-   (!$production||($systemTemp!==''&&$backupParent!==$systemTemp&&!str_starts_with($backupParent.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)));
+  $parentSafe=$backupParent!==''&&$backupParent!==DIRECTORY_SEPARATOR;
+  if($parentSafe)foreach($webRoots as $root)if($backupParent===$root||str_starts_with($backupParent.DIRECTORY_SEPARATOR,$root.DIRECTORY_SEPARATOR)){$parentSafe=false;break;}
+  if($parentSafe&&$production)$parentSafe=$systemTemp!==''&&$backupParent!==$systemTemp&&!str_starts_with($backupParent.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR);
   if($parentSafe)@mkdir($backupConfigured,0700,false);
  }
  $backupReal=realpath($backupConfigured)?:'';
- $safeBackupPath=$backupReal!==''&&$publicReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&
-  (!$production||($systemTemp!==''&&$backupReal!==$systemTemp&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$systemTemp.DIRECTORY_SEPARATOR)&&!str_starts_with($systemTemp.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR)))&&
-  $backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR)&&!str_starts_with($publicReal.DIRECTORY_SEPARATOR,$backupReal.DIRECTORY_SEPARATOR);
+ $safeBackupPath=$backupReal!==''&&$backupReal!==DIRECTORY_SEPARATOR&&count($webRoots)===2;
+ if($safeBackupPath)foreach($webRoots as $root)if($insideOrAncestor($backupReal,$root)){$safeBackupPath=false;break;}
+ if($safeBackupPath&&$production)$safeBackupPath=$systemTemp!==''&&!$insideOrAncestor($backupReal,$systemTemp);
  if($safeBackupPath){@chmod($backupReal,0700);clearstatcache(true,$backupReal);}
  $backupPermissions=$safeBackupPath?fileperms($backupReal):false;
  $backupOk=$safeBackupPath&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0;
