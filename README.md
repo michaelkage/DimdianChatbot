@@ -83,7 +83,7 @@ GitHub Actions lints PHP source (including the CLI provisioning script), checks 
 3. Copy `config.example.php` to `config.php` in the repository root.
 4. Set database credentials, production base URL, exact allowed storefront origins, a private upload directory, and unique random secrets for rate limiting and optional storefront identity signing.
 5. Point the domain document root to the repository's `public/` directory.
-6. Ensure PHP can write to the configured private upload directory.
+6. Ensure PHP can write to the configured private upload directory. Set `upload_max_filesize` to at least `3M` and `post_max_size` to at least `4M` in Hostinger PHP settings so the 3 MB image limit can be reached.
 7. Create the first staff account over SSH from the repository root: `php bin/create-admin.php support@example.com "Support Admin" admin`. Enter the password at the prompts; do not put it in shell history.
 8. Visit the site's root URL. A healthy installation returns JSON with `status: ok` and `database: connected`.
 9. Open `/admin/support/` and sign in.
