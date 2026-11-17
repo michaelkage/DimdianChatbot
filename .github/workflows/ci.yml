@@ -47,6 +47,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Apply schema to MySQL 8
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < database/schema.sql
+      - name: Exercise schema relationships and application query shapes
+        run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < tests/schema-smoke.sql
       - name: Verify core tables exist
         run: |
           test "$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dimdian_test' AND table_name IN ('staff_users','customers','conversations','messages','attachments','rate_limit_events')")" = "6"
