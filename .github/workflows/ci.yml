@@ -21,6 +21,8 @@ jobs:
           php-version: '8.2'
           tools: none
       - name: Lint PHP source
-        run: find app public -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find app public bin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Lint configuration template
+        run: php -l config.example.php
       - name: Check widget JavaScript syntax
         run: node --check public/widget.js
