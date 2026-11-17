@@ -25,7 +25,7 @@ function require_staff(): array {
   $_SESSION=[];session_regenerate_id(true);
   json_response(['error'=>'staff_session_expired'],401);
  }
- $query=db()->prepare('SELECT id,email,display_name,\`role\`,is_active FROM staff_users WHERE id=:id LIMIT 1');
+ $query=db()->prepare('SELECT id,email,display_name,`role`,is_active FROM staff_users WHERE id=:id LIMIT 1');
  $query->execute(['id'=>(int)$staff['id']]);$current=$query->fetch();
  if(!$current||(int)$current['is_active']!==1){
   $_SESSION=[];session_regenerate_id(true);
