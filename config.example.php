@@ -26,6 +26,7 @@ return [
   'store_url' => 'https://your-store.example',
   'consumer_key' => '',
   'consumer_secret' => '',
+  'currency_code' => 'NGN', // Set to the store's actual WooCommerce currency code.
   // Optional WordPress REST route returning WooCommerce product objects for ?mpn=...
   // Example: /wp-json/dimdian/v1/products. Required for manufacturer-part-number search.
   'mpn_lookup_path' => '',
