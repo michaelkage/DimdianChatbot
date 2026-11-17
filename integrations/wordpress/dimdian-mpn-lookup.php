@@ -39,8 +39,10 @@ add_action('rest_api_init', static function (): void {
     $product=wc_get_product($id);if(!$product||!$product->is_visible())continue;
     $imageId=$product->get_image_id();
     $imageUrl=$imageId?wp_get_attachment_image_url($imageId,'full'):false;
+    $mpnValue=get_post_meta($product->get_id(),$metaKey,true);
+    $mpn=is_scalar($mpnValue)?sanitize_text_field((string)$mpnValue):'';
     $items[]=[
-     'id'=>$product->get_id(),'name'=>$product->get_name(),'sku'=>$product->get_sku(),
+     'id'=>$product->get_id(),'name'=>$product->get_name(),'sku'=>$product->get_sku(),'mpn'=>$mpn,
      'price'=>$product->get_price(),'regular_price'=>$product->get_regular_price(),
      'sale_price'=>$product->get_sale_price(),'stock_status'=>$product->get_stock_status(),
      'stock_quantity'=>$product->get_stock_quantity(),'permalink'=>get_permalink($product->get_id()),
