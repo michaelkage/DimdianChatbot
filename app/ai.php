@@ -62,12 +62,12 @@ function ai_disable_globally(?int $actorId = null): int {
 function ai_requires_human(string $message): bool {
  $text = strtolower($message);
  $patterns = [
-  '/\bvin\b/',
+  '/\bvin\b|\b[A-HJ-NPR-Z0-9]{17}\b/i',
   '/\bfit(?:s|ment|ment check)?\b|\bwill (?:this|it) fit\b|\bcompatib(?:le|ility)\b|\bcorrect part for my\b/',
-  '/\b(order|delivery|shipment)\s*(?:status|tracking|track|where)\b|\btrack my order\b/',
+  '/\b(order|delivery|shipment)\b.*\b(status|tracking|track|where)\b|\bwhere(?:\'s| is) my (?:order|delivery|shipment)\b|\btrack my order\b/',
   '/\b(refund|return|chargeback|payment|paid|invoice)\b/',
   '/\b(damaged|broken|wrong item|complaint|dispute|unsafe|accident)\b/',
-  '/\b(human|person|agent|staff|specialist)\b.*\b(speak|talk|help|support)\b/',
+  '/\b(human|person|agent|staff|specialist)\b|\b(speak|talk) to (?:a |an )?(?:human|person|agent|staff|specialist)\b/',
  ];
  foreach ($patterns as $pattern) if (preg_match($pattern,$text)) return true;
  return false;
