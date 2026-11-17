@@ -8,7 +8,7 @@
   const conversationKey = 'dimdian.conversation-id';
   const token = () => localStorage.getItem(tokenKey) || '';
   let conversationId = localStorage.getItem(conversationKey) || '';
-  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false, selectedProductId = null;
+  let lastMessageId = 0, pollTimer = null, busy = false, isOpen = false, selectedProductId = null, conversationEpoch = 0, catalogueSearchId = 0;
 
   const host = document.createElement('div');
   host.id = 'dimdian-chat-host';
@@ -76,13 +76,15 @@
   }
   async function poll() {
     if(!isOpen||document.hidden||busy||!conversationId)return;
+    const targetConversationId=conversationId,epoch=conversationEpoch,afterId=lastMessageId;
     try {
-      const url=endpoint('messages')+'?conversation_id='+encodeURIComponent(conversationId)+'&after_id='+lastMessageId;
+      const url=endpoint('messages')+'?conversation_id='+encodeURIComponent(targetConversationId)+'&after_id='+afterId;
       const data=await request(url,{headers:headers()});
+      if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
       for(const message of data.messages||[]){appendMessage(message);lastMessageId=Math.max(lastMessageId,Number(message.id)||0)}
       if(data.status==='closed'){textarea.disabled=true;sendButton.disabled=true;fileInput.disabled=true;showError('This conversation is closed. Close and reopen chat to start a new inquiry.');}
     }catch(error){
-      if(error.message==='guest_session_invalid'){localStorage.removeItem(tokenKey);showError('Your chat session expired. Close and reopen to reconnect.')}
+      if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId&&error.message==='guest_session_invalid'){localStorage.removeItem(tokenKey);showError('Your chat session expired. Close and reopen to reconnect.')}
     }
   }
   function stopPolling(){if(pollTimer!==null)clearInterval(pollTimer);pollTimer=null}
@@ -94,7 +96,7 @@
       await ensureSession();
       await ensureConversation();
       if(previousConversationId!==conversationId){
-        lastMessageId=0;messagesEl.replaceChildren();
+        conversationEpoch++;catalogueSearchId++;lastMessageId=0;messagesEl.replaceChildren();
         const empty=document.createElement('div');empty.className='empty';
         empty.textContent='Send us a message. If you are viewing a part, we will include its listing details.';
         messagesEl.appendChild(empty);
@@ -109,17 +111,20 @@
       showError('Chat could not connect. Please try again.');
     }
   }
-  function closeChat(){isOpen=false;panel.classList.remove('open');launcher.hidden=false;stopPolling()}
+  function closeChat(){isOpen=false;conversationEpoch++;catalogueSearchId++;panel.classList.remove('open');launcher.hidden=false;stopPolling()}
   launcher.addEventListener('click',openChat);
   panel.querySelector('.close').addEventListener('click',closeChat);
   panel.querySelector('.attach').addEventListener('click',()=>fileInput.click());
   vehicleToggle.addEventListener('click',()=>vehicleForm.classList.toggle('open'));
   async function searchCatalogue(){
-    const q=catalogueQuery.value.trim();if(!q||busy)return;
+    const q=catalogueQuery.value.trim();if(!q||busy||!conversationId)return;
+    const searchId=++catalogueSearchId,epoch=conversationEpoch,targetConversationId=conversationId;
     catalogueResults.replaceChildren();catalogueResults.textContent='Searching the live store catalogue…';
     try{
       const url=endpoint('products')+'?type='+encodeURIComponent(catalogueType.value)+'&q='+encodeURIComponent(q);
-      const data=await request(url,{headers:headers()});catalogueResults.replaceChildren();
+      const data=await request(url,{headers:headers()});
+      if(!isOpen||searchId!==catalogueSearchId||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
+      catalogueResults.replaceChildren();
       if(!data.products||!data.products.length){catalogueResults.textContent='No live catalogue matches found.';return;}
       for(const product of data.products){
         const card=document.createElement('article');card.className='catalogue-item';
@@ -149,7 +154,7 @@
         });
         card.appendChild(select);catalogueResults.appendChild(card);
       }
-    }catch(error){catalogueResults.textContent=error.message==='mpn_lookup_not_configured'?'Manufacturer part-number search is not configured yet. Search by name or SKU.':'Live catalogue search is temporarily unavailable.';}
+    }catch(error){if(isOpen&&searchId===catalogueSearchId&&epoch===conversationEpoch&&targetConversationId===conversationId)catalogueResults.textContent=error.message==='mpn_lookup_not_configured'?'Manufacturer part-number search is not configured yet. Search by name or SKU.':'Live catalogue search is temporarily unavailable.';}
   }
   panel.querySelector('.catalogue-submit').addEventListener('click',searchCatalogue);
   catalogueQuery.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchCatalogue()}});
