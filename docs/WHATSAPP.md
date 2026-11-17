@@ -40,7 +40,7 @@ Run it from a hosting cron task, for example once per minute:
 php /absolute/path/to/app/public/cron/process-outbox.php
 ```
 
-The worker claims one due job under a database row lock, sends outside the transaction, then records the provider message ID. Retryable failures use exponential backoff (15 seconds, doubling to a one-hour cap), up to six attempts. Permanent failures become `failed`. Stale processing locks can be reclaimed after five minutes.
+The worker claims one due job under a database row lock, sends outside the transaction, then records the provider message ID. The outbox sends to the visitor's opted-in WhatsApp number using the configured approved template; it does not send to a staff number. Retryable failures use exponential backoff (15 seconds, doubling to a one-hour cap), up to six attempts. Permanent failures become `failed`. Stale processing locks can be reclaimed after five minutes.
 
 Delivery is at-least-once, not exactly-once: if Meta accepts a message but the process dies before recording the response, a later retry could send it again. The webhook deduplicates status and message events by provider message ID.
 
@@ -62,7 +62,7 @@ Subscribe to the WhatsApp webhook fields needed for:
 
 Inbound text messages are matched to an open website conversation using the normalized visitor phone number. Business-app text echoes are matched using the echo's `to` number. The matching visitor must have supplied the same international phone number. Unsupported message types and unmatched phone numbers are safely ignored; media is not implemented.
 
-Webhook events are persisted with unique event keys so Meta retries do not duplicate messages. The raw payload is hashed, not stored. Status events update the matching outbound message without downgrading a delivered/read state.
+Webhook events are persisted with unique event keys so Meta retries do not duplicate messages. The raw payload is hashed, not stored. Status events are also stored separately so a fast status callback that arrives before the send worker records its WAMID can be reconciled when the send response is saved. Status transitions do not downgrade a delivered/read state.
 
 ## Coexistence caveat
 

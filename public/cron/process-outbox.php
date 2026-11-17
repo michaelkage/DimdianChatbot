@@ -16,12 +16,6 @@ if (!is_array($config) || empty($config['outbound_enabled'])) {
     exit(0);
 }
 
-$recipient = normalize_whatsapp_number((string)($config['notification_recipient'] ?? ''));
-if ($recipient === '') {
-    fwrite(STDERR, "WhatsApp notification_recipient is missing or invalid.\n");
-    exit(1);
-}
-
 try {
     $transport = new MetaCloudApiTransport($config);
     $summary = process_whatsapp_outbox(database(), $transport, 10, 6);

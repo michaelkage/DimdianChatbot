@@ -23,7 +23,7 @@ try {
             json_response(['error' => ['code' => 'unsupported_media_type', 'message' => 'Content-Type must be application/json.']], 415);
         }
 
-        $body = request_json(6000);
+        $body = request_json(20000);
         $messageText = clean_optional_string($body['message'] ?? null, 4000, 'message');
         if ($messageText === null) {
             json_response(['error' => ['code' => 'message_required', 'message' => 'Write a message before sending.']], 422);
@@ -48,12 +48,11 @@ try {
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare(
-                'INSERT INTO messages
+                'INSERT IGNORE INTO messages
                     (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES
                     (:id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
-            $insert = $pdo->prepare(str_replace('INSERT INTO messages', 'INSERT IGNORE INTO messages', $insert->queryString));
             $insert->execute([
                 ':id' => $messageId,
                 ':conversation_id' => $session['conversation_id'],
@@ -106,9 +105,9 @@ try {
             'meta' => [
                 'transport' => $wasInserted ? $transportState : ($saved['delivery_status'] === 'queued' ? 'queued' : 'replayed'),
                 'idempotent_replay' => !$wasInserted,
-                'note' => $transportState === 'queued'
-                    ? 'Your message is saved and queued for WhatsApp delivery. Delivery is confirmed separately.'
-                    : 'Your message is saved in this website chat. WhatsApp delivery is not enabled for this conversation.',
+                'note' => $saved['delivery_status'] === 'web_only'
+                    ? 'Your message is saved in this website chat. WhatsApp delivery is not enabled for this conversation.'
+                    : 'Your message is saved. WhatsApp delivery status is tracked separately.',
             ],
         ], $wasInserted ? 201 : 200);
     }

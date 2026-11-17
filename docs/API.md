@@ -28,7 +28,9 @@ No account, password, phone verification or OTP is required. The phone must be s
 
 Headers: `Content-Type: application/json`, `X-DIMDIAN-GUEST-TOKEN`
 
-Body: `{"message":"Hi, I have a question."}`
+Body: `{"message":"Hi, I have a question.","client_message_id":"550e8400-e29b-41d4-a716-446655440000"}`
+
+The widget supplies a UUID `client_message_id`. Repeating the same ID and same message in the same conversation returns the original record instead of creating a duplicate. Reusing the ID with different text returns 409.
 
 Messages are stored in the authenticated conversation. The response confirms database persistence only. It never claims WhatsApp delivery.
 

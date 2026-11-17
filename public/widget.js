@@ -43,7 +43,7 @@ async function request(path,opts){
  return body;
 }
 function scroll(){const el=$('.conversation');el.scrollTop=el.scrollHeight;}
-function deliveryLabel(state){return ({queued:'Queued',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Not sent',web_only:'Website only'})[state]||'Saved';}
+function deliveryLabel(state){return ({queued:'Queued',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Not sent',received:'Received',web_only:'Website only'})[state]||'Saved';}
 function applyDeliveryUpdates(rows){(Array.isArray(rows)?rows:[]).forEach(row=>{const node=messageNodes.get(row.id);if(!node)return;node.textContent=deliveryLabel(row.delivery_status);node.dataset.status=row.delivery_status;});}
 function render(m){
  if(!m||!m.id||seen.has(m.id))return;seen.add(m.id);
