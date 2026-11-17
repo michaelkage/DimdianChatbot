@@ -8,6 +8,7 @@ if(!function_exists('proc_open')||!function_exists('gzopen')){fwrite(STDERR,"CLI
 $directory=(string)($config['backup']['directory']??getenv('DIMDIAN_BACKUP_DIRECTORY')?:'');
 if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)||is_link($directory)){fwrite(STDERR,"Set backup.directory to an absolute private directory outside public_html.\n");exit(1);}
 $public=realpath(dirname(__DIR__).'/public');$systemTemp=realpath(sys_get_temp_dir());$production=($config['app']['environment']??'production')==='production';
+if($public===false){fwrite(STDERR,"Public document root cannot be resolved safely.\\n");exit(1);}
 if(!is_dir($directory)){
  $parent=realpath(dirname($directory));
  if($parent===false||$parent===DIRECTORY_SEPARATOR||$parent===$public||($public&&str_starts_with($parent.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))||
