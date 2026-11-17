@@ -7,6 +7,10 @@ $last = '';
 foreach (array_reverse($messages) as $message) {
  if (($message['role'] ?? '') === 'user') { $last=(string)($message['content'] ?? ''); break; }
 }
+if ($last === 'Return the required test phrase.') {
+ echo json_encode(['choices'=>[['message'=>['role'=>'assistant','content'=>'DIMDIAN_PROVIDER_OK']]]]);
+ exit;
+}
 if (str_contains($last,'TRIGGER_TIMEOUT')) {
  usleep(1500000);
 }
