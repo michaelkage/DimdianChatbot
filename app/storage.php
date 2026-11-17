@@ -11,6 +11,7 @@ function private_upload_directory(bool $create=false): ?string {
  $directory=realpath($configured);$public=realpath(dirname(__DIR__).'/public');
  if($directory===false||$public===false||$directory===$public||str_starts_with($directory.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))return null;
  @chmod($directory,0700);
+ clearstatcache(true,$directory);
  $permissions=fileperms($directory);
  if($permissions===false||($permissions&0077)!==0)return null;
  return $directory;
