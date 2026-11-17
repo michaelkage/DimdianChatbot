@@ -18,6 +18,16 @@ preflight('PHP runtime',version_compare(PHP_VERSION,'8.2.0','>='),PHP_VERSION);
 foreach(['pdo','pdo_mysql','fileinfo','openssl'] as $extension)preflight('PHP extension '.$extension,extension_loaded($extension));
 preflight('PHP zlib extension',extension_loaded('zlib'),'required for compressed CLI backups; use phpMyAdmin export/import if unavailable',!extension_loaded('zlib'));
 preflight('CLI process support',function_exists('proc_open'),'required for mysqldump/mysql scripts; use phpMyAdmin export/import if unavailable',!function_exists('proc_open'));
+if(function_exists('proc_open')){
+ $cliAvailable=static function(array $command):bool{
+  $process=@proc_open($command,[0=>['file','/dev/null','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
+  if(!is_resource($process))return false;
+  stream_get_contents($pipes[1]);stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);
+  return proc_close($process)===0;
+ };
+ preflight('mysqldump CLI',$cliAvailable(['mysqldump','--version']),'required for bin/backup-db.php; use phpMyAdmin export if unavailable',!$cliAvailable(['mysqldump','--version']));
+ preflight('mysql CLI',$cliAvailable(['mysql','--version']),'required for bin/restore-db.php; use phpMyAdmin import if unavailable',!$cliAvailable(['mysql','--version']));
+}
 if((bool)app_config('woocommerce.enabled',false)||(bool)app_config('ai.provider_ready',false))preflight('PHP extension curl',extension_loaded('curl'));
 function preflight_ini_bytes(string $value): int {
  $value=trim($value);if($value===''||$value==='0')return 0;if($value==='-1')return PHP_INT_MAX;
