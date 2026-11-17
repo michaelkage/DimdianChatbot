@@ -101,7 +101,10 @@ FITMENT_ID="$(jq -r '.fitment_id' <<<"$FITMENT_VERIFY")"
 jq -e --argjson id "$FITMENT_ID" '.verified == true and .created == false and .fitment_id == $id' <<<"$FITMENT_REPEAT" >/dev/null
 VERIFIED_FITMENT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM product_fitments WHERE product_id=102 AND make='Honda' AND model='Civic' AND year_from=2018 AND year_to=2018 AND engine='2.0L' AND transmission='CVT' AND trim_level='EX' AND status='verified'")"
 test "$VERIFIED_FITMENT_COUNT" = "1"
-echo 'admin-only fitment verification, CSRF protection and repeat-safe persistence passed'
+VARIABLE_FITMENT_STATUS="$(curl -sS -o /tmp/dimdian-variable-fitment.json -w '%{http_code}' -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"product_id\":103,\"verification_source\":\"Manufacturer catalogue\"}")"
+test "$VARIABLE_FITMENT_STATUS" = "422"
+jq -e '.error == "specific_product_variant_required"' /tmp/dimdian-variable-fitment.json >/dev/null
+echo 'admin-only fitment verification, CSRF protection, idempotency and variable-product safety passed'
 AI_SETTINGS="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/ai-settings.php')"
 jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"' <<<"$AI_SETTINGS" >/dev/null
 AI_ON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":true}')"
