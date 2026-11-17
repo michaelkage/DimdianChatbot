@@ -26,5 +26,7 @@ db()->prepare('UPDATE staff_users SET last_login_at=UTC_TIMESTAMP() WHERE id=:id
 start_staff_session();
 session_regenerate_id(true);
 $_SESSION['staff']=['id'=>(int)$user['id'],'email'=>$user['email'],'display_name'=>$user['display_name'],'role'=>$user['role']];
+$_SESSION['authenticated_at']=time();
+$_SESSION['last_activity']=time();
 $_SESSION['csrf_token']=bin2hex(random_bytes(32));
 json_response(['authenticated'=>true,'staff'=>$_SESSION['staff'],'csrf_token'=>$_SESSION['csrf_token']]);
