@@ -15,7 +15,7 @@ if ($subject !== null && (!is_string($subject) || strlen($subject) > 180)) json_
 $pdo = db();
 // Fail closed: a missing, unreadable, or unset setting must never activate AI.
 $aiSetting = $pdo->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
-$aiEnabled = $aiSetting === '1';
+$aiEnabled = $aiSetting === '1' && (bool)app_config('ai.provider_ready',false);
 $initialStatus = $aiEnabled ? 'open' : 'needs_human';
 
 $pdo->beginTransaction();
