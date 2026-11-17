@@ -31,13 +31,19 @@ if ($width < 1 || $height < 1 || $width > 8000 || $height > 8000 || ($width * $h
  json_response(['error'=>'image_dimensions_exceeded'],422);
 }
 
-$directory = (string)app_config('uploads.directory','');
-if ($directory === '' || !str_starts_with($directory,DIRECTORY_SEPARATOR) || str_starts_with(realpath($directory) ?: $directory,realpath(dirname(__DIR__)) ?: dirname(__DIR__))) {
+$directory=(string)app_config('uploads.directory','');
+if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)||is_link($directory)){
  json_response(['error'=>'private_upload_directory_invalid'],503);
 }
-if (!is_dir($directory) && !mkdir($directory,0700,true) && !is_dir($directory)) {
+if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory)){
  json_response(['error'=>'upload_storage_unavailable'],503);
 }
+$realDirectory=realpath($directory);
+$publicRoot=realpath(dirname(__DIR__));
+if($realDirectory===false||$publicRoot===false||$realDirectory===$publicRoot||str_starts_with($realDirectory.DIRECTORY_SEPARATOR,$publicRoot.DIRECTORY_SEPARATOR)){
+ json_response(['error'=>'private_upload_directory_invalid'],503);
+}
+$directory=$realDirectory;
 $key = bin2hex(random_bytes(24)).'.'.$allowed[$mime];
 $target = rtrim($directory,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$key;
 if (file_put_contents($target,$contents,LOCK_EX) === false) json_response(['error'=>'upload_storage_failed'],503);
