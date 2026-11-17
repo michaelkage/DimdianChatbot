@@ -76,6 +76,7 @@
       const url=endpoint('messages')+'?conversation_id='+encodeURIComponent(conversationId)+'&after_id='+lastMessageId;
       const data=await request(url,{headers:headers()});
       for(const message of data.messages||[]){appendMessage(message);lastMessageId=Math.max(lastMessageId,Number(message.id)||0)}
+      if(data.status==='closed'){textarea.disabled=true;sendButton.disabled=true;fileInput.disabled=true;showError('This conversation is closed. Close and reopen chat to start a new inquiry.');}
     }catch(error){
       if(error.message==='guest_session_invalid'){localStorage.removeItem(tokenKey);showError('Your chat session expired. Close and reopen to reconnect.')}
     }
@@ -84,6 +85,7 @@
   function startPolling(){stopPolling();poll();pollTimer=setInterval(poll,4000)}
   async function openChat(){
     isOpen=true;panel.classList.add('open');launcher.hidden=true;showError('');
+    textarea.disabled=false;sendButton.disabled=false;fileInput.disabled=false;
     try{await ensureSession();await ensureConversation();startPolling();textarea.focus()}
     catch(_){showError('Chat could not connect. Please try again.')}
   }
