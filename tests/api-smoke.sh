@@ -84,14 +84,14 @@ jq -e '.ai_enabled == false and .ai_available == true and .mode == "human_only"'
 HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=needs_human')"
 jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'AI quota exhaustion disabled AI globally and routed open chats to staff'
-curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
+curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-status.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$QUOTA_CONVERSATION_ID\",\"status\":\"open\"}" >/dev/null
 AI_OFF="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/ai-settings.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d '{"ai_enabled":false}')"
 jq -e '.ai_enabled == false and .mode == "human_only" and .routed_to_human == 1' <<<"$AI_OFF" >/dev/null
 HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=needs_human')"
-jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
+jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
-jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Our support team can help with that.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
