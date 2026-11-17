@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__,2) . '/app/customer.php';
 require_method('POST');
 $customer = require_customer();
+if (rate_limit_exceeded('customer-upload:'.$customer['id'],10,3600)) json_response(['error'=>'upload_rate_limited'],429);
 
 $publicId = $_POST['conversation_id'] ?? '';
 if (!is_string($publicId) || !preg_match('/^[a-f0-9]{26}$/D',$publicId)) json_response(['error'=>'invalid_conversation_id'],422);
