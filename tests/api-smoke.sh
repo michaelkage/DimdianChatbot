@@ -40,7 +40,7 @@ grep -qi '^X-Frame-Options: DENY' <<<"$SECURITY_HEADERS"
 grep -qi '^X-Content-Type-Options: nosniff' <<<"$SECURITY_HEADERS"
 grep -qi '^Referrer-Policy: strict-origin-when-cross-origin' <<<"$SECURITY_HEADERS"
 grep -qi '^Permissions-Policy: camera=(), microphone=(), geolocation=()' <<<"$SECURITY_HEADERS"
-printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" | printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" | php bin/create-admin.php ci-admin@example.invalid "CI Admin" admin >/dev/null
+printf '%s\n%s\n' "$PASSWORD" "$PASSWORD" | php bin/create-admin.php ci-admin@example.invalid "CI Admin" admin >/dev/null
 echo 'staff provisioning passed'
 SIGNATURE="$(php -r "echo hash_hmac('sha256', 'customer-123', 'ci-identity-secret');")"
 SESSION_JSON="$(curl -fsS -X POST http://127.0.0.1:8080/api/session.php -H 'Content-Type: application/json' -d "{\"external_user_id\":\"customer-123\",\"identity_signature\":\"$SIGNATURE\"}")"
