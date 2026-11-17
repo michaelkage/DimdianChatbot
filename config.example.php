@@ -21,8 +21,19 @@ return [
   'allowed_mime_types' => ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'],
  ],
  'ai' => [
-  // Set true only after a provider adapter is installed and verified.
+  // Set true only after the selected provider is configured and tested.
   'provider_ready' => false,
+  // Supported names: groq, gemini, openai_compatible.
+  'provider' => [
+   'name' => 'groq',
+   'api_key' => '',
+   'model' => '',
+   // Used only by openai_compatible; use HTTPS in production.
+   'base_url' => '',
+   'connect_timeout_seconds' => 3,
+   'timeout_seconds' => 12,
+   'max_tokens' => 350,
+  ],
  ],
  'integration' => [
   // Optional shared secret for signed marketplace-account identity linking.
