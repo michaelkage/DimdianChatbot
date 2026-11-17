@@ -27,7 +27,7 @@ A lightweight, self-hosted customer support chat system for an auto-parts market
 - HTTPS enabled.
 - No Composer or npm runtime dependency is required by the core application.
 
-The repository is structured so the web server's document root can point to `public/`. Keep `config.php` and uploaded files outside the public document root.
+The repository is structured so the web server's document root can point to `public/`. Set `app.document_root` in private `config.php` to the actual Hostinger document root (the template assumes `public/` is the root). If the app is installed beneath a larger `public_html` root, set the parent web root explicitly. Attachment and backup storage must be outside every configured/active web root; runtime checks reject paths inside those roots. Keep `config.php` and uploaded files outside the public document root.
 
 ## Current implementation
 
