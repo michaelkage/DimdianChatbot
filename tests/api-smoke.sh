@@ -129,6 +129,10 @@ echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
 jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100" and .context_url == "https://parts.example.invalid/brake-pad" and .selected_product_id == 101 and .selected_product_sku == "ALT-CAM-25")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
+curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/another-listing","context_sku":"NEW-PAGE-SKU","subject":"Another listing"}' >/dev/null
+NAVIGATION_CONTEXT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM conversation_product_context p INNER JOIN conversations c ON c.id=p.conversation_id WHERE c.public_id='$CONVERSATION_ID'")"
+test "$NAVIGATION_CONTEXT_COUNT" = "0"
+echo 'selected product context clears when the shopper navigates to a different listing'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Our support team can help with that.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
 CUSTOMER_REPLY="$(curl -fsS "http://127.0.0.1:8080/api/messages.php?conversation_id=$CONVERSATION_ID&after_id=0" -H "X-Dimdian-Guest-Token: $TOKEN")"
