@@ -53,7 +53,7 @@ try{
  }
  // An unresolved fitment submission is a customer-originated inbox event so it increments
  // unread counts and triggers the staff notification path. A verified match remains informational.
- $senderType=$fitment?'system':'customer';
+ $senderType=$fitment?'system':'customer_event';
  $pdo->prepare("INSERT INTO messages (conversation_id,sender_type,body,created_at) VALUES (:id,:sender,:body,UTC_TIMESTAMP())")->execute(['id'=>$conversation['id'],'sender'=>$senderType,'body'=>$notice]);
  $pdo->commit();
  json_response(['vehicle_id'=>$vehicleId,'fitment'=>$fitment?['status'=>'verified','source'=>$fitment['verification_source'],'verified_at'=>$fitment['verified_at']]:['status'=>'needs_specialist'],'product_id'=>$productId,'product_type'=>$productType],201);
