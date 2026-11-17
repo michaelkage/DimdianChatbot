@@ -17,6 +17,8 @@ $publicId=bin2hex(random_bytes(13));
 $conversation=$pdo->prepare("INSERT INTO conversations (public_id,customer_id,status,last_message_at,created_at,updated_at) VALUES (:public_id,:customer_id,'needs_human',UTC_TIMESTAMP(),UTC_TIMESTAMP(),UTC_TIMESTAMP())");
 $conversation->execute(['public_id'=>$publicId,'customer_id'=>$customerId]);
 
+// Use multiple CLI-server workers on Linux so cURL multi tests exercise concurrent PHP requests.
+if(PHP_OS_FAMILY!=='Windows')putenv('PHP_CLI_SERVER_WORKERS=4');
 $server=proc_open([PHP_BINARY,'-S','127.0.0.1:8082','-t',dirname(__DIR__).'/public'],[
  0=>['file','/dev/null','r'],1=>['file','/dev/null','a'],2=>['file','/dev/null','a']
 ],$pipes);
