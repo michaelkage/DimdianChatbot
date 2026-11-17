@@ -39,7 +39,7 @@ async function refreshList(){
   for(const item of items){
    const latestId=Number(item.last_message_id)||0;
    const old=knownLatest.get(item.public_id);
-   if(old!==undefined&&latestId>old&&item.last_sender_type==='customer'&&(!current||current.public_id!==item.public_id))playAlert();
+   if(old!==undefined&&latestId>old&&item.last_sender_type==='customer')playAlert();
    knownLatest.set(item.public_id,latestId);
   }
   renderList(items);
