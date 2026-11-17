@@ -45,10 +45,17 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Set up PHP runtime for API smoke test
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, fileinfo
       - name: Apply schema to MySQL 8
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < database/schema.sql
       - name: Exercise schema relationships and application query shapes
         run: mysql --host=127.0.0.1 --port=3306 --user=root --password=root dimdian_test < tests/schema-smoke.sql
+      - name: Run customer and staff API smoke test
+        run: bash tests/api-smoke.sh
       - name: Verify core tables exist
         run: |
           test "$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dimdian_test' AND table_name IN ('staff_users','customers','conversations','messages','attachments','rate_limit_events')")" = "6"
