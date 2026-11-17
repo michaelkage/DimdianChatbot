@@ -11,6 +11,18 @@ if (!is_file($configPath)) {
 }
 $config = require $configPath;
 date_default_timezone_set($config['app']['timezone'] ?? 'UTC');
+if (($config['app']['environment'] ?? 'production') === 'production') ini_set('display_errors','0');
+
+
+set_exception_handler(static function (Throwable $error): void {
+ error_log('[DimdianChatbot] Unhandled exception: '.$error->getMessage());
+ if (!headers_sent()) {
+  http_response_code(500);
+  header('Content-Type: application/json; charset=utf-8');
+  header('Cache-Control: no-store, private');
+ }
+ echo json_encode(['error'=>'internal_server_error']);
+});
 
 function app_config(?string $key = null): mixed {
  global $config;
