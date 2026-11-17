@@ -76,7 +76,10 @@ if($wooEnabled){
   catch(Throwable $error){preflight('Live MPN lookup route',false,$error->getMessage());}
  }
 }else preflight('Live WooCommerce catalogue',false,'disabled; product search will return 503',true);
-if((bool)app_config('ai.provider_ready',false))preflight('AI provider configuration',ai_provider_available(),'connectivity must still be tested in the staff inbox');
-else preflight('AI provider',false,'disabled; human-only support remains active',true);
+if((bool)app_config('ai.provider_ready',false)){
+ $providerAvailable=ai_provider_available();
+ preflight('AI provider configuration',$providerAvailable);
+ if($providerAvailable)preflight('AI provider verification',ai_provider_verified(),'run Test provider in the staff inbox before enabling AI',!ai_provider_verified());
+}else preflight('AI provider',false,'disabled; human-only support remains active',true);
 echo "\nPreflight summary: ".$failures." failure(s), ".$warnings." warning(s).\n";
 exit($failures===0?0:1);
