@@ -75,16 +75,26 @@ async function refreshList(){
 function startListPolling(){stopListPolling();refreshList();listTimer=setInterval(refreshList,8000)}
 function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
 async function selectConversation(item){
+ const selectedId=item.public_id;
  current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
  $('customer-name').textContent=item.customer_name||'Guest shopper';
  $('customer-meta').textContent=[item.customer_email,item.customer_account_id?'Account '+item.customer_account_id:null,item.context_sku?'Page SKU '+item.context_sku:null,item.selected_product_name?'Selected part '+item.selected_product_name+(item.selected_product_sku?' · '+item.selected_product_sku:''):null,item.vehicle_summary?'Vehicle '+item.vehicle_summary:null].filter(Boolean).join(' · ');
  $('thread-status').value=item.status;syncReplyAvailability();
- if(item.vehicle_summary){try{const vehicleData=await api('staff-vehicle?conversation_id='+encodeURIComponent(item.public_id));if(vehicleData.vehicle&&vehicleData.vehicle.vin)$('customer-meta').textContent+=' · VIN '+vehicleData.vehicle.vin;}catch(_){}}
  const fitmentPanel=$('fitment-verify');fitmentPanel.hidden=staff.role!=='admin'||!item.vehicle_summary;
  $('fitment-product-id').value=item.selected_product_id||item.vehicle_product_id||'';$('fitment-source').value='';$('fitment-result').textContent='';
  const link=$('product-link');const listingUrl=item.selected_product_permalink||item.context_url;if(listingUrl){link.href=listingUrl;link.textContent=item.selected_product_permalink?'View selected part ↗':'View page ↗';link.hidden=false}else{link.hidden=true}
  messages.replaceChildren();$('reply-error').textContent='';
- await pollThread(true);refreshList();startThreadPolling();
+ if(item.vehicle_summary)loadVehicleDetails(selectedId);
+ await pollThread(true);
+ if(!current||current.public_id!==selectedId)return;
+ refreshList();startThreadPolling();
+}
+async function loadVehicleDetails(publicId){
+ try{
+  const vehicleData=await api('staff-vehicle?conversation_id='+encodeURIComponent(publicId));
+  if(!current||current.public_id!==publicId)return;
+  if(vehicleData.vehicle&&vehicleData.vehicle.vin)$('customer-meta').textContent+=' · VIN '+vehicleData.vehicle.vin;
+ }catch(_){}
 }
 async function loadAttachment(img,id){
  try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok)img.src=URL.createObjectURL(await response.blob())}catch(_){}
@@ -97,9 +107,12 @@ function appendMessage(message){
  bubble.appendChild(node('time','',formatTime(message.created_at)));messages.appendChild(bubble);messages.scrollTop=messages.scrollHeight;
 }
 async function pollThread(initial=false){
- if(!current||document.hidden)return;
+ const target=current;
+ if(!target||document.hidden)return;
+ const afterId=lastId;
  try{
-  const data=await api('staff-messages?conversation_id='+encodeURIComponent(current.public_id)+'&after_id='+lastId);
+  const data=await api('staff-messages?conversation_id='+encodeURIComponent(target.public_id)+'&after_id='+afterId);
+  if(!current||current.public_id!==target.public_id)return;
   for(const message of data.messages||[]){appendMessage(message);lastId=Math.max(lastId,Number(message.id)||0)}
   if(data.status){current.status=data.status;$('thread-status').value=data.status;syncReplyAvailability()}
   if(initial&&lastId===0)messages.appendChild(node('p','empty-state','No messages yet.'));
