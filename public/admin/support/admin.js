@@ -1,0 +1,115 @@
+(() => {
+'use strict';
+const apiBase=document.body.dataset.apiBase||'/api/';
+const endpoint=name=>new URL(name+'.php',apiBase).href;
+let csrf='',staff=null,current=null,lastId=0,listTimer=null,threadTimer=null,knownLatest=new Map();
+const $=id=>document.getElementById(id);
+const loginView=$('login-view'),inboxView=$('inbox-view'),list=$('conversation-list'),messages=$('thread-messages');
+async function api(name,{method='GET',body=null}={}){
+ const headers={};if(body!==null)headers['Content-Type']='application/json';if(csrf)headers['X-CSRF-Token']=csrf;
+ const response=await fetch(endpoint(name),{method,credentials:'same-origin',headers,body:body===null?undefined:JSON.stringify(body)});
+ let data={};try{data=await response.json()}catch(_){}
+ if(!response.ok)throw new Error(data.error||'request_failed');return data;
+}
+function showLogin(){loginView.hidden=false;inboxView.hidden=true}
+function showInbox(){loginView.hidden=true;inboxView.hidden=false;$('staff-identity').textContent=staff.display_name+' · '+staff.role;refreshList();startListPolling()}
+function formatTime(value){if(!value)return '';return new Date(value.replace(' ','T')+'Z').toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el}
+function renderList(items){
+ list.replaceChildren();
+ if(!items.length){list.appendChild(node('p','empty-state','No conversations in this view.'));document.title='Dimdian Support';return}
+ let totalUnread=0;
+ for(const item of items){
+  const button=node('button','conversation-item'+(current&&current.public_id===item.public_id?' active':''));
+  button.type='button';
+  const top=node('div','conversation-top');
+  top.append(node('span','conversation-name',item.customer_name||'Guest shopper'),node('span','conversation-time',formatTime(item.last_message_at)));
+  const preview=node('div','conversation-preview',item.last_message||'No messages yet');
+  const tags=node('div','conversation-tags');tags.append(node('span','tag',item.status.replace('_',' ')));
+  if(item.context_sku)tags.append(node('span','tag','SKU '+item.context_sku));
+  const unread=Number(item.unread_count)||0;if(unread){tags.append(node('span','unread',String(unread)));totalUnread+=unread}
+  button.append(top,preview,tags);button.addEventListener('click',()=>selectConversation(item));list.appendChild(button);
+ }
+ document.title=totalUnread?'('+totalUnread+') Dimdian Support':'Dimdian Support';
+}
+async function refreshList(){
+ try{
+  const data=await api('staff-conversations?status='+encodeURIComponent($('status-filter').value));
+  const items=data.conversations||[];
+  for(const item of items){
+   const old=knownLatest.get(item.public_id);
+   if(old&&item.last_message_at!==old&&item.last_sender_type==='customer'&&(!current||current.public_id!==item.public_id))playAlert();
+   knownLatest.set(item.public_id,item.last_message_at);
+  }
+  renderList(items);
+ }catch(error){if(error.message==='staff_auth_required')showLogin()}
+}
+function startListPolling(){stopListPolling();refreshList();listTimer=setInterval(refreshList,8000)}
+function stopListPolling(){if(listTimer)clearInterval(listTimer);listTimer=null}
+async function selectConversation(item){
+ current=item;lastId=0;$('thread-empty').hidden=true;$('thread-view').hidden=false;
+ $('customer-name').textContent=item.customer_name||'Guest shopper';
+ $('customer-meta').textContent=[item.customer_email,item.context_sku?'SKU '+item.context_sku:null].filter(Boolean).join(' · ');
+ $('thread-status').value=item.status;
+ const link=$('product-link');if(item.context_url){link.href=item.context_url;link.hidden=false}else{link.hidden=true}
+ messages.replaceChildren();$('reply-error').textContent='';
+ await pollThread(true);refreshList();startThreadPolling();
+}
+async function loadAttachment(img,id){
+ try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok)img.src=URL.createObjectURL(await response.blob())}catch(_){}
+}
+function appendMessage(message){
+ const bubble=node('article','bubble '+message.sender_type,message.body||'');
+ if(message.attachment&&message.attachment.id){const img=node('img');img.alt='Customer image attachment';bubble.appendChild(img);loadAttachment(img,message.attachment.id)}
+ bubble.appendChild(node('time','',formatTime(message.created_at)));messages.appendChild(bubble);messages.scrollTop=messages.scrollHeight;
+}
+async function pollThread(initial=false){
+ if(!current||document.hidden)return;
+ try{
+  const data=await api('staff-messages?conversation_id='+encodeURIComponent(current.public_id)+'&after_id='+lastId);
+  for(const message of data.messages||[]){appendMessage(message);lastId=Math.max(lastId,Number(message.id)||0)}
+  if(data.status){current.status=data.status;$('thread-status').value=data.status}
+  if(initial&&lastId===0)messages.appendChild(node('p','empty-state','No messages yet.'));
+ }catch(error){if(error.message==='staff_auth_required')showLogin()}
+}
+function startThreadPolling(){stopThreadPolling();threadTimer=setInterval(()=>pollThread(false),3000)}
+function stopThreadPolling(){if(threadTimer)clearInterval(threadTimer);threadTimer=null}
+function playAlert(){
+ try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=new Ctx();const osc=ctx.createOscillator();const gain=ctx.createGain();osc.frequency.value=740;gain.gain.value=.045;osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.12);osc.onended=()=>ctx.close()}catch(_){}
+}
+$('login-form').addEventListener('submit',async event=>{
+ event.preventDefault();$('login-error').textContent='';
+ const form=new FormData(event.currentTarget);
+ try{
+  const response=await fetch(endpoint('staff-login'),{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.get('email'),password:form.get('password')})});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'sign_in_failed');
+  csrf=data.csrf_token;staff=data.staff;event.currentTarget.reset();showInbox();
+ }catch(error){$('login-error').textContent=error.message==='too_many_attempts'?'Too many attempts. Wait and try again.':'Email or password was not accepted.'}
+});
+$('logout-button').addEventListener('click',async()=>{
+ try{await api('staff-session',{method:'POST',body:{}})}catch(_){}
+ csrf='';staff=null;current=null;stopListPolling();stopThreadPolling();showLogin();
+});
+$('status-filter').addEventListener('change',()=>refreshList());
+$('thread-status').addEventListener('change',async()=>{
+ if(!current)return;
+ try{const data=await api('staff-status',{method:'POST',body:{conversation_id:current.public_id,status:$('thread-status').value}});current.status=data.status;refreshList()}
+ catch(error){$('reply-error').textContent='Could not update conversation status.';$('thread-status').value=current.status}
+});
+$('reply-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!current)return;
+ const body=$('reply-body').value.trim();if(!body)return;
+ const button=event.currentTarget.querySelector('button');button.disabled=true;$('reply-error').textContent='';
+ try{
+  const data=await api('staff-messages',{method:'POST',body:{conversation_id:current.public_id,body}});
+  appendMessage({...data.message,created_at:data.message.created_at||new Date().toISOString().slice(0,19).replace('T',' ')});
+  lastId=Math.max(lastId,Number(data.message.id)||0);$('reply-body').value='';refreshList();
+ }catch(error){$('reply-error').textContent='Reply could not be sent. Check the conversation status and retry.'}
+ finally{button.disabled=false}
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){stopListPolling();stopThreadPolling()}else if(staff){startListPolling();if(current)startThreadPolling()}});
+(async()=>{
+ try{const data=await api('staff-session');if(data.authenticated){staff=data.staff;csrf=data.csrf_token||'';showInbox()}else showLogin()}
+ catch(_){showLogin()}
+})();
+})();
