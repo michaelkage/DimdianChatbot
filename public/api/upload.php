@@ -10,7 +10,8 @@ if (!is_string($publicId) || !preg_match('/^[a-f0-9]{26}$/D',$publicId)) json_re
 if (!isset($_FILES['file']) || !is_array($_FILES['file'])) json_response(['error'=>'file_required'],422);
 
 $file = $_FILES['file'];
-if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) json_response(['error'=>'upload_failed','upload_error'=>(int)$file['error']],422);
+if (!is_string($file['tmp_name'] ?? null) || !is_string($file['name'] ?? null) || !isset($file['error']) || !is_numeric($file['size'] ?? null)) json_response(['error'=>'invalid_upload_payload'],422);
+if ((int)$file['error'] !== UPLOAD_ERR_OK) json_response(['error'=>'upload_failed','upload_error'=>(int)$file['error']],422);
 $maxBytes = min(3 * 1024 * 1024,(int)app_config('uploads.max_bytes',3 * 1024 * 1024));
 if (!is_uploaded_file($file['tmp_name']) || (int)$file['size'] < 1 || (int)$file['size'] > $maxBytes) {
  json_response(['error'=>'file_too_large_or_invalid','max_bytes'=>$maxBytes],413);
