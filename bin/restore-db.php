@@ -2,18 +2,18 @@
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 $configPath=dirname(__DIR__).'/config.php';
-if(!is_file($configPath)){fwrite(STDERR,"config.php is missing.\\n");exit(1);}
+if(!is_file($configPath)){fwrite(STDERR,"config.php is missing.\n");exit(1);}
 $config=require $configPath;$db=$config['database']??[];
 if(($argc!==2&&$argc!==3)||!is_string($argv[1])||!str_starts_with($argv[1],DIRECTORY_SEPARATOR)||is_link($argv[1])||!is_file($argv[1])||!preg_match('/\\.sql(?:\\.gz)?$/i',$argv[1])){
  fwrite(STDERR,"Usage: php bin/restore-db.php /absolute/private/backup.sql[.gz] [target_database]\n");exit(2);
 }
 $backupPath=realpath($argv[1]);$webRoots=[];
-foreach([dirname(__DIR__).'/public',(string)($config['app']['document_root']??dirname(__DIR__).'/public')] as $root){$resolved=realpath($root);if($resolved===false){fwrite(STDERR,"Configured web document root cannot be resolved safely.\\n");exit(1);}$webRoots[]=$resolved;}
+foreach([dirname(__DIR__).'/public',(string)($config['app']['document_root']??dirname(__DIR__).'/public')] as $root){$resolved=realpath($root);if($resolved===false){fwrite(STDERR,"Configured web document root cannot be resolved safely.\n");exit(1);}$webRoots[]=$resolved;}
 $webRoots=array_values(array_unique($webRoots));$insideOrAncestor=static fn(string $path,string $root):bool=>$path===$root||str_starts_with($path.DIRECTORY_SEPARATOR,$root.DIRECTORY_SEPARATOR)||str_starts_with($root.DIRECTORY_SEPARATOR,$path.DIRECTORY_SEPARATOR);
 $systemTemp=realpath(sys_get_temp_dir());$production=($config['app']['environment']??'production')==='production';
-if($backupPath===false||is_link($argv[1])){fwrite(STDERR,"Backup must be a real file outside web roots.\\n");exit(2);}
-foreach($webRoots as $root)if($insideOrAncestor($backupPath,$root)){fwrite(STDERR,"Backup must be outside every web document root.\\n");exit(2);}
-if($production&&$systemTemp!==false&&$insideOrAncestor($backupPath,$systemTemp)){fwrite(STDERR,"Production backups must be stored outside system temporary directories.\\n");exit(2);}
+if($backupPath===false||is_link($argv[1])){fwrite(STDERR,"Backup must be a real file outside web roots.\n");exit(2);}
+foreach($webRoots as $root)if($insideOrAncestor($backupPath,$root)){fwrite(STDERR,"Backup must be outside every web document root.\n");exit(2);}
+if($production&&$systemTemp!==false&&$insideOrAncestor($backupPath,$systemTemp)){fwrite(STDERR,"Production backups must be stored outside system temporary directories.\n");exit(2);}
 if(!function_exists('proc_open')){fwrite(STDERR,"proc_open is unavailable; use phpMyAdmin import instead.\n");exit(1);}
 fwrite(STDERR,"WARNING: this overwrites matching database objects/data. Type RESTORE to continue: ");
 $answer=trim((string)fgets(STDIN));if($answer!=='RESTORE'){fwrite(STDERR,"Cancelled.\n");exit(1);}
