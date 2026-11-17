@@ -10,6 +10,9 @@ function private_upload_directory(bool $create=false): ?string {
  if(!is_dir($configured))return null;
  $directory=realpath($configured);$public=realpath(dirname(__DIR__).'/public');
  if($directory===false||$public===false||$directory===$public||str_starts_with($directory.DIRECTORY_SEPARATOR,$public.DIRECTORY_SEPARATOR))return null;
+ @chmod($directory,0700);
+ $permissions=fileperms($directory);
+ if($permissions===false||($permissions&0077)!==0)return null;
  return $directory;
 }
 function private_attachment_path(string $storageKey): ?string {
