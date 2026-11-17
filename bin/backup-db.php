@@ -36,7 +36,7 @@ $retentionDays=max(1,min(365,(int)($config['backup']['retention_days']??14)));
 $cutoff=time()-($retentionDays*86400);
 foreach(glob($real.'/dimdian-*.sql.gz')?:[] as $oldFile){
  if($oldFile===$file||is_link($oldFile)||!is_file($oldFile))continue;
- if(!preg_match('/^dimdian-\\d{8}-\\d{6}-[a-f0-9]{8}\\.sql\\.gz$/D',basename($oldFile)))continue;
+ if(!preg_match('/^dimdian-\\d{8}-\\d{6}(?:-[a-f0-9]{8})?\\.sql\\.gz$/D',basename($oldFile)))continue;
  $modified=filemtime($oldFile);
  if($modified!==false&&$modified<$cutoff)@unlink($oldFile);
 }
