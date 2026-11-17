@@ -103,7 +103,7 @@ try {
                 'created_at' => (new DateTimeImmutable($saved['sent_at'], new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
             ],
             'meta' => [
-                'transport' => $wasInserted ? $transportState : ($saved['delivery_status'] === 'queued' ? 'queued' : 'replayed'),
+                'transport' => $wasInserted ? $transportState : 'replayed',
                 'idempotent_replay' => !$wasInserted,
                 'note' => $saved['delivery_status'] === 'web_only'
                     ? 'Your message is saved in this website chat. WhatsApp delivery is not enabled for this conversation.'

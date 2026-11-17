@@ -272,6 +272,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody): array
                     mark_webhook_event($pdo, $eventId, $found ? 'processed' : 'ignored');
                     $found ? $processed++ : $ignored++;
                 }
+            }
         }
     }
 
