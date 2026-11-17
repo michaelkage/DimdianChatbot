@@ -14,7 +14,7 @@ return [
  'integration'=>['customer_identity_secret'=>'ci-identity-secret','vehicle_data_encryption_key'=>'ci-vehicle-encryption-secret-32-bytes-minimum'],
  'woocommerce'=>['enabled'=>true,'store_url'=>'http://127.0.0.1:8083','consumer_key'=>'ci-woo-key','consumer_secret'=>'ci-woo-secret','currency_code'=>'NGN','mpn_lookup_path'=>'/wp-json/dimdian/v1/products'],
  'ai'=>['provider_ready'=>true,'provider'=>['name'=>'openai_compatible','api_key'=>'ci-provider-key','model'=>'ci-stub-model','base_url'=>'http://127.0.0.1:8081/ai-provider-stub.php','connect_timeout_seconds'=>1,'timeout_seconds'=>1,'max_tokens'=>100]],
- 'security'=>['guest_token_bytes'=>32,'message_max_chars'=>5000,'poll_limit'=>100,'rate_limit_secret'=>'ci-rate-limit-secret'],
+ 'security'=>['guest_token_bytes'=>32,'message_max_chars'=>5000,'poll_limit'=>100,'rate_limit_secret'=>'ci-rate-limit-secret-32-bytes-minimum'],
 ];
 PHP
 mkdir -p /tmp/dimdian-ci-private-uploads
