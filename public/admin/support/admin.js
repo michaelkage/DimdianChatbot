@@ -107,7 +107,7 @@ async function loadVehicleDetails(publicId){
  }catch(_){}
 }
 async function loadAttachment(img,id){
- try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok)img.src=URL.createObjectURL(await response.blob())}catch(_){}
+ try{const response=await fetch(endpoint('staff-attachment?id='+encodeURIComponent(id)),{credentials:'same-origin'});if(response.ok){const objectUrl=URL.createObjectURL(await response.blob());img.addEventListener('load',()=>URL.revokeObjectURL(objectUrl),{once:true});img.addEventListener('error',()=>URL.revokeObjectURL(objectUrl),{once:true});img.src=objectUrl;}}catch(_){}
 }
 function syncReplyAvailability(){const closed=current&&current.status==='closed';$('reply-body').disabled=!!closed;$('reply-form').querySelector('button').disabled=!!closed;$('reply-body').placeholder=closed?'This conversation is closed.':'Reply to customer…'}
 function appendMessage(message){
