@@ -28,6 +28,7 @@
 
   const messagesEl=panel.querySelector('.messages'), form=panel.querySelector('.message-form');
   const vehicleForm=panel.querySelector('#dimdian-vehicle-form'),vehicleToggle=panel.querySelector('.vehicle-toggle');
+  vehicleForm.elements.year.max=String(new Date().getFullYear()+1);
   const catalogueQuery=panel.querySelector('.catalogue-query'),catalogueType=panel.querySelector('.catalogue-type'),catalogueResults=panel.querySelector('.catalogue-results');
   const textarea=panel.querySelector('textarea'), fileInput=panel.querySelector('.file');
   const errorEl=panel.querySelector('.error'), sendButton=panel.querySelector('.send');
