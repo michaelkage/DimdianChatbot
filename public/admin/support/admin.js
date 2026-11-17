@@ -36,11 +36,12 @@ async function refreshAiSettings(){
   const data=await api('ai-settings');
   const toggle=$('ai-enabled');
   toggle.checked=!!data.ai_enabled;
-  toggle.disabled=!data.ai_available;
+  toggle.disabled=!data.ai_available||!data.ai_provider_tested;
   $('ai-test-button').disabled=!data.ai_available;
-  $('ai-mode-note').textContent=data.ai_available
-   ?(data.ai_enabled?'AI is permitted for new eligible chats.':'AI is off. New chats go directly to staff.')
-   :'AI provider is not configured yet. All chats stay with staff.';
+  $('ai-mode-note').textContent=!data.ai_available
+   ?'AI provider is not configured yet. All chats stay with staff.'
+   :(!data.ai_provider_tested?'Provider is configured but not verified. Test it before enabling AI; chats stay with staff.'
+   :(data.ai_enabled?'AI is permitted for new eligible chats.':'Provider verified. AI is off until an administrator enables replies.'));
   $('ai-control-error').textContent='';
  }catch(_){
   $('ai-enabled').checked=false;$('ai-enabled').disabled=true;$('ai-test-button').disabled=true;
@@ -56,7 +57,7 @@ async function setAiMode(enabled){
   refreshList();
  }catch(error){
   toggle.checked=!enabled;
-  $('ai-control-error').textContent=error.message==='ai_provider_not_configured'?'AI cannot be enabled until a provider is configured.':'Could not change AI mode. Please retry.';
+  $('ai-control-error').textContent=error.message==='ai_provider_not_configured'?'AI cannot be enabled until a provider is configured.':(error.message==='ai_provider_test_required'?'Test the current provider successfully before enabling AI.':'Could not change AI mode. Please retry.');
   refreshAiSettings();
  }finally{await refreshAiSettings()}
 }
