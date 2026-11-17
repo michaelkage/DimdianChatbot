@@ -34,6 +34,7 @@ return [
  'backup' => [
   // Absolute private directory outside public_html; SSH mysqldump/mysql clients are required.
   'directory' => dirname(__DIR__) . '/dimdian-private-backups',
+  'retention_days' => 14, // Keep recent daily backups; range is clamped to 1–365 days.
  ],
  'ai' => [
   // Set true only after the selected provider is configured and tested.
