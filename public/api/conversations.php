@@ -24,11 +24,18 @@ try {
  // Serialize conversation creation per customer so two tabs cannot open duplicate active tickets.
  $lock = $pdo->prepare('SELECT id FROM customers WHERE id=:customer_id FOR UPDATE');
  $lock->execute(['customer_id'=>$customer['id']]);
- $existing = $pdo->prepare("SELECT id,public_id,status FROM conversations WHERE customer_id=:customer_id AND status IN ('open','needs_human') ORDER BY last_message_at DESC LIMIT 1 FOR UPDATE");
+ $existing = $pdo->prepare("SELECT id,public_id,status,context_url,context_sku FROM conversations WHERE customer_id=:customer_id AND status IN ('open','needs_human') ORDER BY last_message_at DESC LIMIT 1 FOR UPDATE");
  $existing->execute(['customer_id'=>$customer['id']]);
  $conversation = $existing->fetch();
 
  if ($conversation) {
+  $selected=$pdo->prepare('SELECT sku FROM conversation_product_context WHERE conversation_id=:id LIMIT 1');
+  $selected->execute(['id'=>$conversation['id']]);$selectedSku=$selected->fetchColumn();
+  $pageChanged=$contextUrl!==null&&$contextUrl!==(string)($conversation['context_url']??'');
+  $skuChanged=$sku!==null&&$sku!==(string)($conversation['context_sku']??'');
+  if($selectedSku!==false&&($pageChanged||$skuChanged)){
+   $pdo->prepare('DELETE FROM conversation_product_context WHERE conversation_id=:id')->execute(['id'=>$conversation['id']]);
+  }
   $update = $pdo->prepare('UPDATE conversations SET context_url=COALESCE(:context_url,context_url), context_sku=COALESCE(:context_sku,context_sku), subject=COALESCE(:subject,subject), updated_at=UTC_TIMESTAMP() WHERE id=:id');
   $update->execute(['context_url'=>$contextUrl,'context_sku'=>$sku,'subject'=>$subject,'id'=>$conversation['id']]);
   $pdo->commit();
