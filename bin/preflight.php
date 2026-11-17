@@ -83,7 +83,10 @@ if($wooEnabled){
 if((bool)app_config('ai.provider_ready',false)){
  $providerAvailable=ai_provider_available();
  preflight('AI provider configuration',$providerAvailable);
- if($providerAvailable)preflight('AI provider verification',ai_provider_verified(),'run Test provider in the staff inbox before enabling AI',!ai_provider_verified());
+ if($providerAvailable){
+  try{$providerVerified=ai_provider_verified();preflight('AI provider verification',$providerVerified,'run Test provider in the staff inbox before enabling AI',!$providerVerified);}
+  catch(Throwable $error){preflight('AI provider verification',false,'database verification check failed: '.$error->getMessage());}
+ }
 }else preflight('AI provider',false,'disabled; human-only support remains active',true);
 echo "\nPreflight summary: ".$failures." failure(s), ".$warnings." warning(s).\n";
 exit($failures===0?0:1);
