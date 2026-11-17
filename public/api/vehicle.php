@@ -26,7 +26,7 @@ $productId=null;$productType='unknown';
 if(woocommerce_ready()){
  try{
   $product=$selectedId!==null?woocommerce_find_by_id($selectedId):($originalSku?woocommerce_find_by_sku((string)$originalSku):null);
-  $productId=$product['id']??null;$productType=$product['type']??'unknown';
+  $productId=$product&&woocommerce_fitment_product_supported($product)?$product['id']:null;$productType=$product['type']??'unknown';
  }catch(Throwable $e){$productId=null;}
 }
 $pdo->beginTransaction();
