@@ -140,16 +140,20 @@
         const select=document.createElement('button');select.type='button';select.className='select-product';select.textContent=selectedProductId===Number(product.id)?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):(product.type==='simple'?'Use for fitment check':'Ask specialist to check variants');select.disabled=!product.id||!product.permalink||selectedProductId===Number(product.id);
         select.addEventListener('click',async()=>{
           if(busy||!conversationId)return;
+          const targetConversationId=conversationId,epoch=conversationEpoch;
           busy=true;select.disabled=true;select.textContent='Selecting listing…';
           try{
-            await request(endpoint('product-context'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,product_id:Number(product.id)})});
+            await request(endpoint('product-context'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:targetConversationId,product_id:Number(product.id)})});
+            if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
             selectedProductId=Number(product.id);
             catalogueResults.querySelectorAll('.select-product').forEach(button=>{button.disabled=true;button.textContent=button===select?(product.type==='simple'?'Selected for fitment':'Selected for specialist review'):'Another listing selected';});
             vehicleToggle.textContent='✓ '+(product.name||'Product')+' selected · add vehicle details';
             vehicleForm.classList.add('open');
           }catch(error){
-            select.disabled=false;select.textContent='Use for fitment check';
-            showError(error.message==='catalogue_product_not_found'?'That listing is no longer available. Search again.':'Could not attach this listing to the vehicle check. Please retry.');
+            if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId){
+              select.disabled=false;select.textContent=product.type==='simple'?'Use for fitment check':'Ask specialist to check variants';
+              showError(error.message==='catalogue_product_not_found'?'That listing is no longer available. Search again.':'Could not attach this listing to the vehicle check. Please retry.');
+            }
           }finally{busy=false;}
         });
         card.appendChild(select);catalogueResults.appendChild(card);
@@ -160,23 +164,27 @@
   catalogueQuery.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchCatalogue()}});
   vehicleForm.addEventListener('submit',async(event)=>{
     event.preventDefault();if(busy||!conversationId)return;const fields=new FormData(vehicleForm);const details=Object.fromEntries(fields.entries());
+    const targetConversationId=conversationId,epoch=conversationEpoch;
     busy=true;vehicleForm.querySelector('button').disabled=true;showError('');
     try{
-      const data=await request(endpoint('vehicle'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,make:details.make,model:details.model,year:Number(details.year),engine:details.engine,transmission:details.transmission,trim:details.trim,vin:details.vin})});
+      await request(endpoint('vehicle'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:targetConversationId,make:details.make,model:details.model,year:Number(details.year),engine:details.engine,transmission:details.transmission,trim:details.trim,vin:details.vin})});
+      if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
       vehicleForm.reset();vehicleForm.classList.remove('open');await poll();
-    }catch(error){showError(error.message==='vin_encryption_not_configured'?'VIN submission is temporarily unavailable. You can leave the VIN blank or contact support.':'Vehicle details could not be submitted. Please retry.');}
-    finally{busy=false;vehicleForm.querySelector('button').disabled=false;}
+    }catch(error){if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId)showError(error.message==='vin_encryption_not_configured'?'VIN submission is temporarily unavailable. You can leave the VIN blank or contact support.':'Vehicle details could not be submitted. Please retry.');}
+    finally{busy=false;if(epoch===conversationEpoch&&targetConversationId===conversationId)vehicleForm.querySelector('button').disabled=false;}
   });
 
   form.addEventListener('submit',async(event)=>{
     event.preventDefault();const body=textarea.value.trim();if(!body||busy||!conversationId)return;
+    const targetConversationId=conversationId,epoch=conversationEpoch;
     busy=true;sendButton.disabled=true;showError('');
     try{
-      const data=await request(endpoint('messages'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:conversationId,body})});
+      const data=await request(endpoint('messages'),{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({conversation_id:targetConversationId,body})});
+      if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
       appendMessage({...data.message,created_at:new Date().toISOString().slice(0,19).replace('T',' ')});
       lastMessageId=Math.max(lastMessageId,Number(data.message.id)||0);textarea.value='';
-    }catch(_){showError('Message not sent. Please retry')}
-    finally{busy=false;sendButton.disabled=false;textarea.focus()}
+    }catch(_){if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId)showError('Message not sent. Please retry')}
+    finally{busy=false;if(epoch===conversationEpoch&&targetConversationId===conversationId){sendButton.disabled=textarea.disabled;if(isOpen)textarea.focus()}}
   });
 
   fileInput.addEventListener('change',async()=>{
@@ -184,14 +192,16 @@
     if(file.size>3*1024*1024){showError('Image must be 3 MB or smaller');fileInput.value='';return}
     if(!['image/jpeg','image/png','image/webp'].includes(file.type)){showError('Choose a JPG, PNG or WEBP image');fileInput.value='';return}
     if(busy||!conversationId)return;
+    const targetConversationId=conversationId,epoch=conversationEpoch;
     busy=true;sendButton.disabled=true;showError('');
     try{
-      const formData=new FormData();formData.append('conversation_id',conversationId);formData.append('file',file);
+      const formData=new FormData();formData.append('conversation_id',targetConversationId);formData.append('file',file);
       const data=await request(endpoint('upload'),{method:'POST',headers:headers(),body:formData});
+      if(!isOpen||epoch!==conversationEpoch||targetConversationId!==conversationId)return;
       appendMessage({id:data.message.id,sender_type:'customer',body:'Image attachment',created_at:new Date().toISOString().slice(0,19).replace('T',' '),attachment:data.attachment});
       lastMessageId=Math.max(lastMessageId,Number(data.message.id)||0);
-    }catch(_){showError('Image upload failed. Check the format and try again')}
-    finally{busy=false;sendButton.disabled=false;fileInput.value=''}
+    }catch(_){if(isOpen&&epoch===conversationEpoch&&targetConversationId===conversationId)showError('Image upload failed. Check the format and try again')}
+    finally{busy=false;if(epoch===conversationEpoch&&targetConversationId===conversationId){sendButton.disabled=textarea.disabled;fileInput.value=''}}
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPolling();else if(isOpen)startPolling()});
 })();
