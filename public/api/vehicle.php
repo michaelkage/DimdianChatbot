@@ -4,7 +4,7 @@ require_once dirname(__DIR__,2).'/app/customer.php';
 require_once dirname(__DIR__,2).'/app/vehicle.php';
 require_method('POST');
 $customer=require_customer();
-if(rate_limit_exceeded('vehicle-submit:'.$customer['id'],8,3600))json_response(['error'=>'too_many_requests'],429);
+if(rate_limit_exceeded('vehicle-submit-ip:'.request_ip_hash(),30,3600)||rate_limit_exceeded('vehicle-submit:'.$customer['id'],8,3600))json_response(['error'=>'too_many_requests'],429);
 $in=request_json();
 foreach(['conversation_id','make','model'] as $required)if(!isset($in[$required])||!is_string($in[$required]))json_response(['error'=>'invalid_vehicle_details'],422);
 foreach(['engine','transmission','trim','vin'] as $optional)if(isset($in[$optional])&&!is_string($in[$optional]))json_response(['error'=>'invalid_vehicle_details'],422);
