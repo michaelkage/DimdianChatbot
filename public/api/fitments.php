@@ -17,9 +17,9 @@ $find->execute(['public_id'=>$conversationId]);$vehicle=$find->fetch();
 if(!$vehicle)json_response(['error'=>'vehicle_details_not_found'],404);
 $productId=$productId?:($vehicle['product_id']?(int)$vehicle['product_id']:null);
 if(!$productId||empty($vehicle['engine'])||empty($vehicle['transmission']))json_response(['error'=>'complete_vehicle_and_product_details_required'],422);
-try{$product=woocommerce_request('/wp-json/wc/v3/products/'.(int)$productId);}
+try{$product=woocommerce_find_by_id((int)$productId);}
 catch(Throwable $e){json_response(['error'=>'catalogue_product_verification_failed'],502);}
-if(!is_array($product)|| (int)($product['id']??0)!==$productId)json_response(['error'=>'catalogue_product_not_found'],404);
+if(!$product||$product['permalink']==='')json_response(['error'=>'catalogue_product_not_found'],404);
 $insert=$pdo->prepare("INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,trim_level,verification_source,verified_by,verified_at,status) VALUES (:product_id,:make,:model,:year_from,:year_to,:engine,:transmission,:trim,:source,:staff_id,UTC_TIMESTAMP(),'verified')");
 $insert->execute([
  'product_id'=>$productId,'make'=>$vehicle['make'],'model'=>$vehicle['model'],'year_from'=>(int)$vehicle['model_year'],'year_to'=>(int)$vehicle['model_year'],
