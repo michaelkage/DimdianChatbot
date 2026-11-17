@@ -5,8 +5,8 @@ require_once __DIR__ . '/ai_provider.php';
 
 /** AI is active only when a working provider is configured and an administrator opted in. */
 function ai_runtime_enabled(?PDO $pdo = null): bool {
- if (!ai_provider_verified()) return false;
  $pdo ??= db();
+ if (!ai_provider_verified($pdo)) return false;
  $value = $pdo->query("SELECT setting_value FROM app_settings WHERE setting_key='ai_enabled' LIMIT 1")->fetchColumn();
  return $value === '1';
 }
