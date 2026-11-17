@@ -70,7 +70,11 @@ if($wooEnabled){
  try{$products=woocommerce_request('/wp-json/wc/v3/products',['per_page'=>1]);preflight('Live WooCommerce API',is_array($products),'read-only product request completed');}
  catch(Throwable $error){preflight('Live WooCommerce API',false,$error->getMessage());}
  $mpnPath=(string)app_config('woocommerce.mpn_lookup_path','');
- preflight('MPN lookup route',$mpnPath!=='',$mpnPath!==''?$mpnPath:'not configured',$mpnPath==='');
+ if($mpnPath==='')preflight('MPN lookup route',false,'not configured',true);
+ else{
+  try{$mpnProbe=woocommerce_request($mpnPath,['mpn'=>'DIMDIAN_PREFLIGHT_NONMATCH','per_page'=>1]);preflight('Live MPN lookup route',is_array($mpnProbe),$mpnPath);}
+  catch(Throwable $error){preflight('Live MPN lookup route',false,$error->getMessage());}
+ }
 }else preflight('Live WooCommerce catalogue',false,'disabled; product search will return 503',true);
 if((bool)app_config('ai.provider_ready',false))preflight('AI provider configuration',ai_provider_available(),'connectivity must still be tested in the staff inbox');
 else preflight('AI provider',false,'disabled; human-only support remains active',true);
