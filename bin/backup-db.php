@@ -4,7 +4,7 @@ if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 $configPath=dirname(__DIR__).'/config.php';
 if(!is_file($configPath)){fwrite(STDERR,"config.php is missing\n");exit(1);}
 $config=require $configPath;$db=$config['database']??[];
-$directory=(string)($config['backup']['directory']??'');
+$directory=(string)($config['backup']['directory']??getenv('DIMDIAN_BACKUP_DIRECTORY')?:'');
 if($directory===''||!str_starts_with($directory,DIRECTORY_SEPARATOR)){fwrite(STDERR,"Set backup.directory to an absolute private directory outside public_html.\n");exit(1);}
 if(!is_dir($directory)&&!mkdir($directory,0700,true)&&!is_dir($directory)){fwrite(STDERR,"Cannot create backup directory.\n");exit(1);}
 $real=realpath($directory);$public=realpath(dirname(__DIR__).'/public');
