@@ -75,8 +75,11 @@ function woocommerce_fitment_product_supported(array $product): bool {
 function woocommerce_normalize_product(array $p): array {
  $images=is_array($p['images']??null)?$p['images']:[];
  $image=$images[0]['src']??null;
+ $description=html_entity_decode(strip_tags((string)($p['short_description']??'')),ENT_QUOTES|ENT_HTML5,'UTF-8');
+ $description=trim(preg_replace('/\\s+/u',' ',$description)??$description);
+ $description=function_exists('mb_substr')?mb_substr($description,0,420):substr($description,0,420);
  return [
-  'id'=>(int)($p['id']??0),'name'=>(string)($p['name']??''),
+  'id'=>(int)($p['id']??0),'name'=>(string)($p['name']??''),'description'=>$description,
   'sku'=>(string)($p['sku']??''),'mpn'=>(string)($p['mpn']??''),'price'=>(string)($p['price']??''),
   'regular_price'=>(string)($p['regular_price']??''),'sale_price'=>(string)($p['sale_price']??''),
   'stock_status'=>(string)($p['stock_status']??'unknown'),
