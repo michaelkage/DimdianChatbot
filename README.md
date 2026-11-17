@@ -59,7 +59,24 @@ After deploying the support app, add this script to the marketplace layout (repl
 
 The widget also captures the current page URL and document title automatically. Add the storefront's exact origin to `app.allowed_origins` in `config.php`. It uses browser local storage for its opaque guest token and pauses polling while closed or when the tab is hidden.
 
-For logged-in shoppers, the storefront can add `data-customer-id` and `data-customer-signature` to the script element. Generate the signature on the storefront server with `hash_hmac('sha256', (string) $customerId, $sharedIdentitySecret)`. Configure the same secret as `integration.customer_identity_secret` in the support app. Never expose the shared secret in browser code; only the generated signature is sent. The staff inbox then displays the linked marketplace account ID. If the attributes are omitted, the shopper remains a guest.
+For logged-in shoppers, render the optional identity attributes server-side:
+
+```php
+<?php
+$customerId = (string) $loggedInCustomer['id'];
+$signature = hash_hmac('sha256', $customerId, $sharedIdentitySecret);
+?>
+<script
+  src="https://support.example.com/widget.js"
+  data-api-base="https://support.example.com/api/"
+  data-context-sku="<?= htmlspecialchars($productSku, ENT_QUOTES, 'UTF-8') ?>"
+  data-customer-id="<?= htmlspecialchars($customerId, ENT_QUOTES, 'UTF-8') ?>"
+  data-customer-signature="<?= htmlspecialchars($signature, ENT_QUOTES, 'UTF-8') ?>"
+  defer
+></script>
+```
+
+Configure the same random secret as `integration.customer_identity_secret` in the support app and the storefront's server environment. Never expose the shared secret in browser code; only the generated signature is sent. The staff inbox displays the linked marketplace account ID. If the attributes are omitted, the session is treated as a guest and any previous account link on that browser token is cleared.
 
 ## Implemented customer API
 
@@ -74,7 +91,7 @@ All customer endpoints require the `X-Dimdian-Guest-Token` header except the ini
 
 ## Validation
 
-GitHub Actions lints PHP source (including the CLI provisioning script), checks widget JavaScript syntax, and imports the schema into a disposable MySQL 8 service.
+GitHub Actions lints PHP source (including the CLI provisioning script), checks widget JavaScript syntax, imports the schema into a disposable MySQL 8 service, exercises schema relationships/query shapes, and runs an end-to-end customer-to-staff API smoke test including a real image upload.
 
 ## Hostinger setup
 
@@ -96,7 +113,8 @@ Do not commit `config.php`, database credentials, or uploaded customer images.
 - Configuration and uploads are intended to remain outside the public document root.
 - CORS is an explicit allowlist; it is not authentication.
 - Guest identity uses a random browser token whose hash is stored server-side; the raw token is never stored in the database.
-- Staff authentication uses password hashing, secure HTTP-only cookies, session rotation, CSRF protection, and login throttling.
+- Staff authentication uses password hashing, secure HTTP-only cookies, session rotation, CSRF protection, and IP/account login throttling.
+- Guest message and image upload endpoints are rate-limited by both guest identity and source address.
 - Uploads must be checked by detected MIME type and image decoding, not filename extension alone.
 - User-provided text must be escaped at the point it is rendered.
 
