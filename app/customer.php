@@ -35,3 +35,21 @@ function create_public_conversation_id(): string {
  // 26 URL-safe hexadecimal characters; the numeric database ID is never exposed.
  return bin2hex(random_bytes(13));
 }
+
+
+function verified_external_user_id(array $input): ?string {
+ $externalId = $input['external_user_id'] ?? null;
+ $signature = $input['identity_signature'] ?? null;
+ if ($externalId === null && $signature === null) return null;
+ if (!is_string($externalId) || $externalId === '' || strlen($externalId) > 191 ||
+     !is_string($signature) || !preg_match('/^[a-f0-9]{64}$/D',$signature)) {
+  json_response(['error'=>'invalid_customer_identity'],422);
+ }
+ $secret = (string)app_config('integration.customer_identity_secret','');
+ if ($secret === '' || str_starts_with($secret,'replace-with-')) {
+  json_response(['error'=>'identity_linking_not_configured'],503);
+ }
+ $expected = hash_hmac('sha256',$externalId,$secret);
+ if (!hash_equals($expected,$signature)) json_response(['error'=>'invalid_customer_identity_signature'],401);
+ return $externalId;
+}
