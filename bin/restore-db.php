@@ -51,8 +51,9 @@ if(str_ends_with(strtolower($backupPath),'.gz')){
 $tmp=tempnam(sys_get_temp_dir(),'dimdian-mysql-');
 if($tmp===false){if($temporarySql!==null)@unlink($temporarySql);exit(1);}
 chmod($tmp,0600);
-file_put_contents($tmp,"[client]\nhost=".(string)$db['host']."\nport=".(int)($db['port']??3306)."\nuser=".(string)$db['username']."\npassword=".(string)$db['password']."\n",LOCK_EX);
-chmod($tmp,0600);
+$slash=chr(92);$mysqlOption=static fn(string $value):string=>'"'.str_replace([$slash,'"'],[$slash.$slash,$slash.'"'],$value).'"';
+$ini="[client]\nhost=".$mysqlOption((string)$db['host'])."\nport=".(int)($db['port']??3306)."\nuser=".$mysqlOption((string)$db['username'])."\npassword=".$mysqlOption((string)$db['password'])."\n";
+file_put_contents($tmp,$ini,LOCK_EX);chmod($tmp,0600);
 $proc=proc_open(['mysql','--defaults-extra-file='.$tmp,$targetDatabase],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);
 if(!is_resource($proc)){
  unlink($tmp);if($temporarySql!==null)@unlink($temporarySql);
