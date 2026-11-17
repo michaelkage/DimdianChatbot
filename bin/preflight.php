@@ -57,7 +57,9 @@ if($backupConfigured!==''&&str_starts_with($backupConfigured,DIRECTORY_SEPARATOR
  if(!is_dir($backupConfigured))@mkdir($backupConfigured,0700,true);
  $backupReal=realpath($backupConfigured)?:'';
  $publicReal=realpath(dirname(__DIR__).'/public')?:'';
- $backupOk=$backupReal!==''&&is_writable($backupReal)&&$publicReal!==''&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR);
+ if($backupReal!=='')@chmod($backupReal,0700);
+ $backupPermissions=$backupReal!==''?fileperms($backupReal):false;
+ $backupOk=$backupReal!==''&&is_writable($backupReal)&&$backupPermissions!==false&&($backupPermissions&0077)===0&&$publicReal!==''&&$backupReal!==$publicReal&&!str_starts_with($backupReal.DIRECTORY_SEPARATOR,$publicReal.DIRECTORY_SEPARATOR);
 }
 preflight('Private backup directory',$backupOk,$backupOk?$backupReal:($backupConfigured!==''?$backupConfigured:'not configured'));
 $wooEnabled=(bool)app_config('woocommerce.enabled',false);
