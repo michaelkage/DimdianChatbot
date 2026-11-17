@@ -16,20 +16,29 @@ try{$encrypted=$vin!==''?vehicle_encrypt_vin($vin):null;}catch(RuntimeException 
 $pdo=db();$find=$pdo->prepare("SELECT id,context_sku,status FROM conversations WHERE public_id=:id AND customer_id=:customer AND status<>'closed' LIMIT 1");
 $find->execute(['id'=>$id,'customer'=>$customer['id']]);$conversation=$find->fetch();
 if(!$conversation)json_response(['error'=>'conversation_not_found'],404);
-// Resolve either an explicitly selected live listing or the page SKU against WooCommerce server-side.
+// Resolve the selected product or original page SKU against WooCommerce outside the DB transaction.
+$selectedContext=db()->prepare('SELECT product_id FROM conversation_product_context WHERE conversation_id=:id LIMIT 1');
+$selectedContext->execute(['id'=>$conversation['id']]);
+$selectedValue=$selectedContext->fetchColumn();
+$selectedId=$selectedValue===false||$selectedValue===null?null:(int)$selectedValue;
+$originalSku=$conversation['context_sku'];
 $productId=null;
 if(woocommerce_ready()){
  try{
-  $selected=db()->prepare('SELECT product_id FROM conversation_product_context WHERE conversation_id=:id LIMIT 1');
-  $selected->execute(['id'=>$conversation['id']]);
-  $selectedId=$selected->fetchColumn();
-  $product=$selectedId?woocommerce_find_by_id((int)$selectedId):null;
-  if(!$product&&$conversation['context_sku'])$product=woocommerce_find_by_sku((string)$conversation['context_sku']);
+  $product=$selectedId!==null?woocommerce_find_by_id($selectedId):($originalSku?woocommerce_find_by_sku((string)$originalSku):null);
   $productId=$product['id']??null;
  }catch(Throwable $e){$productId=null;}
 }
 $pdo->beginTransaction();
 try{
+ $lock=$pdo->prepare("SELECT id,status,context_sku FROM conversations WHERE id=:id AND customer_id=:customer_id FOR UPDATE");
+ $lock->execute(['id'=>$conversation['id'],'customer_id'=>$customer['id']]);$locked=$lock->fetch();
+ if(!$locked){$pdo->rollBack();json_response(['error'=>'conversation_not_found'],404);}
+ if($locked['status']==='closed'){$pdo->rollBack();json_response(['error'=>'conversation_closed'],409);}
+ $currentSelected=$pdo->prepare('SELECT product_id FROM conversation_product_context WHERE conversation_id=:id LIMIT 1');
+ $currentSelected->execute(['id'=>$conversation['id']]);$currentSelectedValue=$currentSelected->fetchColumn();
+ $currentSelectedId=$currentSelectedValue===false||$currentSelectedValue===null?null:(int)$currentSelectedValue;
+ if($locked['context_sku']!==$originalSku||$currentSelectedId!==$selectedId)$productId=null;
  $insert=$pdo->prepare('INSERT INTO conversation_vehicles (conversation_id,product_id,make,model,model_year,engine,transmission,trim_level,vin_ciphertext,vin_last4,created_at) VALUES (:cid,:pid,:make,:model,:year,:engine,:transmission,:trim,:vin,:last4,UTC_TIMESTAMP())');
  $insert->execute(['cid'=>$conversation['id'],'pid'=>$productId,'make'=>$make,'model'=>$model,'year'=>$year,'engine'=>$engine!==''?$engine:null,'transmission'=>$transmission!==''?$transmission:null,'trim'=>$trim!==''?$trim:null,'vin'=>$encrypted,'last4'=>$vin!==''?substr($vin,-4):null]);
  $vehicleId=(int)$pdo->lastInsertId();
