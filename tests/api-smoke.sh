@@ -59,6 +59,9 @@ jq -e '.products | length == 1 and .[0].id == 101' <<<"$MPN_SEARCH" >/dev/null
 echo 'live WooCommerce SKU, name and MPN search passed'
 PRODUCT_CONTEXT="$(curl -fsS -X POST http://127.0.0.1:8080/api/product-context.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"product_id\":101}")"
 jq -e '.selected == true and .product.id == 101 and .product.sku == "ALT-CAM-25"' <<<"$PRODUCT_CONTEXT" >/dev/null
+curl -fsS -X POST http://127.0.0.1:8080/api/conversations.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d '{"context_url":"https://parts.example.invalid/brake-pad","context_sku":"BP-100","subject":"Brake pad listing"}' >/dev/null
+SELECTED_CONTEXT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM conversation_product_context p INNER JOIN conversations c ON c.id=p.conversation_id WHERE c.public_id='$CONVERSATION_ID' AND p.product_id=101")"
+test "$SELECTED_CONTEXT_COUNT" = "1"
 mysql --host=127.0.0.1 --user=root --password=root dimdian_test -e "INSERT INTO product_fitments (product_id,make,model,year_from,year_to,engine,transmission,verification_source,verified_at,status) VALUES (101,'Toyota','Camry',2015,2020,'2.5L','Automatic','CI manufacturer catalogue fixture',UTC_TIMESTAMP(),'verified')"
 VEHICLE_MATCH="$(curl -fsS -X POST http://127.0.0.1:8080/api/vehicle.php -H "X-Dimdian-Guest-Token: $TOKEN" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"make\":\"Toyota\",\"model\":\"Camry\",\"year\":2018,\"engine\":\"2.5L\",\"transmission\":\"Automatic\",\"trim\":\"SE\",\"vin\":\"\"}")"
 jq -e '.fitment.status == "verified" and .product_id == 101' <<<"$VEHICLE_MATCH" >/dev/null
@@ -123,7 +126,7 @@ HUMAN_QUEUE="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/a
 jq -e --arg id "$QUOTA_CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .status == "needs_human")' <<<"$HUMAN_QUEUE" >/dev/null
 echo 'admin AI-off switch and human routing passed'
 QUEUE_JSON="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt 'http://127.0.0.1:8080/api/staff-conversations.php?status=active')"
-jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "ALT-CAM-25" and .context_url == "http://127.0.0.1:8083/product/alt-cam-25/")' <<<"$QUEUE_JSON" >/dev/null
+jq -e --arg id "$CONVERSATION_ID" '.conversations[] | select(.public_id == $id and .customer_account_id == "customer-123" and .context_sku == "BP-100" and .context_url == "https://parts.example.invalid/brake-pad" and .selected_product_id == 101 and .selected_product_sku == "ALT-CAM-25")' <<<"$QUEUE_JSON" >/dev/null
 echo 'staff inbox passed'
 STAFF_REPLY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/staff-messages.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$CONVERSATION_ID\",\"body\":\"Our support team can help with that.\"}")"
 STAFF_MESSAGE_ID="$(jq -r '.message.id' <<<"$STAFF_REPLY")"
