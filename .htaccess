@@ -1,0 +1,10 @@
+Options -Indexes
+
+<FilesMatch "^(config\.php|config\.example\.php|\.env.*)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(app|database|bin|vendor|storage|tests)(/|$) - [F,L,NC]
+</IfModule>
