@@ -97,7 +97,8 @@ test "$BAD_CSRF_FITMENT_STATUS" = "403"
 FITMENT_VERIFY="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Honda electronic parts catalogue\"}")"
 jq -e '.verified == true and .created == true and .product_id == 102' <<<"$FITMENT_VERIFY" >/dev/null
 FITMENT_REPEAT="$(curl -fsS -b /tmp/dimdian-ci-cookies.txt -X POST http://127.0.0.1:8080/api/fitments.php -H "X-CSRF-Token: $CSRF" -H 'Content-Type: application/json' -d "{\"conversation_id\":\"$FITMENT_REVIEW_ID\",\"verification_source\":\"Honda electronic parts catalogue, rechecked\"}")"
-jq -e '.verified == true and .created == false and .fitment_id == '$(jq -r '.fitment_id' <<<"$FITMENT_VERIFY")' <<<"$FITMENT_REPEAT" >/dev/null
+FITMENT_ID="$(jq -r '.fitment_id' <<<"$FITMENT_VERIFY")"
+jq -e --argjson id "$FITMENT_ID" '.verified == true and .created == false and .fitment_id == $id' <<<"$FITMENT_REPEAT" >/dev/null
 VERIFIED_FITMENT_COUNT="$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names dimdian_test -e "SELECT COUNT(*) FROM product_fitments WHERE product_id=102 AND make='Honda' AND model='Civic' AND year_from=2018 AND year_to=2018 AND engine='2.0L' AND transmission='CVT' AND trim_level='EX' AND status='verified'")"
 test "$VERIFIED_FITMENT_COUNT" = "1"
 echo 'admin-only fitment verification, CSRF protection and repeat-safe persistence passed'
