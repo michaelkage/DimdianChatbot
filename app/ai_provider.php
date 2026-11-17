@@ -28,6 +28,38 @@ function ai_provider_available(): bool {
  return true;
 }
 
+/** Fingerprint only the endpoint/model/key identity; never store the provider key itself. */
+function ai_provider_fingerprint(): string {
+ $provider=ai_provider_config();
+ $secret=(string)app_config('security.rate_limit_secret','');
+ if(strlen($secret)<32)return '';
+ $identity=[
+  'name'=>(string)($provider['name']??''),
+  'endpoint'=>(string)(ai_provider_endpoint()??''),
+  'model'=>(string)($provider['model']??''),
+  'api_key'=>(string)($provider['api_key']??''),
+ ];
+ return hash_hmac('sha256',(string)json_encode($identity,JSON_UNESCAPED_SLASHES),$secret);
+}
+function ai_provider_verified(?PDO $pdo=null): bool {
+ if(!ai_provider_available())return false;
+ $fingerprint=ai_provider_fingerprint();if($fingerprint==='')return false;
+ $pdo??=db();
+ $query=$pdo->prepare("SELECT setting_value FROM app_settings WHERE setting_key='ai_provider_verified_fingerprint' LIMIT 1");
+ $query->execute();$stored=$query->fetchColumn();
+ return is_string($stored)&&hash_equals($fingerprint,$stored);
+}
+function ai_provider_mark_verified(int $staffId): void {
+ $fingerprint=ai_provider_fingerprint();
+ if($fingerprint==='')throw new RuntimeException('ai_provider_fingerprint_unavailable');
+ $query=db()->prepare("INSERT INTO app_settings (setting_key,setting_value,updated_by,updated_at) VALUES ('ai_provider_verified_fingerprint',:fingerprint,:staff_id,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by),updated_at=UTC_TIMESTAMP()");
+ $query->execute(['fingerprint'=>$fingerprint,'staff_id'=>$staffId]);
+}
+function ai_provider_clear_verification(?PDO $pdo=null): void {
+ $pdo??=db();
+ $pdo->exec("DELETE FROM app_settings WHERE setting_key='ai_provider_verified_fingerprint'");
+}
+
 function ai_provider_endpoint(): ?string {
  $provider = ai_provider_config();
  return match ($provider['name'] ?? '') {
