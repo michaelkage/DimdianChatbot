@@ -77,7 +77,7 @@ function woocommerce_normalize_product(array $p): array {
  $image=$images[0]['src']??null;
  return [
   'id'=>(int)($p['id']??0),'name'=>(string)($p['name']??''),
-  'sku'=>(string)($p['sku']??''),'price'=>(string)($p['price']??''),
+  'sku'=>(string)($p['sku']??''),'mpn'=>(string)($p['mpn']??''),'price'=>(string)($p['price']??''),
   'regular_price'=>(string)($p['regular_price']??''),'sale_price'=>(string)($p['sale_price']??''),
   'stock_status'=>(string)($p['stock_status']??'unknown'),
   'stock_quantity'=>array_key_exists('stock_quantity',$p)?$p['stock_quantity']:null,
