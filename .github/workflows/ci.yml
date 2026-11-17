@@ -65,6 +65,8 @@ jobs:
           cat /tmp/dimdian-ci-provider.log || true
       - name: Run marketplace integration and hardening smoke test
         run: php tests/marketplace-smoke.php
+      - name: Run concurrent polling and rate-limit smoke test
+        run: php tests/load-smoke.php
       - name: Verify core tables exist
         run: |
           test "$(mysql --host=127.0.0.1 --user=root --password=root --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='dimdian_test' AND table_name IN ('staff_users','customers','conversations','messages','attachments','rate_limit_events','rate_limit_buckets','conversation_vehicles','product_fitments')")" = "9"
