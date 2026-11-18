@@ -27,6 +27,7 @@ check(!verify_meta_webhook_signature($raw, $signature, 'wrong-secret'), 'wrong a
 check(!verify_meta_webhook_signature($raw, 'sha256=bad', $secret), 'malformed signature is rejected');
 check(!verify_meta_webhook_signature($raw, null, $secret), 'missing signature is rejected');
 check(normalize_whatsapp_number('+234 803-123-4567') === '2348031234567', 'WhatsApp number normalization retains international digits');
+check(normalize_whatsapp_number('00234 803-123-4567') === '2348031234567', '00-prefixed international numbers normalize to country-code digits');
 check(normalize_whatsapp_number('') === '', 'empty phone remains empty');
 check(webhook_timestamp('1739321024') === gmdate('Y-m-d H:i:s', 1739321024), 'provider timestamp is converted to UTC');
 check(whatsapp_retry_delay_seconds(1) === 15, 'first retry delay is 15 seconds');

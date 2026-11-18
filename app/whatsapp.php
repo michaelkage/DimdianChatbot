@@ -108,6 +108,10 @@ function verify_meta_webhook_signature(string $rawBody, ?string $signatureHeader
 
 function normalize_whatsapp_number(string $number): string
 {
+    $number = trim($number);
+    if (str_starts_with($number, '00')) {
+        $number = substr($number, 2);
+    }
     return preg_replace('/\D+/', '', $number) ?? '';
 }
 
@@ -290,7 +294,7 @@ function apply_provider_message_status(PDO $pdo, string $providerMessageId): boo
     $lookup = $pdo->prepare(
         'SELECT status FROM message_status_events
          WHERE provider_message_id = :provider_id
-         ORDER BY CASE status WHEN "failed" THEN 4 WHEN "read" THEN 3 WHEN "delivered" THEN 2 ELSE 1 END DESC,
+         ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "sent" THEN 2 ELSE 1 END DESC,
                   event_timestamp DESC LIMIT 1'
     );
     $lookup->execute([':provider_id' => $providerMessageId]);
@@ -339,19 +343,49 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
 {
     $summary = ['sent' => 0, 'retried' => 0, 'failed' => 0];
     $batchSize = max(1, min(50, $batchSize));
+    $maxAttempts = max(1, $maxAttempts);
 
     for ($i = 0; $i < $batchSize; $i++) {
         $lockToken = uuid_v4();
         $pdo->beginTransaction();
         try {
-            $query = $pdo->query(
+            // A worker that died during its final permitted attempt must not
+            // silently create a seventh send when its lease becomes stale.
+            $exhausted = $pdo->prepare(
+                'SELECT id, message_id
+                 FROM message_outbox
+                 WHERE status = "processing"
+                   AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
+                   AND attempts >= :max_attempts
+                 FOR UPDATE'
+            );
+            $exhausted->execute([':max_attempts' => $maxAttempts]);
+            foreach ($exhausted->fetchAll() as $expiredJob) {
+                $failJob = $pdo->prepare(
+                    'UPDATE message_outbox
+                     SET status = "failed", locked_at = NULL, lock_token = NULL,
+                         last_error = "Worker lease expired after maximum attempts.",
+                         updated_at = UTC_TIMESTAMP()
+                     WHERE id = :id AND status = "processing"'
+                );
+                $failJob->execute([':id' => $expiredJob['id']]);
+                $failMessage = $pdo->prepare(
+                    'UPDATE messages SET delivery_status = "failed" WHERE id = :id'
+                );
+                $failMessage->execute([':id' => $expiredJob['message_id']]);
+                $summary['failed']++;
+            }
+
+            $query = $pdo->prepare(
                 'SELECT id, message_id, recipient, payload_text, attempts
                  FROM message_outbox
                  WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
-                    OR (status = "processing" AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE))
+                    OR (status = "processing" AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
+                        AND attempts < :max_attempts)
                  ORDER BY available_at ASC, created_at ASC
                  LIMIT 1 FOR UPDATE'
             );
+            $query->execute([':max_attempts' => $maxAttempts]);
             $job = $query->fetch();
             if (!$job) {
                 $pdo->commit();

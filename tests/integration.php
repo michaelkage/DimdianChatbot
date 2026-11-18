@@ -97,9 +97,25 @@ final class IntegrationRetryTransport implements WhatsAppTextTransport
     }
 }
 
+final class IntegrationCountingTransport implements WhatsAppTextTransport
+{
+    public int $calls = 0;
+
+    public function sendTemplate(string $recipient, string $bodyParameter): array
+    {
+        $this->calls++;
+        return ['provider_message_id' => 'wamid.integration.stale-lease'];
+    }
+}
+
 $sessionHeaders = ['Origin: ' . $origin];
 [$badOriginStatus] = request_api('POST', '/api/session.php', [], ['Origin: https://evil.example']);
 expect($badOriginStatus === 403, 'session endpoint rejects an unlisted origin');
+[$localPhoneStatus] = request_api('POST', '/api/session.php', [
+    'phone' => '08031234567',
+    'whatsapp_opt_in' => true,
+], $sessionHeaders);
+expect($localPhoneStatus === 422, 'session endpoint rejects a local-format phone number for WhatsApp continuation');
 
 [$sessionStatus, $sessionBody] = request_api('POST', '/api/session.php', [
     'name' => 'Integration Visitor',
@@ -218,6 +234,13 @@ $pdo->prepare(
 expect(apply_provider_message_status($pdo, 'wamid.integration.early-status'), 'early status is reconciled after the provider message ID is attached');
 $statusCheck = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusCheck === 'delivered', 'reconciled early status updates the message row');
+$pdo->prepare(
+    'INSERT IGNORE INTO message_status_events (provider_message_id, status, event_timestamp, created_at)
+     VALUES ("wamid.integration.early-status", "failed", 1739321027, UTC_TIMESTAMP())'
+)->execute();
+apply_provider_message_status($pdo, 'wamid.integration.early-status');
+$statusAfterLateFailure = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
+expect($statusAfterLateFailure === 'delivered', 'late failure callback cannot downgrade a delivered message');
 
 $successMessageId = 'e0000000-0000-4000-8000-000000000002';
 $pdo->prepare(
@@ -249,6 +272,26 @@ enqueue_whatsapp_notification($pdo, $failedMessageId, '2348031234567', 'Permanen
 $failedSummary = process_whatsapp_outbox($pdo, new IntegrationPermanentFailureTransport(), 1, 3);
 $failedStatus = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$failedMessageId}'")->fetchColumn();
 expect($failedSummary['failed'] === 1 && $failedStatus === 'failed', 'permanent outbox failure is terminal');
+
+$staleMessageId = 'e0000000-0000-4000-8000-000000000005';
+$staleOutboxId = 'f0000000-0000-4000-8000-000000000005';
+$pdo->prepare(
+    'INSERT INTO messages (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
+     VALUES (:id, :conversation_id, "visitor", "exhausted worker lease", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $staleMessageId, ':conversation_id' => $conversationId]);
+$pdo->prepare(
+    'INSERT INTO message_outbox
+        (id, message_id, recipient, payload_text, status, attempts, available_at, locked_at, lock_token, created_at, updated_at)
+     VALUES (:id, :message_id, "2348031234567", "already attempted six times", "processing", 6,
+             UTC_TIMESTAMP(), DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), "f0000000-0000-4000-8000-000000000006",
+             UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $staleOutboxId, ':message_id' => $staleMessageId]);
+$countingTransport = new IntegrationCountingTransport();
+$staleSummary = process_whatsapp_outbox($pdo, $countingTransport, 1, 6);
+$staleOutboxStatus = $pdo->query("SELECT status FROM message_outbox WHERE id = '{$staleOutboxId}'")->fetchColumn();
+$staleMessageStatus = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$staleMessageId}'")->fetchColumn();
+expect($countingTransport->calls === 0 && $staleOutboxStatus === 'failed', 'stale final-attempt job is failed without a seventh send');
+expect($staleSummary['failed'] === 1 && $staleMessageStatus === 'failed', 'exhausted stale job updates visitor delivery state');
 
 $pdo->prepare('UPDATE conversations SET status = "closed" WHERE id = :id')->execute([':id' => $conversationId]);
 [$closedHistoryStatus] = request_api('GET', '/api/messages.php?after=0&limit=50', null, $guestHeaders);

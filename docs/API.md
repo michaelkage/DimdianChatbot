@@ -20,7 +20,7 @@ Body fields are optional except that WhatsApp opt-in requires a phone number:
 }
 ```
 
-No account, password, phone verification or OTP is required. The phone must be supplied in international format if WhatsApp continuation is desired. The opt-in timestamp is stored separately from the contact number.
+No account, password, phone verification or OTP is required. If a phone number is supplied, it must include an international country-code prefix (+ or 00); local trunk formats such as 080... are rejected. The opt-in timestamp is stored separately from the contact number.
 
 ## Send a website message
 

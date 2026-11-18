@@ -21,8 +21,16 @@ if (!is_bool($whatsappOptIn)) {
     json_response(['error' => ['code' => 'invalid_field', 'message' => 'whatsapp_opt_in must be true or false.']], 422);
 }
 $normalizedPhone = $phone !== null ? normalize_whatsapp_number($phone) : null;
-if ($phone !== null && ($normalizedPhone === '' || strlen($normalizedPhone) < 8 || strlen($normalizedPhone) > 15)) {
-    json_response(['error' => ['code' => 'invalid_field', 'message' => 'Enter a valid phone number including its country code.']], 422);
+if ($phone !== null) {
+    $phoneInput = preg_replace('/[\s().-]+/', '', $phone) ?? '';
+    $hasInternationalPrefix = str_starts_with($phoneInput, '+') || str_starts_with($phoneInput, '00');
+    if (
+        !$hasInternationalPrefix ||
+        $normalizedPhone === '' ||
+        !preg_match('/^[1-9][0-9]{7,14}$/', $normalizedPhone)
+    ) {
+        json_response(['error' => ['code' => 'invalid_field', 'message' => 'Enter a valid international phone number with its country code, such as +2348012345678.']], 422);
+    }
 }
 if ($whatsappOptIn && $normalizedPhone === null) {
     json_response(['error' => ['code' => 'whatsapp_phone_required', 'message' => 'Enter your WhatsApp number to opt in.']], 422);
