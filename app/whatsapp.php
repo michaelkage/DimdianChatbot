@@ -294,7 +294,7 @@ function apply_provider_message_status(PDO $pdo, string $providerMessageId): boo
     $lookup = $pdo->prepare(
         'SELECT status FROM message_status_events
          WHERE provider_message_id = :provider_id
-         ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "sent" THEN 2 ELSE 1 END DESC,
+         ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
                   event_timestamp DESC LIMIT 1'
     );
     $lookup->execute([':provider_id' => $providerMessageId]);
