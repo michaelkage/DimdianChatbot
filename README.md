@@ -27,9 +27,11 @@ This is a focused enquiry channel, not a full customer-management system. It doe
 3. The API creates a guest, conversation and secure session record in MySQL.
 4. The visitor's message is saved in MySQL.
 5. The widget polls the API while open and displays new messages.
-6. A support reply can appear in the widget when it is added to that conversation through the connected message flow. The current repository does not include a staff dashboard or a manual reply screen.
+6. The widget polls for new messages and displays them.
 
-WhatsApp transport is disabled by default. In this state, the widget works as a website chat interface, but the team does not receive a WhatsApp notification from it.
+**Operational limitation:** with WhatsApp disabled, this is currently a visitor message-capture channel, not a complete two-way support inbox. There is no staff dashboard or manual reply screen, so the team cannot reply to website-only messages from inside this product yet. A support reply reaches the widget only through the WhatsApp-connected workflow described below (or through a future staff reply interface, which is not currently in scope).
+
+WhatsApp transport is disabled by default. In this state, the widget can collect and store enquiries, but it does not notify the team or provide a way for staff to answer them from this application. Do not launch it as the sole customer-support channel until the team has an agreed way to receive and answer those messages.
 
 ### Intended WhatsApp-connected mode
 
