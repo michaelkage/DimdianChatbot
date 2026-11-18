@@ -23,9 +23,9 @@ if (!is_bool($whatsappOptIn)) {
 $normalizedPhone = $phone !== null ? normalize_whatsapp_number($phone) : null;
 if ($phone !== null) {
     $phoneInput = preg_replace('/[\s().-]+/', '', $phone) ?? '';
-    $hasInternationalPrefix = str_starts_with($phoneInput, '+') || str_starts_with($phoneInput, '00');
+    $validInternationalInput = preg_match('/^(?:\+[1-9][0-9]{7,14}|00[1-9][0-9]{7,14})$/', $phoneInput) === 1;
     if (
-        !$hasInternationalPrefix ||
+        !$validInternationalInput ||
         $normalizedPhone === '' ||
         !preg_match('/^[1-9][0-9]{7,14}$/', $normalizedPhone)
     ) {

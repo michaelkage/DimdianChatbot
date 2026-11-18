@@ -116,6 +116,11 @@ expect($badOriginStatus === 403, 'session endpoint rejects an unlisted origin');
     'whatsapp_opt_in' => true,
 ], $sessionHeaders);
 expect($localPhoneStatus === 422, 'session endpoint rejects a local-format phone number for WhatsApp continuation');
+[$malformedPhoneStatus] = request_api('POST', '/api/session.php', [
+    'phone' => '+234 ABC 1234567',
+    'whatsapp_opt_in' => true,
+], $sessionHeaders);
+expect($malformedPhoneStatus === 422, 'session endpoint rejects non-numeric phone input');
 
 [$sessionStatus, $sessionBody] = request_api('POST', '/api/session.php', [
     'name' => 'Integration Visitor',
