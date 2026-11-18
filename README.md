@@ -45,7 +45,8 @@ public/api/                Public API endpoints
 public/cron/               CLI-only scheduled workers
 public/widget.js           Embeddable widget
 public/widget.css          Isolated widget styles
-tests/                     PHP and Node tests
+docs/index.html            Public mock website and widget demo
+tests/                     PHP, Node and browser tests
 archive/                   Retired marketplace-support implementation
 ```
 
@@ -62,6 +63,10 @@ Do not run migrations on a fresh database after importing the current schema; th
 ## Configuration
 
 Copy `config.example.php` to a private `config.php`. Configure database credentials, app key and exact allowed website origins. WhatsApp remains disabled by default. See [docs/WHATSAPP.md](docs/WHATSAPP.md) before adding Meta credentials or enabling outbound transport.
+
+## Interactive demo
+
+The public mock website is deployed through GitHub Pages from `docs/`. The demo loads the real widget assets in browser-only simulation mode: no PHP API, database, visitor details or WhatsApp connection is used. Messages and replies are simulated locally and are not persisted.
 
 ## Tests
 
@@ -84,6 +89,7 @@ GitHub Actions runs these checks on pushes and pull requests.
 - [x] Meta webhook GET verification, POST signature verification and event deduplication.
 - [x] Inbound text and Business-app text echo correlation by visitor phone.
 - [x] Automated PHP helper and widget contract tests.
+- [x] Public mock website with browser-only widget simulation and Playwright desktop/mobile coverage.
 - [ ] Execute database-backed integration tests against the target MySQL/MariaDB version.
 - [ ] Verify Coexistence and `smb_message_echoes` for the actual +234 business number.
 - [ ] Configure and approve the WhatsApp template; test with a dedicated number.

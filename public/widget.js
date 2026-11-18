@@ -2,6 +2,7 @@
 'use strict';
 const script = document.currentScript;
 if (!script) return;
+const demo = script.dataset.demo === 'true';
 const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace(/\/+$/, '');
 const key = 'dimdian-chat:' + api + ':' + location.origin;
 const root = document.createElement('div');
@@ -22,6 +23,7 @@ const $ = s => shadow.querySelector(s);
 const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome');
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
+if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 const messageNodes=new Map();
@@ -92,7 +94,21 @@ async function poll(){
 function stop(){if(timer)clearTimeout(timer);timer=null;}
 function schedule(){stop();if(opened&&session)timer=setTimeout(async()=>{await poll();schedule();},delay);}
 async function send(text){
- if(busy)return;busy=true;
+ if(busy)return;
+ if(demo){
+  busy=true;$('.send').disabled=true;input.disabled=true;status('Sending demo message…');
+  const now=new Date().toISOString();
+  render({id:newMessageId(),sender:'visitor',message:text,delivery_status:'web_only',created_at:now,sequence_id:1});
+  input.value='';$('.count').textContent='0 / 4000';status('Demo message received. Simulating a reply…');
+  setTimeout(()=>{
+   if(!document.querySelector('#dimdian-chat-widget'))return;
+   render({id:newMessageId(),sender:'business',message:'Thanks for your message! This is a simulated support reply. In the live installation, your team would reply through the connected support channel.',delivery_status:'received',created_at:new Date().toISOString(),sequence_id:2});
+   status('Demo conversation — no message was sent to a real person.');
+  },850);
+  busy=false;$('.send').disabled=false;input.disabled=false;input.focus();
+  return;
+ }
+ busy=true;
  if(!pendingSubmission||pendingSubmission.text!==text)pendingSubmission={id:newMessageId(),text};$('.send').disabled=true;input.disabled=true;status('Sending…');
  try{
   if(!session)await startSession();
@@ -113,6 +129,7 @@ form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.tri
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
-if(session)status('Your conversation is ready.');
+if(demo)status('Demo mode — messages stay in this browser.');
+else if(session)status('Your conversation is ready.');
 if(script.dataset.open==='true')open();
 })();
