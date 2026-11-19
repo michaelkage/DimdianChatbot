@@ -10,10 +10,14 @@ This folder contains an isolated test integration for the public mock site:
 ## Current implementation
 
 - `functions/meta-webhook/index.ts`: Meta GET verification and POST event receiver.
-- `config.toml`: disables Supabase's JWT gate for this one function because Meta signs requests with the Meta App Secret instead.
+- `functions/meta-events/index.ts`: owner-only, read-only event viewer API.
+- `config.toml`: disables Supabase's JWT gate for both functions; each function performs its own authentication.
 - `schema.sql`: private event-log table with RLS enabled and no browser-role policies.
+- `../docs/whatsapp-test.html`: static owner test console. The owner enters the project URL and monitor key; the key is not stored by the page.
 
-The function verifies the exact raw POST body using HMAC-SHA256 and `X-Hub-Signature-256` before parsing or storing it. It stores deduplicated event identifiers, event type, masked phone numbers, message text, timestamps and a SHA-256 payload hash. It does not store the complete raw webhook payload or access token.
+The webhook verifies the exact raw POST body using HMAC-SHA256 and `X-Hub-Signature-256` before parsing or storing it. It stores deduplicated event identifiers, event type, masked phone numbers, message text, timestamps and a SHA-256 payload hash. It does not store the complete raw webhook payload or an access token.
+
+The event viewer requires a separate `DEMO_MONITOR_ACCESS_KEY`, checks the exact GitHub Pages Origin, and returns only the latest 50 selected event fields. The browser never receives the Supabase database credential.
 
 ## Setup after the Supabase project is created
 
@@ -21,28 +25,30 @@ The function verifies the exact raw POST body using HMAC-SHA256 and `X-Hub-Signa
 2. In Edge Function Secrets, add:
    - `META_APP_SECRET`: the Meta app secret.
    - `META_WEBHOOK_VERIFY_TOKEN`: a long random value you create; this is not the Meta app secret.
-3. Deploy the `meta-webhook` function from the repository using the Supabase CLI or the Supabase dashboard's supported deployment workflow.
+   - `DEMO_MONITOR_ACCESS_KEY`: a separate long random value for the owner-only event viewer.
+3. Deploy both functions, `meta-webhook` and `meta-events`, using the Supabase CLI or a supported dashboard deployment workflow. The root `supabase/config.toml` contains the required `verify_jwt = false` settings.
 4. Set the Meta WhatsApp webhook callback URL to:
    `https://PROJECT_REF.supabase.co/functions/v1/meta-webhook`
 5. Set the exact same `META_WEBHOOK_VERIFY_TOKEN` value in Meta's Verify Token field.
 6. Subscribe to the WhatsApp Business Account fields required for the test, including `messages` and `smb_message_echoes` if Meta exposes the latter for the connected Coexistence setup.
-7. Send a test event and confirm it appears in the private table.
+7. Open `https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html`, enter the project URL and monitor key, and verify that events appear after Meta sends them.
 
-Do not put the Meta App Secret, access token, verify token, or Supabase secret key in `docs/`, GitHub Pages JavaScript, or any public browser code.
+Do not put the Meta App Secret, access token, verify token, monitor key, or Supabase secret key in `docs/`, GitHub Pages JavaScript, or any public browser code. The monitor key is entered by the owner at runtime and held only in page memory.
 
 ## Important limits
 
 - This is a webhook receiver and event recorder, not yet the full live chat bridge.
-- The public mock widget remains in explicit simulation mode until a separate browser-safe demo API is implemented.
-- There is no event viewer endpoint yet; the event table is not readable by anonymous visitors.
+- The public mock widget remains in explicit simulation mode; it does not send messages to or receive replies from WhatsApp.
+- The event viewer is a private diagnostic view, not a customer-facing inbox.
 - Coexistence eligibility and real `smb_message_echoes` delivery for the actual business number are still unverified.
 - Do not onboard, migrate, or register the live business number until the owner explicitly approves the exact Meta flow.
 
 ## Local checks
 
-The function is Deno/Edge Runtime code. Test it with the Supabase CLI's local Edge Runtime before deploying. Verify at least:
+The functions are Deno/Edge Runtime code. Test them with the Supabase CLI's local Edge Runtime before deploying. Verify at least:
 - valid GET challenge returns the exact challenge as plain text;
 - invalid verify token returns 403;
 - a valid HMAC POST is accepted;
 - an invalid HMAC POST returns 401 and writes nothing;
-- repeated provider message IDs do not create duplicate rows.
+- repeated provider message IDs do not create duplicate rows;
+- the monitor rejects a missing/incorrect access key and any Origin other than the GitHub Pages origin.
