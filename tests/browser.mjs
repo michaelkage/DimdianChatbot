@@ -66,7 +66,7 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     await page.getByRole('heading', { name: 'WhatsApp webhook monitor.' }).waitFor();
     assert.equal(await page.locator('#key').getAttribute('type'), 'password');
     assert.equal(await page.locator('#status').textContent(), 'Not connected.');
-    assert.equal(await page.locator('#project').getAttribute('value'), null, 'project URL is not prefilled');
+    assert.equal(await page.locator('#project').inputValue(), 'https://gpafuuoxrbzveaddomgt.supabase.co', 'monitor points to the Dimdian Supabase project');
     assert.equal(await page.locator('#key').getAttribute('value'), null, 'monitor key is not embedded in the page');
   } finally {
     await browser.close();
