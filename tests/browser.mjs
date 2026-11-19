@@ -67,14 +67,16 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     // The owner-only integration console must load as a static page and must
     // request its access key at runtime rather than embedding credentials.
     await page.goto(`http://127.0.0.1:${address.port}/whatsapp-test.html`);
-    await page.getByRole('heading', { name: 'WhatsApp webhook monitor.' }).waitFor();
-    assert.equal(await page.locator('#key').getAttribute('type'), 'password');
-    assert.equal(await page.locator('#status').textContent(), 'Not connected.');
-    assert.equal(await page.locator('#project').inputValue(), 'https://gpafuuoxrbzveaddomgt.supabase.co', 'monitor points to the Dimdian Supabase project');
-    assert.equal(await page.locator('#key').getAttribute('value'), null, 'monitor key is not embedded in the page');
     await page.getByRole('heading', { name: 'Connection checks.' }).waitFor();
+    assert.equal(await page.locator('#key').getAttribute('type'), 'password');
+    assert.equal(await page.locator('#verify-token').getAttribute('type'), 'password');
+    assert.equal(await page.locator('#monitor-status').textContent(), 'Not checked yet.');
+    assert.equal(await page.locator('#project').inputValue(), 'https://gpafuuoxrbzveaddomgt.supabase.co', 'console points to the Dimdian Supabase project');
+    assert.equal(await page.locator('#key').getAttribute('value'), null, 'monitor key is not embedded in the page');
+    assert.equal(await page.locator('#verify-token').getAttribute('value'), null, 'webhook verify token is not embedded in the page');
     assert.equal(await page.locator('#verify-token').getAttribute('type'), 'password');
     await page.getByRole('button', { name: 'Test verification' }).waitFor();
+    await page.getByRole('button', { name: 'Test & load events' }).waitFor();
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
