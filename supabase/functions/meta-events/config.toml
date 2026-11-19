@@ -1,0 +1,3 @@
+# The viewer uses a separate owner-entered access key and strict Origin check.
+# Do not expose this function's database credential to the browser.
+verify_jwt = false
