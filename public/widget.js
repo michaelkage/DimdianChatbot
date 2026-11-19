@@ -67,9 +67,9 @@ function notice(t){const n=document.createElement('div');n.className='notice';n.
 function clear(){messages.replaceChildren();seen.clear();cursor=0;welcome.hidden=false;}
 async function startSession(){
  const rawPhone=$('.phone').value.trim();
- const phone=rawPhone.replace(/[\\s()-]/g,'');
+ const phone=rawPhone.replace(/[\s()-]/g,'');
  const optedIn=$('.wa-opt-in').checked;
- if(rawPhone&&!/^(?:\\+|00)\\d{8,15}$/.test(phone)){status('Enter the phone number in international format, including + and country code.','warning');$('.phone').focus();throw new Error('Please correct the phone number and try again.');}
+ if(rawPhone&&!/^(?:\+|00)\d{8,15}$/.test(phone)){status('Enter the phone number in international format, including + and country code.','warning');$('.phone').focus();throw new Error('Please correct the phone number and try again.');}
  if(optedIn&&!phone){status('Add your WhatsApp number before choosing WhatsApp continuation.','warning');$('.phone').focus();throw new Error('A WhatsApp number is required for WhatsApp continuation.');}
  const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:rawPhone||null,whatsapp_opt_in:optedIn})});
  if(!body.data||!/^[a-f0-9]{64}$/.test(body.data.session_token||''))throw new Error('Could not initialize a chat session.');
