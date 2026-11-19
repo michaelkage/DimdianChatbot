@@ -15,7 +15,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function equalHex(a: string, b: string): boolean {
+function constantTimeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let mismatch = 0;
   for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
@@ -39,7 +39,7 @@ async function validMetaSignature(rawBody: Uint8Array, header: string | null, ap
   const match = /^sha256=([a-f0-9]{64})$/i.exec(header.trim());
   if (!match) return false;
   const expected = await hmacSha256Hex(appSecret, rawBody);
-  return equalHex(expected, match[1].toLowerCase());
+  return constantTimeEqual(expected, match[1].toLowerCase());
 }
 
 function maskNumber(value: unknown): string | null {
@@ -194,7 +194,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const token = url.searchParams.get("hub.verify_token") ?? url.searchParams.get("hub_verify_token") ?? "";
     const challenge = url.searchParams.get("hub.challenge") ?? url.searchParams.get("hub_challenge") ?? "";
     const expected = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
-    if (mode === "subscribe" && expected && token === expected && challenge) {
+    if (mode === "subscribe" && expected && constantTimeEqual(token, expected) && challenge) {
       return new Response(challenge, {
         status: 200,
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
