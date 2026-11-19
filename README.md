@@ -51,6 +51,8 @@ The public demo is a mock Dimdian website with the actual widget code running in
 
 The demo does not connect to the PHP API, database or WhatsApp. It hides the visitor name/phone and WhatsApp consent fields, simulates a support reply, and does not persist messages after the page is reloaded. It is for trying the look and feel only; it is not the production service.
 
+An owner-only diagnostic page is also being prepared at [the WhatsApp integration test console](https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html). It will display verified Meta webhook events after the separate Supabase test project is configured. It is not a customer inbox and does not initiate WhatsApp onboarding or send messages.
+
 ## 4. Production hosting plan
 
 The intended hosting is the existing **Hostinger Business Web Hosting** account, using the subdomain:
@@ -264,6 +266,8 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Production WordPress embed | Not yet configured |
 | Production database and private config | Not yet created |
 | WhatsApp credentials/template | Not configured |
+| Supabase mock-site webhook receiver | Source scaffolded; project and secrets not configured |
+| Owner-only webhook test console | Page added; waiting for Supabase deployment |
 | Coexistence for the actual +234 Dimdian number | Not verified |
 | Live WhatsApp message/reply round trip | Not tested |
 
