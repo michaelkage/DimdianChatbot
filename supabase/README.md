@@ -21,18 +21,18 @@ The event viewer requires a separate `DEMO_MONITOR_ACCESS_KEY`, checks the exact
 
 ## Deployment status\n\nThe `meta_webhook_events` table and both Edge Functions (`meta-webhook`, `meta-events`) are now deployed to the Dimdian Supabase project. The functions are active with JWT verification disabled because they implement their own webhook-signature or owner-key authentication. The remaining setup is to add the three required secrets (`META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `DEMO_MONITOR_ACCESS_KEY`) and optionally `META_PHONE_NUMBER_ID`, then complete Meta's webhook subscription and live test.\n\n## Setup and remaining configuration
 
-1. Open the Supabase SQL Editor and run `supabase/schema.sql`.
+1. The migration `create_private_meta_webhook_events` has already been applied to the Dimdian project; do not run the schema a second time.
 2. In Edge Function Secrets, add:
    - `META_APP_SECRET`: the Meta app secret.
    - `META_WEBHOOK_VERIFY_TOKEN`: a long random value you create; this is not the Meta app secret.
    - `DEMO_MONITOR_ACCESS_KEY`: a separate long random value for the owner-only event viewer.
    - `META_PHONE_NUMBER_ID` (optional): restrict event recording to one expected Meta phone-number ID.
-3. Deploy both functions, `meta-webhook` and `meta-events`, using the Supabase CLI or a supported dashboard deployment workflow. The root `supabase/config.toml` contains the required `verify_jwt = false` settings.
+3. Both functions are already deployed and active. Redeploy only when their source changes. The root `supabase/config.toml` records the required `verify_jwt = false` settings.
 4. Set the Meta WhatsApp webhook callback URL to:
    `https://PROJECT_REF.supabase.co/functions/v1/meta-webhook`
 5. Set the exact same `META_WEBHOOK_VERIFY_TOKEN` value in Meta's Verify Token field.
 6. Subscribe to the WhatsApp Business Account fields required for the test, including `messages` and `smb_message_echoes` if Meta exposes the latter for the connected Coexistence setup.
-7. Open `https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html`, enter the project URL and monitor key, and verify that events appear after Meta sends them.
+7. Open `https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html`. The project URL is prefilled; enter the `DEMO_MONITOR_ACCESS_KEY` and load recent events after the secret has been configured.
 
 Do not put the Meta App Secret, access token, verify token, monitor key, or Supabase secret key in `docs/`, GitHub Pages JavaScript, or any public browser code. The monitor key is entered by the owner at runtime and held only in page memory.
 
