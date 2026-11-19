@@ -189,18 +189,27 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
 
+  const origin = request.headers.get("origin");
+  const corsHeaders = new Headers({ "Cache-Control": "no-store", Vary: "Origin" });
+  if (origin === "https://michaelkage.github.io") {
+    corsHeaders.set("Access-Control-Allow-Origin", origin);
+    corsHeaders.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    corsHeaders.set("Access-Control-Max-Age", "600");
+  }
+  if (method === "OPTIONS") {
+    if (origin !== "https://michaelkage.github.io") return new Response(null, { status: 403 });
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
   if (method === "GET") {
     const mode = url.searchParams.get("hub.mode") ?? url.searchParams.get("hub_mode") ?? "";
     const token = url.searchParams.get("hub.verify_token") ?? url.searchParams.get("hub_verify_token") ?? "";
     const challenge = url.searchParams.get("hub.challenge") ?? url.searchParams.get("hub_challenge") ?? "";
     const expected = Deno.env.get("META_WEBHOOK_VERIFY_TOKEN") ?? "";
     if (mode === "subscribe" && expected && constantTimeEqual(token, expected) && challenge) {
-      return new Response(challenge, {
-        status: 200,
-        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
-      });
+      corsHeaders.set("Content-Type", "text/plain; charset=utf-8");
+      return new Response(challenge, { status: 200, headers: corsHeaders });
     }
-    return new Response("Forbidden", { status: 403 });
+    return new Response("Forbidden", { status: 403, headers: corsHeaders });
   }
 
   if (method !== "POST") {
