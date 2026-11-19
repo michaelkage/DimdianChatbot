@@ -22,7 +22,7 @@ function equalHex(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-async function hmacSha256Hex(secret: string, body: string): Promise<string> {
+async function hmacSha256Hex(secret: string, body: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -30,11 +30,11 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const signature = await crypto.subtle.sign("HMAC", key, body);
   return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function validMetaSignature(rawBody: string, header: string | null, appSecret: string): Promise<boolean> {
+async function validMetaSignature(rawBody: Uint8Array, header: string | null, appSecret: string): Promise<boolean> {
   if (!header || !appSecret) return false;
   const match = /^sha256=([a-f0-9]{64})$/i.exec(header.trim());
   if (!match) return false;
@@ -123,9 +123,11 @@ function eventRow(
   };
 }
 
-async function extractRows(payload: Record<string, unknown>, rawBody: string): Promise<Record<string, unknown>[]> {
+async function extractRows(payload: Record<string, unknown>, rawBody: Uint8Array): Promise<Record<string, unknown>[]> {
   const rows: Record<string, unknown>[] = [];
-  const payloadHash = await digestHex(rawBody);
+  const digest = await crypto.subtle.digest("SHA-256", rawBody);
+  const payloadHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const expectedPhoneNumberId = Deno.env.get("META_PHONE_NUMBER_ID") ?? "";
   const entries = Array.isArray(payload.entry) ? payload.entry : [];
 
   for (const entryValue of entries) {
@@ -139,6 +141,11 @@ async function extractRows(payload: Record<string, unknown>, rawBody: string): P
       const value = change.value && typeof change.value === "object"
         ? change.value as Record<string, unknown>
         : {};
+      const metadata = value.metadata && typeof value.metadata === "object"
+        ? value.metadata as Record<string, unknown>
+        : {};
+      const receivedPhoneNumberId = String(metadata.phone_number_id ?? "");
+      if (expectedPhoneNumberId && receivedPhoneNumberId !== expectedPhoneNumberId) continue;
 
       if (field === "smb_message_echoes") {
         const echoes = Array.isArray(value.message_echoes) ? value.message_echoes : [];
@@ -203,8 +210,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const appSecret = Deno.env.get("META_APP_SECRET") ?? "";
   if (!appSecret) return json({ error: "Webhook is not configured." }, 503);
 
-  const rawBody = await request.text();
-  if (rawBody.length > 1_048_576) return new Response("Payload Too Large", { status: 413 });
+  const rawBody = new Uint8Array(await request.arrayBuffer());
+  if (rawBody.byteLength > 1_048_576) return new Response("Payload Too Large", { status: 413 });
 
   const signature = request.headers.get("x-hub-signature-256");
   if (!(await validMetaSignature(rawBody, signature, appSecret))) {
@@ -213,7 +220,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   let payload: Record<string, unknown>;
   try {
-    const parsed = JSON.parse(rawBody);
+    const parsed = JSON.parse(new TextDecoder().decode(rawBody));
     if (!parsed || typeof parsed !== "object" || parsed.object !== "whatsapp_business_account") {
       return json({ error: "Invalid WhatsApp webhook payload." }, 400);
     }
