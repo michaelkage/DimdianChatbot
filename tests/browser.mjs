@@ -59,6 +59,15 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     await widget.locator('.launcher').click();
     const panelBox = await widget.locator('.panel').boundingBox();
     assert.ok(panelBox && panelBox.width <= 390 && panelBox.x >= 0, 'chat panel fits the mobile viewport');
+
+    // The owner-only integration console must load as a static page and must
+    // request its access key at runtime rather than embedding credentials.
+    await page.goto(`http://127.0.0.1:${address.port}/whatsapp-test.html`);
+    await page.getByRole('heading', { name: 'WhatsApp webhook monitor.' }).waitFor();
+    assert.equal(await page.locator('#key').getAttribute('type'), 'password');
+    assert.equal(await page.locator('#status').textContent(), 'Not connected.');
+    assert.equal(await page.locator('#project').getAttribute('value'), null, 'project URL is not prefilled');
+    assert.equal(await page.locator('#key').getAttribute('value'), null, 'monitor key is not embedded in the page');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
