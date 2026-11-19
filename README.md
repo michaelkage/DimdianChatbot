@@ -266,8 +266,8 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Production WordPress embed | Not yet configured |
 | Production database and private config | Not yet created |
 | WhatsApp credentials/template | Not configured |
-| Supabase mock-site webhook receiver | Source scaffolded; project and secrets not configured |
-| Owner-only webhook test console | Page added; waiting for Supabase deployment |
+| Supabase webhook event table | Deployed; RLS enabled and browser roles have no access |
+| Supabase Edge Functions (`meta-webhook`, `meta-events`) | Deployed and active; required application secrets still need configuring |
 | Coexistence for the actual +234 Dimdian number | Not verified |
 | Live WhatsApp message/reply round trip | Not tested |
 
