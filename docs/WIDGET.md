@@ -21,6 +21,9 @@ The hostname above is an example deployment value. Do not add it to WordPress un
 - Message bodies are inserted as text, never interpreted as HTML.
 - Polling runs while the panel is open and the page is visible, with backoff on errors.
 - Messages are labelled Website only unless an opted-in WhatsApp template send is actually queued. Delivery statuses update as webhook events arrive.
+- The welcome screen offers optional quick starts for finding a part, checking availability and asking about an order. These only prefill the message box; they do not send anything.
+- The launcher exposes its expanded state to assistive technology. Escape closes the panel and returns focus to the launcher.
+- If a visitor enters a phone number, it must use international format. WhatsApp continuation additionally requires a phone number and explicit consent.
 
 ## Script attributes
 
@@ -35,3 +38,11 @@ The hostname above is an example deployment value. Do not add it to WordPress un
 ## Boundary
 
 The widget can exchange text messages with the PHP API. Actual WhatsApp delivery and Business-app reply mirroring depend on the approved template, verified Meta credentials and working Coexistence webhooks for the target number.
+
+## Demo and connection diagnostics
+
+The GitHub Pages demo deliberately remains simulated and does not create real customer conversations. The private [connection diagnostics page](https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html) has two separate checks:
+- Event monitor: confirms the owner-only monitor key can read the latest 50 webhook events.
+- Webhook verification: sends a random challenge to the deployed Supabase webhook and confirms the configured verify token is accepted. The token is used only for the request and is not saved by the page.
+
+Neither check sends a WhatsApp message or changes the production PHP/MySQL service.
