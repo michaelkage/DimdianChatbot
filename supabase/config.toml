@@ -1,0 +1,4 @@
+# This function is called by Meta, which cannot provide a Supabase JWT.
+# It verifies Meta's X-Hub-Signature-256 header itself before writing anything.
+[functions.meta-webhook]
+verify_jwt = false
