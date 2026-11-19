@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142c25">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Dimdian — WhatsApp integration test</title>
+  <style>
+    :root{color-scheme:light;--ink:#17251f;--muted:#68766e;--green:#244d40;--paper:#f6f5ef;--line:#e4e7df}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{width:min(920px,calc(100% - 32px));margin:48px auto}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px}
+    .brand{font-size:18px;font-weight:800;letter-spacing:-.05em}.tag{padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:11px}
+    h1{margin:0;font-size:clamp(30px,5vw,44px);letter-spacing:-.06em;line-height:1.05}.intro{max-width:650px;margin:12px 0 26px;color:var(--muted)}
+    .panel{padding:22px;border:1px solid var(--line);border-radius:18px;background:#fff}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{display:block;color:#47564d;font-size:11px;font-weight:700}input{display:block;width:100%;height:44px;margin-top:6px;padding:0 12px;border:1px solid #dfe4dd;border-radius:9px;background:#fff;color:var(--ink);font:inherit}
+    input:focus{outline:3px solid #dcebe2;border-color:#6d927f}.actions{display:flex;align-items:center;gap:12px;margin-top:14px}
+    button{height:42px;padding:0 16px;border:0;border-radius:9px;background:var(--green);color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:wait}
+    .status{min-height:20px;color:var(--muted);font-size:12px}.status[data-kind=error]{color:#a13d34}
+    .events{display:grid;gap:10px;margin-top:18px}.event{padding:15px;border:1px solid var(--line);border-radius:12px;background:#fff}
+    .event-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.kind{font-size:12px;font-weight:800}.time{color:#8a948d;font-size:10px}
+    .meta{margin-top:6px;color:var(--muted);font-size:11px}.body{margin:9px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+    .empty{padding:30px 18px;border:1px dashed #ccd5cc;border-radius:12px;color:var(--muted);text-align:center;font-size:12px}
+    .note{margin-top:18px;color:#89928b;font-size:11px}.note strong{color:#536359}
+    @media(max-width:620px){main{margin:25px auto}.fields{grid-template-columns:1fr}.panel{padding:16px}.event-top{align-items:flex-start;flex-direction:column;gap:3px}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="top"><a class="brand" href="./">D / dimdian</a><span class="tag">OWNER TEST CONSOLE</span></div>
+    <h1>WhatsApp webhook monitor.</h1>
+    <p class="intro">A private diagnostic view for checking whether Meta is reaching the Supabase webhook. This page does not connect a number, send WhatsApp messages, or change the production PHP service.</p>
+    <section class="panel" aria-label="Connect to the test monitor">
+      <div class="fields">
+        <label>Supabase project URL<input id="project" type="url" inputmode="url" placeholder="https://your-project-ref.supabase.co" autocomplete="url"></label>
+        <label>Monitor access key<input id="key" type="password" placeholder="Enter the owner-only monitor key" autocomplete="off"></label>
+      </div>
+      <div class="actions"><button id="load" type="button">Load recent events</button><span id="status" class="status" role="status">Not connected.</span></div>
+    </section>
+    <section id="events" class="events" aria-live="polite"><div class="empty">Enter the project URL and owner key to inspect webhook events.</div></section>
+    <p class="note"><strong>Privacy:</strong> the key is kept only in this page's memory. Event phone numbers are masked. Avoid using real customer conversations during the test; use a dedicated test number and test messages.</p>
+  </main>
+  <script>
+    (() => {
+      const project = document.querySelector('#project');
+      const key = document.querySelector('#key');
+      const load = document.querySelector('#load');
+      const status = document.querySelector('#status');
+      const events = document.querySelector('#events');
+
+      function setStatus(message, kind) {
+        status.textContent = message;
+        status.dataset.kind = kind || 'normal';
+      }
+      function safeText(value) {
+        return value == null || value === '' ? '—' : String(value);
+      }
+      function render(rows) {
+        events.replaceChildren();
+        if (!rows.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No webhook events have been recorded yet. Once Meta sends a valid event, it will appear here.';
+          events.append(empty);
+          return;
+        }
+        for (const row of rows) {
+          const article = document.createElement('article');
+          article.className = 'event';
+          const top = document.createElement('div');
+          top.className = 'event-top';
+          const kind = document.createElement('span');
+          kind.className = 'kind';
+          kind.textContent = safeText(row.event_kind);
+          const time = document.createElement('time');
+          time.className = 'time';
+          time.textContent = row.received_at ? new Date(row.received_at).toLocaleString() : 'Time unavailable';
+          top.append(kind, time);
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = [safeText(row.event_field), safeText(row.message_type), 'From ' + safeText(row.from_number_masked), 'To ' + safeText(row.to_number_masked), safeText(row.processing_status)].join(' · ');
+          article.append(top, meta);
+          if (row.message_text) {
+            const body = document.createElement('p');
+            body.className = 'body';
+            body.textContent = row.message_text;
+            article.append(body);
+          }
+          events.append(article);
+        }
+      }
+      load.addEventListener('click', async () => {
+        const base = project.value.trim().replace(/\/+$/, '');
+        const accessKey = key.value;
+        if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(base) || !accessKey) {
+          setStatus('Enter a valid Supabase project URL and the monitor key.', 'error');
+          return;
+        }
+        load.disabled = true;
+        setStatus('Checking the webhook event log…');
+        try {
+          const response = await fetch(base + '/functions/v1/meta-events', {
+            method: 'GET',
+            headers: { 'x-demo-access-key': accessKey },
+            cache: 'no-store',
+            credentials: 'omit'
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || 'Could not load events (' + response.status + ').');
+          render(Array.isArray(result.events) ? result.events : []);
+          setStatus('Connected · ' + (result.events || []).length + ' recent event(s).');
+        } catch (error) {
+          setStatus(error.message || 'Connection failed.', 'error');
+        } finally {
+          load.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
