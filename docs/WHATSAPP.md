@@ -71,3 +71,29 @@ The `smb_message_echoes` event is the mechanism used to mirror text replies sent
 ## Current scope
 
 Text messages only. No media download, attachments, voice notes, group chats, template management, message editing/deletion sync, or automatic conversation assignment.
+
+## Embedded Signup and Coexistence onboarding
+
+The mock-site integration must use **WhatsApp Embedded Signup v4**, not older v2/v3 snippets. Meta's v2/v3 Embedded Signup flow was retired for new onboarding on 15 October 2026. Create a v4 Facebook Login for Business configuration in the Meta App Dashboard before attempting to launch signup.
+
+For a Coexistence-capable flow, the Embedded Signup launch uses the Facebook JavaScript SDK and the configuration ID created in Meta. The launch request uses `response_type: "code"`, `override_default_response_type: true`, and the Coexistence feature flag:
+
+```js
+FB.login(callback, {
+  config_id: "YOUR_V4_CONFIGURATION_ID",
+  response_type: "code",
+  override_default_response_type: true,
+  extras: {
+    setup: {
+      solutionID: "YOUR_PARTNER_SOLUTION_ID"
+    },
+    featureType: "whatsapp_business_app_onboarding"
+  }
+});
+```
+
+The page must also listen for the `WA_EMBEDDED_SIGNUP` window message and handle the `FINISH`, `CANCEL`, and `ERROR` events. The login callback separately returns the short-lived authorization code. Do not confuse the session-info message with the authorization-code callback.
+
+The authorization code must be exchanged server-side. Never send the Meta App Secret to the browser or commit it to Git. The App ID, v4 Configuration ID and Partner Solution ID are identifiers, not secrets, but the Meta app still needs the appropriate Tech Provider/partner setup and permissions before the flow can complete.
+
+**Current state:** the Supabase webhook receiver and owner-only event monitor are scaffolded in this repository. The Embedded Signup launcher and server-side authorization-code exchange are not yet enabled. They require the actual Meta App ID, v4 Configuration ID and Partner Solution ID. Do not start onboarding the live Dimdian number until the owner explicitly approves the exact flow and a safe test number/account is selected.
