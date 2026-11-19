@@ -31,6 +31,7 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     const launcher = widget.locator('.launcher');
     await launcher.waitFor();
     await launcher.click();
+    assert.equal(await launcher.getAttribute('aria-expanded'), 'true');
     const panel = widget.locator('.panel');
     await assert.doesNotReject(() => panel.waitFor({ state: 'visible' }));
     await assert.doesNotReject(() => widget.locator('.fields').evaluate(el => {
@@ -41,6 +42,8 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     }));
 
     const input = widget.locator('textarea');
+    await widget.locator('.quick-reply').first().click();
+    assert.equal(await input.inputValue(), 'I need help finding a part.');
     await input.fill('Hello, I would like to know more.');
     await widget.locator('.send').click();
     await page.getByText('Hello, I would like to know more.').waitFor();
@@ -48,6 +51,7 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     assert.equal(await widget.locator('.message').count(), 2);
 
     await widget.locator('.close').click();
+    assert.equal(await launcher.getAttribute('aria-expanded'), 'false');
     await launcher.click();
     assert.equal(await widget.locator('.message').count(), 2, 'conversation remains visible after close and reopen');
 
@@ -68,6 +72,9 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     assert.equal(await page.locator('#status').textContent(), 'Not connected.');
     assert.equal(await page.locator('#project').inputValue(), 'https://gpafuuoxrbzveaddomgt.supabase.co', 'monitor points to the Dimdian Supabase project');
     assert.equal(await page.locator('#key').getAttribute('value'), null, 'monitor key is not embedded in the page');
+    await page.getByRole('heading', { name: 'Connection checks.' }).waitFor();
+    assert.equal(await page.locator('#verify-token').getAttribute('type'), 'password');
+    await page.getByRole('button', { name: 'Test verification' }).waitFor();
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
