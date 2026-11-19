@@ -26,6 +26,7 @@ The event viewer requires a separate `DEMO_MONITOR_ACCESS_KEY`, checks the exact
    - `META_APP_SECRET`: the Meta app secret.
    - `META_WEBHOOK_VERIFY_TOKEN`: a long random value you create; this is not the Meta app secret.
    - `DEMO_MONITOR_ACCESS_KEY`: a separate long random value for the owner-only event viewer.
+   - `META_PHONE_NUMBER_ID` (optional): restrict event recording to one expected Meta phone-number ID.
 3. Deploy both functions, `meta-webhook` and `meta-events`, using the Supabase CLI or a supported dashboard deployment workflow. The root `supabase/config.toml` contains the required `verify_jwt = false` settings.
 4. Set the Meta WhatsApp webhook callback URL to:
    `https://PROJECT_REF.supabase.co/functions/v1/meta-webhook`
