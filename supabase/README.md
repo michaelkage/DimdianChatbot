@@ -19,7 +19,7 @@ The webhook verifies the exact raw POST body using HMAC-SHA256 and `X-Hub-Signat
 
 The event viewer requires a separate `DEMO_MONITOR_ACCESS_KEY`, checks the exact GitHub Pages Origin, and returns only the latest 50 selected event fields. The browser never receives the Supabase database credential.
 
-## Setup after the Supabase project is created
+## Deployment status\n\nThe `meta_webhook_events` table and both Edge Functions (`meta-webhook`, `meta-events`) are now deployed to the Dimdian Supabase project. The functions are active with JWT verification disabled because they implement their own webhook-signature or owner-key authentication. The remaining setup is to add the three required secrets (`META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `DEMO_MONITOR_ACCESS_KEY`) and optionally `META_PHONE_NUMBER_ID`, then complete Meta's webhook subscription and live test.\n\n## Setup and remaining configuration
 
 1. Open the Supabase SQL Editor and run `supabase/schema.sql`.
 2. In Edge Function Secrets, add:
