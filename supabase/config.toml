@@ -1,4 +1,8 @@
-# This function is called by Meta, which cannot provide a Supabase JWT.
-# It verifies Meta's X-Hub-Signature-256 header itself before writing anything.
+# Meta calls the webhook without a Supabase JWT. The function verifies
+# Meta's X-Hub-Signature-256 HMAC before accepting event payloads.
 [functions.meta-webhook]
+verify_jwt = false
+
+# The owner-only monitor uses its own access key and strict Origin allowlist.
+[functions.meta-events]
 verify_jwt = false
