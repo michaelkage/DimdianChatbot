@@ -130,7 +130,7 @@ Start from `config.example.php`. The important application values are:
 | `app.app_key` | A cryptographically random secret of at least 32 characters. Generate one on a trusted machine, for example with `openssl rand -hex 32`. |
 | `app.timezone` | `Africa/Lagos` |
 | `app.public_base_url` | `https://chat.dimdian.com` |
-| `app.tenant_id` | Tenant UUID used by the single-tenant CLI workers. Public API requests resolve the tenant from the verified `tenant_sites` registry, not from a browser-supplied tenant ID. |
+| `app.tenant_id` | Default tenant UUID for CLI workers when no explicit tenant argument is supplied. Public API requests resolve the tenant from the verified `tenant_sites` registry, not from a browser-supplied tenant ID. |
 | `app.encryption_key` | Persistent 32-byte key (64 hex characters) used to encrypt tenant provider credentials. Back it up securely; losing it makes stored credentials unreadable. |
 | `database.dsn` | Hostinger database DSN in the form `mysql:host=DB_HOST;dbname=DB_NAME;charset=utf8mb4`. Use the exact database host/name shown in hPanel. |
 | `database.username` / `database.password` | Dedicated chat database credentials. |
