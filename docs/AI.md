@@ -14,7 +14,7 @@ The AI layer is optional and disabled for every tenant until explicitly configur
 
 ## Setup
 
-1. Apply migration 004, then migration 005.
+1. Apply migrations 004 through 007 in order. Migration 005 creates the AI tables; the later migrations add tenant admin keys and Meta/Coexistence channel lifecycle tables.
 2. Set a persistent 32-byte `app.encryption_key` in private `config.php`. Generate it once with:
 
    ```sh
