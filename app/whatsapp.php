@@ -334,7 +334,8 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         ':payload_hash' => hash('sha256', $historyJson),
                         ':payload' => $historyJson,
                     ]);
-                    $isFinal = !empty($value['is_final']) || (int)($value['progress'] ?? 0) >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
+                    $progress = $value['progress'] ?? ($value['metadata']['progress'] ?? 0);
+                    $isFinal = !empty($value['is_final']) || (int)$progress >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
                     $syncUpdate = $pdo->prepare(
                         'UPDATE channel_sync_jobs SET status = :status,
                             completed_at = CASE WHEN :is_final = 1 THEN UTC_TIMESTAMP() ELSE completed_at END,
