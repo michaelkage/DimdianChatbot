@@ -7,7 +7,24 @@ const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace
 const commerceApi = script.dataset.commerceApi || '';
 const ordersApi = script.dataset.ordersApi || '';
 const restNonce = script.dataset.restNonce || '';
+const features = {
+  offlineQueue: script.dataset.offlineQueue === 'true',
+  typingIndicator: script.dataset.typingIndicator === 'true',
+};
+const splitRules = value => String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+const hidePaths = splitRules(script.dataset.hidePaths);
+const showPaths = splitRules(script.dataset.showPaths);
+const hideSelectors = splitRules(script.dataset.hideSelectors);
+const compactSelectors = splitRules(script.dataset.compactSelectors);
+const pathMatches = pattern => pattern.endsWith('*') ? location.pathname.startsWith(pattern.slice(0, -1)) : location.pathname === pattern;
+if ((showPaths.length && !showPaths.some(pathMatches)) || hidePaths.some(pathMatches)) return;
+const matchesSelector = selectors => selectors.some(selector => {
+  try { return Boolean(document.querySelector(selector)); } catch (_) { return false; }
+});
+if (matchesSelector(hideSelectors)) return;
+const compactMode = matchesSelector(compactSelectors);
 const key = 'dimdian-chat:' + api + ':' + location.origin;
+const queueKey = key + ':offline-outbox';
 const root = document.createElement('div');
 root.id = 'dimdian-chat-widget';
 const shadow = root.attachShadow({mode:'open'});
@@ -27,6 +44,18 @@ const $ = s => shadow.querySelector(s);
 const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome');
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
+if (script.dataset.primaryColor) root.style.setProperty('--cb-primary', script.dataset.primaryColor);
+if (script.dataset.accentColor) root.style.setProperty('--cb-accent', script.dataset.accentColor);
+if (script.dataset.launcherText) launcher.lastChild.textContent = ' ' + script.dataset.launcherText;
+if (script.dataset.logoUrl) {
+  const mark = $('.mark');
+  mark.textContent = '';
+  mark.style.backgroundImage = 'url("' + script.dataset.logoUrl.replace(/["\\\\]/g, '') + '")';
+  mark.style.backgroundSize = 'cover';
+  mark.style.backgroundPosition = 'center';
+  mark.setAttribute('aria-label', script.dataset.title || 'Support');
+}
+if (compactMode) root.classList.add('compact-mode');
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
 const orderQuickReply=shadow.querySelector('[data-action="orders"]');
 if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
@@ -38,7 +67,68 @@ shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener(
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 const messageNodes=new Map();
+const pendingNodes=new Map();
 let pendingSubmission=null;
+let typingTimer=null;
+function readQueue(){
+ if(!features.offlineQueue)return [];
+ try{const value=JSON.parse(localStorage.getItem(queueKey)||'[]');return Array.isArray(value)?value.filter(item=>item&&typeof item.id==='string'&&typeof item.text==='string').slice(0,20):[];}catch(_){return [];}
+}
+function writeQueue(items){
+ if(!features.offlineQueue)return;
+ try{localStorage.setItem(queueKey,JSON.stringify(items.slice(0,20)));}catch(_){status('This browser could not save the offline message queue.','warning');}
+}
+function showQueued(item){
+ if(pendingNodes.has(item.id))return;
+ const article=document.createElement('article');article.className='message visitor pending-local';
+ const body=document.createElement('p');body.className='body';body.textContent=item.text;
+ const meta=document.createElement('div');meta.className='message-meta';
+ const time=document.createElement('time');time.textContent='Saved on this device';
+ const state=document.createElement('span');state.textContent='Waiting for connection';state.dataset.status='queued_local';
+ meta.append(time,state);article.append(body,meta);messages.append(article);pendingNodes.set(item.id,article);welcome.hidden=true;scroll();
+}
+function queueMessage(text,id){
+ const queue=readQueue();
+ if(queue.some(item=>item.id===id))return;
+ if(queue.length>=20){status('Your offline queue is full. Reconnect and send the saved messages first.','warning');return;}
+ const item={id,text,createdAt:new Date().toISOString()};
+ queue.push(item);writeQueue(queue);showQueued(item);
+ input.value='';$('.count').textContent='0 / 4000';
+ status(navigator.onLine?'Message saved locally. It will retry shortly.':'Offline — message saved on this device.','warning');
+}
+function removeQueued(id){
+ const node=pendingNodes.get(id);if(node)node.remove();pendingNodes.delete(id);
+ writeQueue(readQueue().filter(item=>item.id!==id));
+}
+async function flushQueue(){
+ if(!features.offlineQueue||!navigator.onLine||busy)return;
+ const queue=readQueue();if(!queue.length)return;
+ busy=true;
+ try{
+  if(!session)await startSession();
+  for(const item of queue){
+   const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:item.text,client_message_id:item.id})});
+   removeQueued(item.id);
+   if(result.data)render(result.data);
+  }
+  status('Saved messages sent. Waiting for a reply.');
+ }catch(error){status('Some messages are still saved on this device. We will retry when the connection returns.','warning');}
+ finally{busy=false;}
+}
+function showTyping(){
+ if(!features.typingIndicator||typingTimer)return;
+ typingTimer=setTimeout(()=>{
+  typingTimer=null;
+  if(shadow.querySelector('.typing'))return;
+  const bubble=document.createElement('div');bubble.className='typing';bubble.setAttribute('role','status');bubble.setAttribute('aria-label','A reply is being prepared');
+  bubble.innerHTML='<span></span><span></span><span></span>';
+  messages.append(bubble);scroll();
+ },650);
+}
+function hideTyping(){
+ if(typingTimer){clearTimeout(typingTimer);typingTimer=null;}
+ const bubble=shadow.querySelector('.typing');if(bubble)bubble.remove();
+}
 function openProductSearch(){
  $('.welcome').hidden=true;$('.commerce').hidden=false;$('.commerce-status').textContent='Search the products available on this website.';$('.product-results').replaceChildren();$('.commerce-search input').focus();scroll();
 }
@@ -124,6 +214,7 @@ function deliveryLabel(state){return ({queued:'Queued',sent:'Sent',delivered:'De
 function applyDeliveryUpdates(rows){(Array.isArray(rows)?rows:[]).forEach(row=>{const node=messageNodes.get(row.id);if(!node)return;node.textContent=deliveryLabel(row.delivery_status);node.dataset.status=row.delivery_status;});}
 function render(m){
  if(!m||!m.id||seen.has(m.id))return;seen.add(m.id);
+ if(m.sender!=='visitor')hideTyping();
  const article=document.createElement('article');article.className='message '+(m.sender==='visitor'?'visitor':'business');
  const body=document.createElement('p');body.className='body';body.textContent=String(m.message||'');
  const meta=document.createElement('div');meta.className='message-meta';
@@ -175,6 +266,7 @@ function stop(){if(timer)clearTimeout(timer);timer=null;}
 function schedule(){stop();if(opened&&session)timer=setTimeout(async()=>{await poll();schedule();},delay);}
 async function send(text){
  if(busy)return;
+ if(!demo&&features.offlineQueue&&!navigator.onLine){queueMessage(text,pendingSubmission&&pendingSubmission.text===text?pendingSubmission.id:newMessageId());return;}
  if(demo){
   busy=true;$('.send').disabled=true;input.disabled=true;status('Sending demo message…');
   const now=new Date().toISOString();
@@ -196,9 +288,11 @@ async function send(text){
   if(result.data)render(result.data);
   pendingSubmission=null;
   input.value='';$('.count').textContent='0 / 4000';status('Message saved. Waiting for a reply.');
+  showTyping();
   delay=1000;await poll();schedule();
  }catch(e){
   if((e.status===401||e.status===409)&&session){expired();input.value=text;status('Your chat session ended. Send again to start a new chat.','warning');}
+  else if(features.offlineQueue&&(!e.status||e.status>=500)){queueMessage(text,pendingSubmission.id);}
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
 }
@@ -210,7 +304,11 @@ form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.tri
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
+window.addEventListener('online',()=>{if(features.offlineQueue)flushQueue();if(opened&&session)poll().finally(schedule);});
+window.addEventListener('offline',()=>{if(features.offlineQueue)status('You are offline. New messages can be saved on this device.','warning');});
+if(features.offlineQueue)readQueue().forEach(showQueued);
 if(demo)status('Preview only — messages are simulated and not saved.');
 else if(session)status('Your conversation is ready.');
+if(features.offlineQueue&&navigator.onLine&&readQueue().length)flushQueue();
 if(script.dataset.open==='true')open();
 })();
