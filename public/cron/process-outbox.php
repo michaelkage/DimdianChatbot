@@ -17,8 +17,12 @@ if (!is_array($config) || empty($config['outbound_enabled'])) {
 }
 
 try {
+    $tenantId = (string)app_config('app.tenant_id');
+    if ($tenantId === '') {
+        throw new RuntimeException('app.tenant_id must be configured for the tenant-scoped outbox worker.');
+    }
     $transport = new MetaCloudApiTransport($config);
-    $summary = process_whatsapp_outbox(database(), $transport, 10, 6);
+    $summary = process_whatsapp_outbox(database(), $transport, $tenantId, 10, 6);
     fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_SLASHES) . PHP_EOL);
 } catch (Throwable $error) {
     error_log('[DimdianChatbot] Outbox worker failed: ' . $error->getMessage());
