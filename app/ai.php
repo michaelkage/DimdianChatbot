@@ -82,6 +82,14 @@ function chatbridge_ai_queue_or_handover(PDO $pdo, string $tenantId, string $con
         return;
     }
 
+    $handoff = $pdo->prepare(
+        'SELECT id FROM conversation_handoffs
+         WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id
+           AND status IN ("open", "assigned") LIMIT 1'
+    );
+    $handoff->execute([':tenant_id' => $tenantId, ':conversation_id' => $conversationId]);
+    if ($handoff->fetchColumn()) return;
+
     $settings = $pdo->prepare('SELECT enabled FROM tenant_ai_settings WHERE tenant_id = :tenant_id LIMIT 1');
     $settings->execute([':tenant_id' => $tenantId]);
     if ((int)$settings->fetchColumn() !== 1) return;
@@ -111,7 +119,7 @@ function chatbridge_create_handover(PDO $pdo, string $tenantId, string $conversa
     $existing->execute([':tenant_id' => $tenantId, ':conversation_id' => $conversationId]);
     if ($existing->fetchColumn()) return;
     $insert = $pdo->prepare(
-        'INSERT INTO conversation_handoffs
+        'INSERT IGNORE INTO conversation_handoffs
             (id, tenant_id, conversation_id, reason, status, created_at)
          VALUES (:id, :tenant_id, :conversation_id, :reason, "open", UTC_TIMESTAMP())'
     );
