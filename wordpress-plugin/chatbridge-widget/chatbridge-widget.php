@@ -519,11 +519,13 @@ function chatbridge_widget_get_own_order(WP_REST_Request $request): WP_REST_Resp
         }
     }
 
+    $dateCreated = $order->get_date_created();
+
     return new WP_REST_Response([
         'order' => [
             'number' => sanitize_text_field((string) $order->get_order_number()),
             'status' => sanitize_key((string) $order->get_status()),
-            'date_created' => $order->get_date_created() ? $order->get_date_created()->date(DATE_ATOM) : null,
+            'date_created' => $dateCreated instanceof DateTimeInterface ? $dateCreated->format(DATE_ATOM) : null,
             'currency' => sanitize_key((string) $order->get_currency()),
             'total' => html_entity_decode(wp_strip_all_tags((string) $order->get_formatted_order_total()), ENT_QUOTES, get_bloginfo('charset') ?: 'UTF-8'),
             'items' => $items,
