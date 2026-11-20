@@ -47,7 +47,38 @@ jobs:
           npx wp-env run cli wp plugin is-active chatbridge-widget || npx wp-env run cli wp plugin activate chatbridge-widget
 
       - name: Create public, hidden and draft product fixtures
-        run: npx wp-env run cli wp eval-file tests/wordpress-smoke-setup.php
+        run: |
+          npx wp-env run cli wp eval '
+            update_option("chatbridge_widget_settings", [
+              "enabled" => 1,
+              "woocommerce_enabled" => 0,
+              "api_base" => "https://chat.example.test/api",
+              "title" => "Chat with us",
+              "subtitle" => "Ask us a question."
+            ]);
+            $visible = new WC_Product_Simple();
+            $visible->set_name("Brake Pad Set");
+            $visible->set_sku("BP-001");
+            $visible->set_regular_price("45000");
+            $visible->set_status("publish");
+            $visible->set_catalog_visibility("visible");
+            $visible->set_stock_status("instock");
+            $visible->save();
+            $hidden = new WC_Product_Simple();
+            $hidden->set_name("Secret Hidden Part");
+            $hidden->set_sku("SECRET-HIDDEN");
+            $hidden->set_regular_price("1000");
+            $hidden->set_status("publish");
+            $hidden->set_catalog_visibility("hidden");
+            $hidden->save();
+            $draft = new WC_Product_Simple();
+            $draft->set_name("Unpublished Draft Part");
+            $draft->set_sku("DRAFT-PART");
+            $draft->set_regular_price("1000");
+            $draft->set_status("draft");
+            $draft->save();
+            echo "Created public, hidden and draft fixtures.";
+          '
 
       - name: Confirm product search is disabled by default
         run: |
@@ -57,7 +88,13 @@ jobs:
           grep -q 'product_search_disabled' /tmp/chatbridge-disabled.json
 
       - name: Enable product search for smoke tests
-        run: npx wp-env run cli wp eval-file tests/wordpress-smoke-enable.php
+        run: |
+          npx wp-env run cli wp eval '
+            $settings = get_option("chatbridge_widget_settings", []);
+            $settings["woocommerce_enabled"] = 1;
+            update_option("chatbridge_widget_settings", $settings);
+            echo "Enabled WooCommerce product search.";
+          '
 
       - name: Verify partial product-name search
         run: |
