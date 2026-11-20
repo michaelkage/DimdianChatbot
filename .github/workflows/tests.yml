@@ -88,3 +88,24 @@ jobs:
           php tests/wordpress-plugin.php
       - name: Run widget tests
         run: node --test tests/widget.test.mjs
+
+  plugin-php-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['7.4', '8.2']
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+      - name: Lint WordPress plugin and adapter tests
+        run: |
+          php -l wordpress-plugin/chatbridge-widget/chatbridge-widget.php
+          php -l tests/wordpress-plugin.php
+      - name: Run WooCommerce adapter contract tests
+        run: php tests/wordpress-plugin.php
