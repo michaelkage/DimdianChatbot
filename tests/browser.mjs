@@ -123,7 +123,7 @@ test('optional WooCommerce search renders safe product cards and creates a produ
     const origin = `http://127.0.0.1:${address.port}`;
     await page.goto(origin + '/whatsapp-test.html');
     await page.addScriptTag({
-      url: origin + '/widget.js',
+      url: origin + '/assets/widget.js',
       attributes: {
         'data-commerce-api': origin + '/wp-json/chatbridge/v1/products',
         'data-api-base': origin + '/api'
