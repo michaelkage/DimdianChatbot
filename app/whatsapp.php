@@ -341,7 +341,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                             completed_at = CASE WHEN :is_final = 1 THEN UTC_TIMESTAMP() ELSE completed_at END,
                             updated_at = UTC_TIMESTAMP()
                          WHERE tenant_id = :tenant_id AND channel_connection_id = :channel_id AND sync_type = "history"
-                           AND status IN ("requested", "receiving")'
+                           AND status IN ("submitting", "requested", "receiving", "failed")'
                     );
                     $syncUpdate->execute([
                         ':status' => $isFinal ? 'completed' : 'receiving',
