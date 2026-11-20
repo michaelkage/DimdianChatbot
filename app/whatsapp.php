@@ -170,11 +170,11 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         'SELECT c.id
                          FROM guests g
                          INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.tenant_id = :tenant_id AND c.tenant_id = :tenant_id AND g.phone_normalized = :phone AND c.status = "open"
+                         WHERE g.tenant_id = :guest_tenant_id AND c.tenant_id = :conversation_tenant_id AND g.phone_normalized = :phone AND c.status = "open"
                          ORDER BY c.updated_at DESC
                          LIMIT 1'
                     );
-                    $conversationQuery->execute([':tenant_id' => $tenantId, ':phone' => $recipient]);
+                    $conversationQuery->execute([':guest_tenant_id' => $tenantId, ':conversation_tenant_id' => $tenantId, ':phone' => $recipient]);
                     $conversationId = $conversationQuery->fetchColumn();
                     if (!is_string($conversationId)) {
                         mark_webhook_event($pdo, $tenantId, $eventId, 'ignored');
@@ -229,7 +229,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                          WHERE g.phone_normalized = :phone AND c.status = "open"
                          ORDER BY c.updated_at DESC LIMIT 1'
                     );
-                    $conversationQuery->execute([':tenant_id' => $tenantId, ':phone' => $sender]);
+                    $conversationQuery->execute([':guest_tenant_id' => $tenantId, ':conversation_tenant_id' => $tenantId, ':phone' => $sender]);
                     $conversationId = $conversationQuery->fetchColumn();
                     if (!is_string($conversationId)) {
                         mark_webhook_event($pdo, $tenantId, $eventId, 'ignored');
