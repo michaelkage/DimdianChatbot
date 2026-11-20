@@ -296,7 +296,8 @@ function get_tenant_meta_channel(PDO $pdo, string $tenantId): ?array
          FROM channel_connections
          WHERE tenant_id = :tenant_id AND provider = "meta"
            AND connection_status = "connected" AND credential_ciphertext IS NOT NULL
-         ORDER BY connected_at ASC, created_at ASC, id ASC
+         ORDER BY (token_expires_at IS NULL OR token_expires_at > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)) DESC,
+                  connected_at ASC, created_at ASC, id ASC
          LIMIT 1'
     );
     $query->execute([':tenant_id' => $tenantId]);
