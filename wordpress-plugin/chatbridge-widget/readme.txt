@@ -76,7 +76,7 @@ No. It uses WordPress's script enqueue system and an independent settings page.
 
 The plugin sends a visitor's browser to the configured ChatBridge service to load the widget and communicate with that service. The service's own privacy policy and data-retention rules apply to chat messages. Site owners should disclose the chat service in their privacy notice.
 
-The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. The optional Meta onboarding flow uses a tenant API key only in server-side WordPress requests; the API key is not exposed to the public page or widget JavaScript.
+The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. The optional Meta onboarding flow uses a tenant API key only in server-side WordPress requests; the API key is not exposed to the public page or widget JavaScript. When an administrator launches Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to authorize and select WhatsApp business assets.
 
 == Changelog ==
 
