@@ -10,7 +10,7 @@ try {
     $pdo = database();
     $auth = authenticate_tenant_api_key($pdo, ['owner', 'admin']);
     $query = $pdo->prepare(
-        'SELECT id, business_account_id, phone_number_id, display_phone_number,
+        'SELECT id, business_account_id, whatsapp_account_id, business_portfolio_id, phone_number_id, display_phone_number,
                 connection_status, connection_mode, is_on_biz_app, token_expires_at,
                 last_error_code, last_error_message, connected_at, updated_at
          FROM channel_connections
