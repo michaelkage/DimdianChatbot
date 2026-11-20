@@ -1,0 +1,34 @@
+name: WordPress plugin coding standards
+
+on:
+  pull_request:
+    paths:
+      - 'wordpress-plugin/**'
+      - '.github/workflows/plugin-quality.yml'
+  push:
+    branches:
+      - main
+      - feat/multi-tenant-isolation
+    paths:
+      - 'wordpress-plugin/**'
+      - '.github/workflows/plugin-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  phpcs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Install WordPress Coding Standards
+        run: composer require --dev wp-coding-standards/wpcs:^3.0
+
+      - name: Run PHPCS
+        run: vendor/bin/phpcs --standard=WordPress --extensions=php wordpress-plugin/chatbridge-widget
