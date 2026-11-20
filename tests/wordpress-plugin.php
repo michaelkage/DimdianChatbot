@@ -54,6 +54,7 @@ $GLOBALS['chatbridge_routes'] = [];
 $GLOBALS['chatbridge_transients'] = [];
 $GLOBALS['chatbridge_options'] = [];
 $GLOBALS['chatbridge_wc_args'] = null;
+$GLOBALS['chatbridge_wc_queries'] = [];
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
 {
@@ -85,6 +86,7 @@ function wc_placeholder_img_src(): string { return 'https://store.example.test/p
 function wc_get_products(array $args): array
 {
     $GLOBALS['chatbridge_wc_args'] = $args;
+    $GLOBALS['chatbridge_wc_queries'][] = $args;
     return [
         new WC_Product('Brake Pad Set'),
         new WC_Product('Hidden Workshop Item', 'publish', 'hidden'),
@@ -128,6 +130,8 @@ $data = $response->get_data();
 check($response->get_status() === 200, 'valid catalogue search returns HTTP 200');
 check(($GLOBALS['chatbridge_wc_args']['status'] ?? null) === 'publish', 'WooCommerce query only requests published products');
 check(($GLOBALS['chatbridge_wc_args']['limit'] ?? null) === 8, 'WooCommerce query is capped at eight products');
+check(($GLOBALS['chatbridge_wc_queries'][0]['sku'] ?? null) === 'brake', 'exact SKU lookup runs before ordinary text search');
+check(($GLOBALS['chatbridge_wc_queries'][1]['s'] ?? null) === 'brake', 'product-name/content search runs after exact SKU lookup');
 check(count($data['products'] ?? []) === 1, 'hidden and unpublished products are excluded');
 $product = $data['products'][0] ?? [];
 check(($product['name'] ?? '') === 'Brake Pad Set', 'product name is returned');
