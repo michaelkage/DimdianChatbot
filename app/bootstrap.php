@@ -265,14 +265,19 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
          INNER JOIN conversations c ON c.id = gs.conversation_id
          INNER JOIN guests g ON g.id = gs.guest_id
          WHERE gs.token_hash = :token_hash
-           AND gs.tenant_id = :tenant_id
-           AND c.tenant_id = :tenant_id
-           AND g.tenant_id = :tenant_id
+           AND gs.tenant_id = :tenant_id_session
+           AND c.tenant_id = :tenant_id_conversation
+           AND g.tenant_id = :tenant_id_guest
            AND gs.revoked_at IS NULL
            AND gs.expires_at > UTC_TIMESTAMP()
          LIMIT 1'
     );
-    $statement->execute([':token_hash' => $tokenHash, ':tenant_id' => $tenantId]);
+    $statement->execute([
+        ':token_hash' => $tokenHash,
+        ':tenant_id_session' => $tenantId,
+        ':tenant_id_conversation' => $tenantId,
+        ':tenant_id_guest' => $tenantId,
+    ]);
     $session = $statement->fetch();
 
     if (!$session) {
