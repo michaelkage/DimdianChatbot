@@ -51,6 +51,7 @@ CREATE TABLE channel_connections (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_channel_tenant_id (tenant_id, id),
     UNIQUE KEY uq_channel_phone (provider, phone_number_id),
     KEY idx_channel_waba (provider, business_account_id),
     KEY idx_channel_waac (provider, whatsapp_account_id),
