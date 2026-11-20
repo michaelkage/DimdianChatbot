@@ -1,13 +1,17 @@
 <?php
 /**
  * Plugin Name: ChatBridge Widget
- * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
+ * Description: Add a lightweight support chat widget connected to ChatBridge, with optional WooCommerce, WCFM and Meta onboarding integrations.
+ * Plugin URI: https://github.com/michaelkage/DimdianChatbot/tree/main/wordpress-plugin/chatbridge-widget
  * Version: 0.4.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
- * Author: ChatBridge
+ * Author: ChatBridge Contributors
+ * Author URI: https://github.com/michaelkage/DimdianChatbot
  * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: chatbridge-widget
+ * Domain Path: /languages
  */
 
 if (!defined('ABSPATH')) {
@@ -16,6 +20,20 @@ if (!defined('ABSPATH')) {
 
 define('CHATBRIDGE_WIDGET_VERSION', '0.4.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
+
+add_action('init', static function (): void {
+    load_plugin_textdomain('chatbridge-widget', false, dirname(plugin_basename(__FILE__)) . '/languages');
+});
+
+add_action('admin_init', static function (): void {
+    if (!function_exists('wp_add_privacy_policy_content')) {
+        return;
+    }
+    $content = '<p>' . esc_html__('The ChatBridge Widget loads a support chat interface from the ChatBridge service configured by this site. When a visitor uses the chat, their messages and any details they choose to submit (such as a name or WhatsApp number) are sent to that service and processed according to the service operator’s privacy policy and retention settings.', 'chatbridge-widget') . '</p>';
+    $content .= '<p>' . esc_html__('If WhatsApp continuation is enabled, a visitor’s phone number is sent to the ChatBridge service only after the visitor explicitly opts in. The service may then process the message through Meta WhatsApp Business Platform. This plugin does not store chat conversations or WhatsApp access tokens in the WordPress database.', 'chatbridge-widget') . '</p>';
+    $content .= '<p>' . esc_html__('The site administrator may store a tenant API key in WordPress for server-to-server administrative requests. It is not exposed to public visitors or the widget JavaScript.', 'chatbridge-widget') . '</p>';
+    wp_add_privacy_policy_content(__('ChatBridge Widget', 'chatbridge-widget'), wp_kses_post($content));
+}, 20);
 
 function chatbridge_widget_defaults(): array
 {
