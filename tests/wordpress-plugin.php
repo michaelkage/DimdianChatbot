@@ -37,6 +37,8 @@ class WC_Product
         private string $stock = 'instock',
         private int $imageId = 1
     ) {}
+    public function get_id(): int { return crc32($this->name); }
+    public function get_sku(): string { return $this->name === 'Brake Pad Set' ? 'BP-001' : ''; }
     public function get_status(): string { return $this->status; }
     public function get_catalog_visibility(): string { return $this->visibility; }
     public function get_price_html(): string { return '<span class="price">' . $this->price . '</span>'; }
@@ -124,6 +126,7 @@ check(($GLOBALS['chatbridge_wc_args']['limit'] ?? null) === 8, 'WooCommerce quer
 check(count($data['products'] ?? []) === 1, 'hidden and unpublished products are excluded');
 $product = $data['products'][0] ?? [];
 check(($product['name'] ?? '') === 'Brake Pad Set', 'product name is returned');
+check(($product['sku'] ?? '') === 'BP-001', 'public product SKU is returned for part-number enquiries');
 check(($product['price'] ?? '') === '₦45,000', 'formatted product price is returned as plain text');
 check(($product['stock_status'] ?? '') === 'instock', 'only coarse stock status is returned');
 check(!array_key_exists('id', $product) && !array_key_exists('stock_quantity', $product), 'response omits internal IDs and exact inventory counts');
