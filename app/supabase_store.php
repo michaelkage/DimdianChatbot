@@ -397,6 +397,10 @@ function chatbridge_supabase_attachments_api(string $method): never
     }
     $tenantId = chatbridge_supabase_request_tenant_id();
     if ($method === 'POST') {
+        $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($contentLength > 11 * 1024 * 1024) {
+            json_response(['error' => ['code' => 'payload_too_large', 'message' => 'The attachment request is too large.']], 413);
+        }
         $session = chatbridge_supabase_authenticate_guest($tenantId, true);
         $rateConfig = app_config('app.attachment_rate_limit') ?? [];
         chatbridge_supabase_take_rate_limit(
