@@ -57,7 +57,7 @@ $('.orders-back').addEventListener('click',()=>{$('.orders').hidden=true;$('.wel
 $('.orders-search').addEventListener('submit',async event=>{
  event.preventDefault();
  const orderId=$('.orders-search input').value.trim();
- if(!/^\\d{1,20}$/.test(orderId))return;
+ if(!/^\d{1,20}$/.test(orderId))return;
  $('.orders-status').textContent='Checking your order…';$('.order-result').replaceChildren();
  try{
   const response=await fetch(ordersApi+encodeURIComponent(orderId),{headers:{Accept:'application/json','X-WP-Nonce':restNonce},credentials:'same-origin',cache:'no-store'});
