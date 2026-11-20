@@ -42,7 +42,9 @@ jobs:
               --admin_email=admin@example.test
 
       - name: Activate WooCommerce and ChatBridge
-        run: npx wp-env run cli wp plugin activate woocommerce chatbridge-widget
+        run: |
+          npx wp-env run cli wp plugin is-active woocommerce || npx wp-env run cli wp plugin activate woocommerce
+          npx wp-env run cli wp plugin is-active chatbridge-widget || npx wp-env run cli wp plugin activate chatbridge-widget
 
       - name: Create public, hidden and draft product fixtures
         run: npx wp-env run cli wp eval-file tests/wordpress-smoke-setup.php
