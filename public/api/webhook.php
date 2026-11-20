@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/meta.php';
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $verifyToken = (string)app_config('whatsapp.verify_token');
