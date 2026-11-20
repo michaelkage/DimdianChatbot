@@ -1,4 +1,5 @@
 === ChatBridge Widget ===
+
 Contributors: chatbridge
 Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
