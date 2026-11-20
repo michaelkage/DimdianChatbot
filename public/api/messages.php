@@ -51,7 +51,9 @@ try {
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
         $tenantChannel = get_tenant_meta_channel($pdo, (string)$session['tenant_id']);
         $tokenExpiry = is_array($tenantChannel) ? (string)($tenantChannel['token_expires_at'] ?? '') : '';
-        $tokenUsable = $tokenExpiry === '' || (strtotime($tokenExpiry . ' UTC') !== false && strtotime($tokenExpiry . ' UTC') > time() + 300);
+        $tokenUsable = is_array($tenantChannel)
+            && (string)($tenantChannel['connection_status'] ?? '') === 'connected'
+            && ($tokenExpiry === '' || (strtotime($tokenExpiry . ' UTC') !== false && strtotime($tokenExpiry . ' UTC') > time() + 300));
         $outboundConfigured = is_array($whatsappConfig)
             && !empty($whatsappConfig['outbound_enabled'])
             && trim((string)($whatsappConfig['template_name'] ?? '')) !== '';
