@@ -41,6 +41,8 @@ The adapter must never trust a tenant ID supplied by widget JSON. It must not ex
 
 ## Current implementation status
 
-The Supabase schema and private bucket are provisioned in the connected Dimdian test project. The active PHP session/message endpoints still use the existing MySQL/PDO runtime at this commit; the Supabase runtime adapter and attachment HTTP endpoints are the next implementation step. Do not point the production widget at Supabase or claim the mock site is fully switched until those endpoints, tests and tenant-origin seed are in place.
+The Supabase schema, server-only RPC functions and private bucket are provisioned in the connected Dimdian test project. The PHP API now has a selectable `chat_store.driver` and server-side Supabase adapter for verified-origin resolution, guest-session creation/authentication, rate limits, idempotent message writes and cursor-based message reads. Set the mock deployment to `chat_store.driver = supabase` and provide the project URL plus service-role key in private PHP configuration. The tenant and verified site-origin rows must be seeded before the widget can connect.
+
+The attachment metadata and private bucket are provisioned, but the authenticated attachment upload/download HTTP endpoints and visitor screenshot/debug-consent UI are not implemented yet. Supabase mock mode is website-chat-only: the existing WhatsApp outbox and AI/handover pipeline remain part of the MySQL runtime and are not silently dual-written. Do not point the production widget at Supabase until attachment endpoints, tenant seeding and adapter integration tests are complete.
 
 The MySQL/MariaDB implementation remains the existing working backend. It is not removed or migrated by the Supabase test schema.
