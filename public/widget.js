@@ -91,7 +91,7 @@ function queueMessage(text,id){
  const queue=readQueue();
  if(queue.some(item=>item.id===id))return;
  if(queue.length>=20){status('Your offline queue is full. Reconnect and send the saved messages first.','warning');return;}
- const item={id,text,createdAt:new Date().toISOString()};
+ const item={id,text,sessionId:session&&session.sessionId?session.sessionId:null,createdAt:new Date().toISOString()};
  queue.push(item);writeQueue(queue);showQueued(item);
  input.value='';$('.count').textContent='0 / 4000';
  status(navigator.onLine?'Message saved locally. It will retry shortly.':'Offline — message saved on this device.','warning');
@@ -106,11 +106,20 @@ async function flushQueue(){
  busy=true;
  try{
   if(!session)await startSession();
+  const activeBeforeFlush=session;
   for(const item of queue){
+   if(item.sessionId){
+    const target=conversations.find(conversation=>conversation.sessionId===item.sessionId);
+    if(target)session=target;
+    else if(!session)await startSession();
+   }else if(!session)await startSession();
+   if(!item.sessionId&&session){item.sessionId=session.sessionId;writeQueue(readQueue().map(saved=>saved.id===item.id?item:saved));}
    const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:item.text,client_message_id:item.id})});
    removeQueued(item.id);
    if(result.data)render(result.data);
   }
+  session=activeBeforeFlush||session;
+  refreshConversationPicker();
   status('Saved messages sent. Waiting for a reply.');
  }catch(error){status('Some messages are still saved on this device. We will retry when the connection returns.','warning');}
  finally{busy=false;}
