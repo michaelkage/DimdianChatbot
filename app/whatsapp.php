@@ -14,7 +14,7 @@ interface WhatsAppTextTransport
 
 final class WhatsAppTransportException extends RuntimeException
 {
-    public function __construct(string $message, public readonly bool $retryable)
+    public function __construct(string $message, public readonly bool $retryable, public readonly ?int $providerCode = null)
     {
         parent::__construct($message);
     }
@@ -86,7 +86,7 @@ final class MetaCloudApiTransport implements WhatsAppTextTransport
             $code = (int)($error['code'] ?? 0);
             $message = (string)($error['message'] ?? 'WhatsApp API rejected the message.');
             $retryable = $statusCode === 429 || $statusCode >= 500 || in_array($code, [130429, 131056], true);
-            throw new WhatsAppTransportException($message, $retryable);
+            throw new WhatsAppTransportException($message, $retryable, $code);
         }
 
         $providerId = $decoded['messages'][0]['id'] ?? null;
