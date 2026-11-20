@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.3
  * Requires PHP: 8.2
  * Author: ChatBridge
@@ -14,13 +14,14 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.1.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.2.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 function chatbridge_widget_defaults(): array
 {
     return [
         'enabled' => 0,
+        'woocommerce_enabled' => 0,
         'api_base' => '',
         'title' => 'Chat with us',
         'subtitle' => 'Send us a message. Our team will reply as soon as we can.',
@@ -42,6 +43,7 @@ function chatbridge_widget_sanitize_settings($input): array
 
     return [
         'enabled' => !empty($input['enabled']) ? 1 : 0,
+        'woocommerce_enabled' => !empty($input['woocommerce_enabled']) ? 1 : 0,
         'api_base' => $api_base,
         'title' => isset($input['title']) ? sanitize_text_field($input['title']) : $defaults['title'],
         'subtitle' => isset($input['subtitle']) ? sanitize_text_field($input['subtitle']) : $defaults['subtitle'],
@@ -146,6 +148,20 @@ function chatbridge_widget_render_settings_page(): void
                     </td>
                 </tr>
                 <tr>
+                    <th scope="row"><?php esc_html_e('WooCommerce product search', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="chatbridge_widget_settings[woocommerce_enabled]" value="1" <?php checked($settings['woocommerce_enabled'], 1); ?> <?php disabled(!class_exists('WooCommerce')); ?>>
+                            <?php esc_html_e('Allow visitors to search published WooCommerce products from the chat widget', 'chatbridge-widget'); ?>
+                        </label>
+                        <?php if (!class_exists('WooCommerce')) : ?>
+                            <p class="description"><?php esc_html_e('WooCommerce is not active. Install and activate WooCommerce to enable this optional integration.', 'chatbridge-widget'); ?></p>
+                        <?php else : ?>
+                            <p class="description"><?php esc_html_e('Read-only catalogue search. It does not change stock, prices, carts, checkout or orders.', 'chatbridge-widget'); ?></p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
                     <th scope="row"><label for="chatbridge-api-base"><?php esc_html_e('Chat API base URL', 'chatbridge-widget'); ?></label></th>
                     <td>
                         <input id="chatbridge-api-base" class="regular-text code" type="url" inputmode="url" name="chatbridge_widget_settings[api_base]" value="<?php echo esc_attr($settings['api_base']); ?>" placeholder="https://chat.example.com/api" required>
@@ -211,19 +227,130 @@ add_action('wp_enqueue_scripts', static function (): void {
         ['strategy' => 'defer', 'in_footer' => true]
     );
 
+    // WooCommerce stays an optional, site-local adapter. The browser calls this
+    // same-origin public-catalog endpoint; no store credentials leave WordPress.
+    $commerce_api = '';
+    if (!empty($settings['woocommerce_enabled']) && class_exists('WooCommerce')) {
+        $commerce_api = rest_url('chatbridge/v1/products');
+    }
+
     // Add data attributes to the one external script tag; no inline executable code or theme edits.
-    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings): string {
+    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings, $commerce_api): string {
         if ($handle_name !== $handle) {
             return $tag;
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
-            esc_attr($settings['subtitle'])
+            esc_attr($settings['subtitle']),
+            esc_url($commerce_api)
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;
     }, 10, 3);
 }, 20);
+
+
+/**
+ * Optional read-only WooCommerce catalogue adapter.
+ *
+ * Only published, catalogue-visible products are exposed. This endpoint does
+ * not expose customer records, orders, private product metadata, stock counts,
+ * or store credentials. Order lookup requires a separate verified flow.
+ */
+add_action('rest_api_init', static function (): void {
+    register_rest_route('chatbridge/v1', '/products', [
+        'methods' => WP_REST_Server::READABLE,
+        'permission_callback' => '__return_true',
+        'args' => [
+            'search' => [
+                'required' => true,
+                'sanitize_callback' => 'sanitize_text_field',
+                'validate_callback' => static function ($value): bool {
+                    $value = trim((string) $value);
+                    return strlen($value) >= 2 && strlen($value) <= 80;
+                },
+            ],
+        ],
+        'callback' => 'chatbridge_widget_search_products',
+    ]);
+});
+
+function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Response
+{
+    if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
+        return new WP_REST_Response([
+            'code' => 'woocommerce_unavailable',
+            'message' => 'WooCommerce is not active on this website.',
+        ], 503);
+    }
+
+    $search = trim(sanitize_text_field((string) $request->get_param('search')));
+    if (strlen($search) < 2 || strlen($search) > 80) {
+        return new WP_REST_Response([
+            'code' => 'invalid_search',
+            'message' => 'Enter a search term between 2 and 80 characters.',
+        ], 400);
+    }
+
+    // Apply a modest per-IP limit. Only a keyed hash is stored, not the IP itself.
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $bucket = 'chatbridge_wc_' . hash_hmac('sha256', $ip, wp_salt('auth'));
+    $count = (int) get_transient($bucket);
+    if ($count >= 30) {
+        return new WP_REST_Response([
+            'code' => 'rate_limited',
+            'message' => 'Please wait a moment before searching again.',
+        ], 429);
+    }
+    set_transient($bucket, $count + 1, MINUTE_IN_SECONDS);
+
+    $cache_key = 'chatbridge_products_' . md5(strtolower($search));
+    $cached = get_transient($cache_key);
+    if (is_array($cached)) {
+        return new WP_REST_Response($cached, 200);
+    }
+
+    $products = wc_get_products([
+        'status' => 'publish',
+        'limit' => 8,
+        's' => $search,
+        'orderby' => 'relevance',
+        'order' => 'DESC',
+        'return' => 'objects',
+    ]);
+
+    $items = [];
+    foreach ($products as $product) {
+        if (!$product instanceof WC_Product || $product->get_status() !== 'publish') {
+            continue;
+        }
+        if ($product->get_catalog_visibility() === 'hidden') {
+            continue;
+        }
+
+        $price_html = $product->get_price_html();
+        $price = html_entity_decode(wp_strip_all_tags((string) $price_html), ENT_QUOTES, get_bloginfo('charset') ?: 'UTF-8');
+        $image = $product->get_image_id()
+            ? wp_get_attachment_image_url($product->get_image_id(), 'woocommerce_thumbnail')
+            : wc_placeholder_img_src();
+
+        $items[] = [
+            'name' => sanitize_text_field($product->get_name()),
+            'price' => sanitize_text_field($price),
+            'url' => esc_url_raw($product->get_permalink()),
+            'image' => $image ? esc_url_raw($image) : '',
+            'stock_status' => sanitize_key($product->get_stock_status()),
+            'type' => sanitize_key($product->get_type()),
+        ];
+    }
+
+    $payload = [
+        'products' => $items,
+        'count' => count($items),
+    ];
+    set_transient($cache_key, $payload, 30);
+    return new WP_REST_Response($payload, 200);
+}
