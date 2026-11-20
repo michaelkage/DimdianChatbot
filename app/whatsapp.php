@@ -246,9 +246,14 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     ':waac_id' => $expectedBusinessAccountId,
                 ]);
                 $channelId = $channelQuery->fetchColumn();
+                if (!is_string($channelId) || $channelId === '') {
+                    mark_webhook_event($pdo, $tenantId, $syncEventId, 'ignored');
+                    $ignored++;
+                    continue;
+                }
                 $contacts = $value['state_sync'] ?? $value['contacts'] ?? [];
                 $stored = 0;
-                if (is_string($channelId) && $channelId !== '' && is_array($contacts)) {
+                if (is_array($contacts)) {
                     foreach ($contacts as $contactEvent) {
                         if (!is_array($contactEvent)) continue;
                         $contact = is_array($contactEvent['contact'] ?? null) ? $contactEvent['contact'] : $contactEvent;
@@ -276,14 +281,15 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         $stored++;
                     }
                 }
-                $isFinal = !empty($value['is_final']) || (int)($value['progress'] ?? 0) >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
+                $progress = $value['progress'] ?? ($value['metadata']['progress'] ?? 0);
+                $isFinal = !empty($value['is_final']) || (int)$progress >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
                 if (is_string($channelId) && $channelId !== '') {
                     $syncUpdate = $pdo->prepare(
                         'UPDATE channel_sync_jobs SET status = :status,
                             completed_at = CASE WHEN :is_final = 1 THEN UTC_TIMESTAMP() ELSE completed_at END,
                             updated_at = UTC_TIMESTAMP()
                          WHERE tenant_id = :tenant_id AND channel_connection_id = :channel_id AND sync_type = "smb_app_state_sync"
-                           AND status IN ("requested", "receiving")'
+                           AND status IN ("submitting", "requested", "receiving", "failed")'
                     );
                     $syncUpdate->execute([
                         ':status' => $isFinal ? 'completed' : 'receiving',
@@ -343,9 +349,12 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         ':channel_id' => $channelId,
                     ]);
                     chatbridge_meta_audit_event($pdo, $tenantId, $channelId, 'coexistence_history_received', $payloadHash);
+                    mark_webhook_event($pdo, $tenantId, $historyEventId, 'processed');
+                    $processed++;
+                } else {
+                    mark_webhook_event($pdo, $tenantId, $historyEventId, 'ignored');
+                    $ignored++;
                 }
-                mark_webhook_event($pdo, $tenantId, $historyEventId, 'processed');
-                $processed++;
             } elseif ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
                     if (!is_array($echo)) continue;
