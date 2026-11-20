@@ -52,6 +52,7 @@ class WC_Product
 $GLOBALS['chatbridge_hooks'] = [];
 $GLOBALS['chatbridge_routes'] = [];
 $GLOBALS['chatbridge_transients'] = [];
+$GLOBALS['chatbridge_options'] = [];
 $GLOBALS['chatbridge_wc_args'] = null;
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
@@ -62,7 +63,7 @@ function register_rest_route(string $namespace, string $route, array $args): voi
 {
     $GLOBALS['chatbridge_routes'][$namespace . $route] = $args;
 }
-function get_option(string $key, $default = false) { return $default; }
+function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
 function sanitize_key(string $value): string { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
@@ -118,6 +119,10 @@ $sanitized = chatbridge_widget_sanitize_settings([
 check($sanitized['woocommerce_enabled'] === 1, 'WooCommerce setting is saved as an explicit boolean flag');
 check($sanitized['api_base'] === 'https://chat.example.test/api', 'API base URL is normalized');
 
+$disabled = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
+check($disabled->get_status() === 403, 'public endpoint respects the administrator product-search toggle');
+
+$GLOBALS['chatbridge_options']['chatbridge_widget_settings'] = ['woocommerce_enabled' => 1];
 $response = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 $data = $response->get_data();
 check($response->get_status() === 200, 'valid catalogue search returns HTTP 200');
