@@ -98,6 +98,35 @@ add_action('admin_menu', static function (): void {
     );
 });
 
+function chatbridge_widget_meta_status(array $settings)
+{
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $api_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $api_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        return null;
+    }
+    $response = wp_remote_get($api_base . '/meta/status.php', [
+        'timeout' => 10,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => [
+            'Accept' => 'application/json',
+            'X-ChatBridge-Tenant-Key' => $api_key,
+        ],
+    ]);
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return null;
+    }
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (!is_array($body)) {
+        return null;
+    }
+    return [
+        'connections' => isset($body['connections']) && is_array($body['connections']) ? $body['connections'] : [],
+        'coexistence_sync' => isset($body['coexistence_sync']) && is_array($body['coexistence_sync']) ? $body['coexistence_sync'] : [],
+    ];
+}
+
 function chatbridge_widget_meta_config(array $settings)
 {
     $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
@@ -153,6 +182,7 @@ function chatbridge_widget_render_settings_page(): void
 
     $settings = chatbridge_widget_settings();
     $meta_config = chatbridge_widget_meta_config($settings);
+    $meta_status = chatbridge_widget_meta_status($settings);
     $health_result = null;
 
     if (isset($_GET['chatbridge_check'])) {
@@ -311,6 +341,37 @@ function chatbridge_widget_render_settings_page(): void
             </div>
         <?php else : ?>
             <p class="description"><?php esc_html_e('Meta onboarding is unavailable. Confirm the private tenant API key and that the service administrator has enabled a valid Meta app and Embedded Signup configuration.', 'chatbridge-widget'); ?></p>
+        <?php endif; ?>
+
+        <?php if (is_array($meta_status)) : ?>
+            <h3><?php esc_html_e('Existing WhatsApp connections', 'chatbridge-widget'); ?></h3>
+            <?php if ($meta_status['connections'] !== []) : ?>
+                <ul>
+                    <?php foreach ($meta_status['connections'] as $connection) : ?>
+                        <li>
+                            <strong><?php echo esc_html((string) ($connection['display_phone_number'] ?: $connection['phone_number_id'])); ?></strong>
+                            — <?php echo esc_html(sanitize_key((string) ($connection['connection_status'] ?? 'unknown'))); ?>
+                            (<?php echo esc_html(sanitize_key((string) ($connection['connection_mode'] ?? 'unknown'))); ?>)
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php else : ?>
+                <p><?php esc_html_e('No WhatsApp phone numbers are connected to this tenant yet.', 'chatbridge-widget'); ?></p>
+            <?php endif; ?>
+            <?php if ($meta_status['coexistence_sync'] !== []) : ?>
+                <h4><?php esc_html_e('Coexistence synchronization', 'chatbridge-widget'); ?></h4>
+                <ul>
+                    <?php foreach ($meta_status['coexistence_sync'] as $sync_job) : ?>
+                        <li>
+                            <?php echo esc_html(sanitize_key((string) ($sync_job['sync_type'] ?? 'sync'))); ?>:
+                            <?php echo esc_html(sanitize_key((string) ($sync_job['status'] ?? 'unknown'))); ?>
+                            <?php if (!empty($sync_job['last_error'])) : ?>
+                                — <?php echo esc_html(sanitize_text_field((string) $sync_job['last_error'])); ?>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         <?php endif; ?>
 
         <hr>
