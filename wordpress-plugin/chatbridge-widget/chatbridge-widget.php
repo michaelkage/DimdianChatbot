@@ -181,6 +181,28 @@ function chatbridge_widget_render_settings_page(): void
         </form>
 
         <hr>
+        <h2><?php esc_html_e('Store compatibility', 'chatbridge-widget'); ?></h2>
+        <ul>
+            <li>
+                <strong><?php esc_html_e('WooCommerce:', 'chatbridge-widget'); ?></strong>
+                <?php echo class_exists('WooCommerce') ? esc_html__('Active', 'chatbridge-widget') : esc_html__('Not detected', 'chatbridge-widget'); ?>
+            </li>
+            <li>
+                <strong><?php esc_html_e('Product search:', 'chatbridge-widget'); ?></strong>
+                <?php
+                if (!class_exists('WooCommerce')) {
+                    esc_html_e('Unavailable until WooCommerce is active.', 'chatbridge-widget');
+                } elseif (!empty($settings['woocommerce_enabled'])) {
+                    esc_html_e('Enabled for public catalogue products.', 'chatbridge-widget');
+                } else {
+                    esc_html_e('Disabled. Enable it above to add product search to the widget.', 'chatbridge-widget');
+                }
+                ?>
+            </li>
+        </ul>
+        <p class="description"><?php esc_html_e('This connector does not modify Paystack, WCFM, product prices, stock, cart or checkout.', 'chatbridge-widget'); ?></p>
+
+        <hr>
         <h2><?php esc_html_e('Connection check', 'chatbridge-widget'); ?></h2>
         <p><?php esc_html_e('Save your settings, then check whether the configured chat API and its database/schema are responding.', 'chatbridge-widget'); ?></p>
         <?php
