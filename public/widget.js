@@ -291,8 +291,9 @@ async function captureScreenshot(){
   // This call is made directly from the user's click; the browser controls what can be shared.
   stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
   const video=document.createElement('video');video.muted=true;video.playsInline=true;video.srcObject=stream;
-  await new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});});
+  const ready=new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});});
   await video.play();
+  await ready;
   const scale=Math.min(1,1920/video.videoWidth,1080/video.videoHeight);
   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
   canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
