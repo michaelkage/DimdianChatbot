@@ -57,6 +57,7 @@ function chatbridge_meta_exchange_code(string $code): array
     $config = chatbridge_meta_settings();
     $appId = (string)($config['app_id'] ?? '');
     $appSecret = (string)($config['app_secret'] ?? '');
+    if ($appSecret === '') $appSecret = (string)app_config('whatsapp.app_secret');
     if (empty($config['enabled']) || $appId === '' || $appSecret === '') {
         throw new RuntimeException('Meta Embedded Signup is not enabled or configured.');
     }
