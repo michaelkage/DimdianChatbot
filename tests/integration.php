@@ -142,6 +142,20 @@ $conversationId = $sessionBody['data']['conversation_id'] ?? '';
 $guestHeaders = array_merge($sessionHeaders, ['X-DIMDIAN-GUEST-TOKEN: ' . $token]);
 expect(is_string($token) && preg_match('/^[a-f0-9]{64}$/', $token) === 1, 'session returns a 256-bit hex token');
 
+// A second tenant proves that a valid guest token is not portable across
+// registered site origins in either direction.
+$tenantB = '20000000-0000-4000-8000-000000000001';
+$pdo->prepare('INSERT INTO tenants (id, name, slug, status, created_at, updated_at) VALUES (:id, "Tenant B", "tenant-b", "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())')
+    ->execute([':id' => $tenantB]);
+$pdo->prepare('INSERT INTO tenant_sites (tenant_id, origin, status, created_at, updated_at) VALUES (:tenant_id, "https://tenant-b.example.test", "verified", UTC_TIMESTAMP(), UTC_TIMESTAMP())')
+    ->execute([':tenant_id' => $tenantB]);
+$tenantBHeaders = ['Origin: https://tenant-b.example.test'];
+[$tenantBSessionStatus, $tenantBSession] = request_api('POST', '/api/session.php', ['name' => 'Tenant B visitor'], $tenantBHeaders);
+$tenantBToken = $tenantBSession['data']['session_token'] ?? '';
+[$crossTenantAtoB] = request_api('GET', '/api/messages.php?after=0', null, array_merge($tenantBHeaders, ['X-DIMDIAN-GUEST-TOKEN: ' . $token]));
+[$crossTenantBtoA] = request_api('GET', '/api/messages.php?after=0', null, array_merge($sessionHeaders, ['X-DIMDIAN-GUEST-TOKEN: ' . $tenantBToken]));
+expect($tenantBSessionStatus === 201 && $crossTenantAtoB === 401 && $crossTenantBtoA === 401, 'guest sessions cannot cross tenant boundaries');
+
 [$missingTokenStatus] = request_api('GET', '/api/messages.php', null, $sessionHeaders);
 expect($missingTokenStatus === 401, 'message endpoint requires guest token');
 
