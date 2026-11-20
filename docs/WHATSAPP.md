@@ -74,26 +74,27 @@ Text messages only. No media download, attachments, voice notes, group chats, te
 
 ## Embedded Signup and Coexistence onboarding
 
-The mock-site integration must use **WhatsApp Embedded Signup v4**, not older v2/v3 snippets. Meta's v2/v3 Embedded Signup flow was retired for new onboarding on 15 October 2026. Create a v4 Facebook Login for Business configuration in the Meta App Dashboard before attempting to launch signup.
+Meta's supplied implementation notes say Embedded Signup v2 and v3 were deprecated on 15 October 2026. The accompanying default-flow notes describe v4 but explicitly identify v5 as the latest version. New implementation work must therefore target the currently supported v5 flow after checking Meta's live version/migration guide. Do not copy an old v2/v3 integration or freeze the v4 sample below into production.
 
-For a Coexistence-capable flow, the Embedded Signup launch uses the Facebook JavaScript SDK and the configuration ID created in Meta. The launch request uses `response_type: "code"`, `override_default_response_type: true`, and the Coexistence feature flag:
+The supplied v4 implementation guide lists these prerequisites for the integrating platform:
 
-```js
-FB.login(callback, {
-  config_id: "YOUR_V4_CONFIGURATION_ID",
-  response_type: "code",
-  override_default_response_type: true,
-  extras: {
-    setup: {
-      solutionID: "YOUR_PARTNER_SOLUTION_ID"
-    },
-    featureType: "whatsapp_business_app_onboarding"
-  }
-});
-```
+- The platform must already be a Meta Solution Partner or Tech Provider.
+- A Facebook Login for Business configuration must be created for WhatsApp Embedded Signup.
+- The HTTPS domain hosting signup must be added to the allowed domains and valid redirect URI settings.
+- The app must subscribe to the account_update webhook.
+- The browser must relay the short-lived authorization code to the server; the server must exchange it before the code expires.
+- The server must store credentials securely and associate the returned business portfolio, WhatsApp account and phone-number IDs with the correct tenant.
 
-The page must also listen for the `WA_EMBEDDED_SIGNUP` window message and handle the `FINISH`, `CANCEL`, and `ERROR` events. The login callback separately returns the short-lived authorization code. Do not confuse the session-info message with the authorization-code callback.
+Meta's partner overview identifies Tech Providers as third-party developers building solutions on WhatsApp Business Platform and lists Embedded Signup as a Tech Provider capability. See [Meta's partner overview](https://whatsappbusiness.com/partners/become-a-partner/).
 
-The authorization code must be exchanged server-side. Never send the Meta App Secret to the browser or commit it to Git. The App ID, v4 Configuration ID and Partner Solution ID are identifiers, not secrets, but the Meta app still needs the appropriate Tech Provider/partner setup and permissions before the flow can complete.
+Coexistence flow requirements from the supplied Meta default-flow notes:
 
-**Current state:** the Supabase webhook receiver and owner-only event monitor are scaffolded in this repository. The Embedded Signup launcher and server-side authorization-code exchange are not yet enabled. They require the actual Meta App ID, v4 Configuration ID and Partner Solution ID. Do not start onboarding the live Dimdian number until the owner explicitly approves the exact flow and a safe test number/account is selected.
+- Entering a phone number already active in the WhatsApp Business app should route the customer into the Coexistence flow when Coexistence is enabled for the integration.
+- The business owner reviews the WhatsApp Business profile and chooses the Meta business portfolio.
+- The owner scans the QR code from inside the WhatsApp Business app when Meta presents it.
+- The owner confirms the business information and accepts the applicable terms.
+- After completion, capture the returned WABA ID and business phone-number ID and finish the server-side onboarding calls.
+
+The v4 code sample in the source material uses Facebook Login for Business and returns an exchangeable authorization code. Since v5 is now identified as latest, the exact launch parameters and onboarding API calls must be checked against the current v5 guide before implementation. We intentionally do not ship a stale launch snippet here.
+
+**Current state:** the Supabase webhook receiver and owner-only event monitor are deployed to the separate Dimdian diagnostic project. The Embedded Signup launcher, account_update subscription workflow, server-side authorization-code exchange, tenant provisioning and credential storage are not implemented. They require the actual Meta app/partner configuration and Tech Provider or Solution Partner status. Do not start onboarding the live Dimdian number until the owner explicitly approves the exact flow and the platform has passed the prerequisites.

@@ -76,3 +76,18 @@ The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/p
 **Order questions are not enabled yet.** Order status, customer addresses, email addresses and other private order data must never be exposed through a public product-search endpoint. A future order lookup must use an ownership-verification flow and server-side WooCommerce permissions.
 
 This adapter runs on the WordPress site itself. The remote chat backend does not need direct database access or WooCommerce API keys. It is deliberately compatible with a store that also uses Paystack and WCFM, but it does not yet read payment-provider state or vendor-private data.
+
+
+## WooCommerce order lookup (0.3.0)
+
+Order lookup is an opt-in setting. It is intentionally separate from public product search.
+
+- Enable **Customer order lookup (logged-in customers only)** under **Settings → ChatBridge Widget**.
+- The order lookup action is passed to the browser only when the current visitor is signed in.
+- The browser calls the same-site WordPress REST route with the REST nonce and same-origin cookies.
+- The endpoint verifies that the requested order belongs to the currently authenticated WordPress user.
+- The response is restricted to order number, status, creation date, currency, formatted total and up to 20 item names/quantities.
+
+This first increment does not support guest checkout, email-only verification, order-key lookup, sequential/custom order-number plugins, vendor dashboards or Paystack transaction details. It does not expose addresses, email, payment tokens, notes or private metadata. If the visitor is not signed in, the order lookup control is not offered by the widget.
+
+The order lookup endpoint accepts a WooCommerce order ID. On a default WooCommerce installation this normally matches the displayed order number; custom order-number extensions require a dedicated compatibility adapter.
