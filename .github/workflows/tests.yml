@@ -58,8 +58,8 @@ jobs:
           mysql -h127.0.0.1 -uroot -proot dimdian_test <<'SQL'
           INSERT INTO tenant_sites (tenant_id, origin, status, created_at, updated_at)
           VALUES ('00000000-0000-4000-8000-000000000001', 'https://website.example.test', 'verified', UTC_TIMESTAMP(), UTC_TIMESTAMP());
-          INSERT INTO channel_connections (id, tenant_id, provider, business_account_id, phone_number_id, connection_status, created_at, updated_at)
-          VALUES ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'meta', 'test-waba', 'test-phone-id', 'connected', UTC_TIMESTAMP(), UTC_TIMESTAMP());
+          INSERT INTO channel_connections (id, tenant_id, provider, business_account_id, phone_number_id, connection_status, credential_ciphertext, created_at, updated_at)
+          VALUES ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'meta', 'test-waba', 'test-phone-id', 'connected', 'test-encrypted-credential', UTC_TIMESTAMP(), UTC_TIMESTAMP());
           SQL
           cat > config.php <<'PHP'
           <?php
