@@ -18,7 +18,13 @@ try {
          ORDER BY updated_at DESC'
     );
     $query->execute([':tenant_id' => $auth['tenant_id']]);
-    json_response(['connections' => $query->fetchAll()]);
+    $connections = $query->fetchAll();
+    $syncQuery = $pdo->prepare(
+        'SELECT channel_connection_id, sync_type, status, request_id, requested_at, completed_at, last_error
+         FROM channel_sync_jobs WHERE tenant_id = :tenant_id ORDER BY created_at DESC'
+    );
+    $syncQuery->execute([':tenant_id' => $auth['tenant_id']]);
+    json_response(['connections' => $connections, 'coexistence_sync' => $syncQuery->fetchAll()]);
 } catch (Throwable $error) {
     error_log('[ChatBridge Meta status] ' . $error->getMessage());
     json_response(['error' => ['code' => 'meta_status_unavailable', 'message' => 'Meta connection status is unavailable.']], 500);
