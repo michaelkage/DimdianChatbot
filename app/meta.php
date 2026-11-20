@@ -375,7 +375,7 @@ function process_meta_coexistence_sync_jobs(PDO $pdo, string $tenantId, int $bat
     return $summary;
 }
 
-function resolve_meta_tenant_by_waba(PDO $pdo, string $businessAccountId): ?string
+function resolve_meta_tenant_by_account_id(PDO $pdo, string $businessAccountId): ?string
 {
     if ($businessAccountId === '') return null;
     $query = $pdo->prepare('SELECT tenant_id FROM channel_connections WHERE provider = "meta" AND (business_account_id = :messaging_id OR whatsapp_account_id = :waac_id) LIMIT 1');
