@@ -198,6 +198,66 @@ function chatbridge_widget_health_check(string $api_base)
     ]);
 }
 
+function chatbridge_widget_ai_settings(array $settings)
+{
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $api_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $api_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        return null;
+    }
+    $response = wp_remote_get($api_base . '/ai/settings.php', [
+        'timeout' => 10,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => ['Accept' => 'application/json', 'X-ChatBridge-Tenant-Key' => $api_key],
+    ]);
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return null;
+    }
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    return is_array($body) ? $body : null;
+}
+
+add_action('admin_post_chatbridge_save_ai', static function (): void {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('You are not allowed to change AI settings.', 'chatbridge-widget'));
+    }
+    check_admin_referer('chatbridge_save_ai');
+    $settings = chatbridge_widget_settings();
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $tenant_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $tenant_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        wp_safe_redirect(add_query_arg('chatbridge_ai_saved', 'connection_missing', menu_page_url('chatbridge-widget', false)));
+        exit;
+    }
+    $api_key = isset($_POST['ai_api_key']) ? trim((string) wp_unslash($_POST['ai_api_key'])) : '';
+    $payload = [
+        'provider' => 'openai_compatible',
+        'base_url' => isset($_POST['ai_base_url']) ? esc_url_raw(trim((string) wp_unslash($_POST['ai_base_url'])), ['https']) : 'https://api.openai.com/v1',
+        'model' => isset($_POST['ai_model']) ? sanitize_text_field(wp_unslash($_POST['ai_model'])) : '',
+        'enabled' => !empty($_POST['ai_enabled']),
+        'max_output_tokens' => isset($_POST['ai_max_output_tokens']) ? absint($_POST['ai_max_output_tokens']) : 500,
+        'monthly_token_budget' => isset($_POST['ai_monthly_token_budget']) ? absint($_POST['ai_monthly_token_budget']) : 0,
+    ];
+    if ($api_key !== '') {
+        $payload['api_key'] = $api_key;
+    }
+    $response = wp_remote_post($api_base . '/ai/settings.php', [
+        'timeout' => 20,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'X-ChatBridge-Tenant-Key' => $tenant_key,
+        ],
+        'body' => wp_json_encode($payload),
+    ]);
+    $saved = !is_wp_error($response) && (int) wp_remote_retrieve_response_code($response) === 200;
+    wp_safe_redirect(add_query_arg('chatbridge_ai_saved', $saved ? '1' : 'failed', menu_page_url('chatbridge-widget', false)));
+    exit;
+});
+
 function chatbridge_widget_render_settings_page(): void
 {
     if (!current_user_can('manage_options')) {
@@ -207,6 +267,7 @@ function chatbridge_widget_render_settings_page(): void
     $settings = chatbridge_widget_settings();
     $meta_config = chatbridge_widget_meta_config($settings);
     $meta_status = chatbridge_widget_meta_status($settings);
+    $ai_status = chatbridge_widget_ai_settings($settings);
     $health_result = null;
 
     if (isset($_GET['chatbridge_check'])) {
@@ -355,6 +416,35 @@ function chatbridge_widget_render_settings_page(): void
                 </tr>
             </table>
             <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
+        </form>
+
+        <hr>
+        <h2><?php esc_html_e('AI provider', 'chatbridge-widget'); ?></h2>
+        <?php if (isset($_GET['chatbridge_ai_saved'])) : ?>
+            <div class="notice <?php echo sanitize_key((string) $_GET['chatbridge_ai_saved']) === '1' ? 'notice-success' : 'notice-warning'; ?>"><p><?php
+                $ai_result = sanitize_key((string) $_GET['chatbridge_ai_saved']);
+                echo esc_html($ai_result === '1' ? __('AI provider settings saved. AI usage is controlled by the enable switch and token budget.', 'chatbridge-widget') : __('AI settings could not be saved. Check the API URL, tenant key, model and backend response.', 'chatbridge-widget'));
+            ?></p></div>
+        <?php endif; ?>
+        <?php if (is_array($ai_status)) : ?>
+            <p><?php echo !empty($ai_status['has_api_key']) ? esc_html__('An encrypted provider key is stored on the ChatBridge service.', 'chatbridge-widget') : esc_html__('No provider API key is configured.', 'chatbridge-widget'); ?>
+                <?php echo !empty($ai_status['enabled']) ? esc_html__('AI is enabled.', 'chatbridge-widget') : esc_html__('AI is disabled.', 'chatbridge-widget'); ?></p>
+        <?php else : ?>
+            <p class="description"><?php esc_html_e('Configure the service API URL and tenant API key above to manage AI settings here.', 'chatbridge-widget'); ?></p>
+        <?php endif; ?>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="chatbridge_save_ai">
+            <?php wp_nonce_field('chatbridge_save_ai'); ?>
+            <table class="form-table" role="presentation">
+                <tr><th scope="row"><?php esc_html_e('Provider connection', 'chatbridge-widget'); ?></th><td><strong><?php esc_html_e('OpenAI-compatible API', 'chatbridge-widget'); ?></strong><p class="description"><?php esc_html_e('Works with OpenAI and compatible API endpoints. OAuth login is not available in this release; use an API key.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-base"><?php esc_html_e('API endpoint', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-base" class="regular-text" type="url" name="ai_base_url" value="<?php echo esc_attr(is_array($ai_status) ? (string) ($ai_status['base_url'] ?? 'https://api.openai.com/v1') : 'https://api.openai.com/v1'); ?>" required></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-model"><?php esc_html_e('Model', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-model" class="regular-text" type="text" name="ai_model" value="<?php echo esc_attr(is_array($ai_status) ? (string) ($ai_status['model'] ?? '') : 'gpt-4o-mini'); ?>" placeholder="gpt-4o-mini" required></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-key"><?php esc_html_e('API key', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-key" class="regular-text" type="password" name="ai_api_key" value="" autocomplete="new-password"><p class="description"><?php esc_html_e('Sent directly from WordPress to your ChatBridge service over HTTPS and encrypted there. It is not saved in WordPress. Leave blank to keep the existing key.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-max"><?php esc_html_e('Maximum response tokens', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-max" type="number" min="64" max="2000" name="ai_max_output_tokens" value="<?php echo esc_attr((string) (is_array($ai_status) ? (int) ($ai_status['max_output_tokens'] ?? 500) : 500)); ?>"></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-budget"><?php esc_html_e('Monthly token budget', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-budget" type="number" min="0" max="100000000" name="ai_monthly_token_budget" value="<?php echo esc_attr((string) (is_array($ai_status) ? (int) ($ai_status['monthly_token_budget'] ?? 0) : 0)); ?>"><p class="description"><?php esc_html_e('0 means no token ceiling. Set a budget to stop AI responses and hand over to a human when it is reached.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><?php esc_html_e('Enable AI', 'chatbridge-widget'); ?></th><td><label><input type="checkbox" name="ai_enabled" value="1" <?php checked(is_array($ai_status) && !empty($ai_status['enabled'])); ?>> <?php esc_html_e('Allow AI to answer using this business tenant’s approved knowledge sources.', 'chatbridge-widget'); ?></label></td></tr>
+            </table>
+            <?php submit_button(__('Save AI provider settings', 'chatbridge-widget')); ?>
         </form>
 
         <hr>
