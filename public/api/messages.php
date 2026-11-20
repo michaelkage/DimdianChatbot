@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/ai.php';
 
 enforce_allowed_origin();
 handle_preflight();
@@ -86,6 +87,9 @@ try {
                 enqueue_whatsapp_notification($pdo, (string)$session['tenant_id'], $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
                 $transportState = 'queued';
             }
+            if ($wasInserted) {
+                chatbridge_ai_queue_or_handover($pdo, (string)$session['tenant_id'], (string)$session['conversation_id'], $messageId, $messageText);
+            }
 
             $pdo->commit();
         } catch (Throwable $error) {
@@ -165,9 +169,19 @@ try {
         'id' => $row['id'], 'delivery_status' => $row['delivery_status'],
     ], $statusQuery->fetchAll());
 
+    $handoffQuery = $pdo->prepare(
+        'SELECT reason, status FROM conversation_handoffs
+         WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id
+           AND status IN ("open", "assigned")
+         ORDER BY created_at DESC LIMIT 1'
+    );
+    $handoffQuery->execute([':tenant_id' => $session['tenant_id'], ':conversation_id' => $session['conversation_id']]);
+    $handoff = $handoffQuery->fetch() ?: null;
+
     json_response([
         'data' => $items,
         'meta' => [
+            'handoff' => $handoff,
             'after' => $after,
             'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
