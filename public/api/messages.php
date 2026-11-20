@@ -47,7 +47,11 @@ try {
         $whatsappConfig = app_config('whatsapp') ?? [];
         $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
-        $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
+        $legacyOutboundTenantId = (string)app_config('app.tenant_id');
+        // The current outbox sender uses one legacy transport credential. Never queue another tenant's message for that sender.
+        $outboundEnabled = $legacyOutboundTenantId !== ''
+            && hash_equals($legacyOutboundTenantId, (string)$session['tenant_id'])
+            && is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare(
