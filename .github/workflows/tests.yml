@@ -96,6 +96,7 @@ jobs:
         run: |
           php tests/run.php
           php tests/ai.php
+          php tests/meta.php
           php tests/integration.php
           php tests/wordpress-plugin.php
       - name: Check widget JavaScript syntax
