@@ -39,3 +39,10 @@ button:focus-visible{outline:3px solid #9bd5c4;outline-offset:3px}
 .compact-mode .launcher{min-height:42px;padding:0 13px;font-size:12px;box-shadow:0 5px 18px #0002}
 .compact-mode .spark{width:20px;height:20px}
 @media(prefers-reduced-motion:reduce){.typing span{animation:none;opacity:.7}.launcher{transition:none}}
+
+.conversation-controls{display:flex;align-items:center;gap:5px;min-width:0}
+.conversation-select{width:92px;max-width:92px;height:30px;padding:0 4px;border:1px solid #ffffff35;border-radius:7px;color:#fff;background:#ffffff14;font-size:10px}
+.conversation-select option{color:#171717;background:#fff}
+.new-conversation{height:30px;padding:0 7px;border:1px solid #ffffff35;border-radius:7px;color:#fff;background:#ffffff14;font-size:10px;font-weight:650}
+.mark{background-color:var(--cb-accent,#d7eee6)}
+@media(max-width:420px){header{gap:7px;padding:12px}.conversation-select{width:75px;max-width:75px}.new-conversation{padding:0 5px}.heading h2{font-size:13px}.heading p{font-size:10px}}
