@@ -301,8 +301,8 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Coexistence for the actual +234 Dimdian number | Not verified |
 | Live WhatsApp message/reply round trip | Not tested |
 
-**Recommended rollout:** deploy the PHP backend and test the website chat first with WhatsApp disabled. Embed the widget on the real website only after the API is healthy. Treat WhatsApp as a separate second phase, and do not switch it on until the Coexistence test checklist has passed.
+**Recommended rollout:** deploy the PHP backend to a staging environment and test website chat first with WhatsApp disabled. Test the WordPress admin Meta connector on a separate staging WordPress site with a test Meta business account. Do not enable Meta on the live Dimdian site until the full signup, webhook, contact/history sync and recovery checks pass. Multi-tenant outbound WhatsApp remains disabled until per-tenant credential use is implemented.
 
 ---
 
-For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).
+For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md), [docs/AI.md](docs/AI.md), [docs/PLATFORM-ARCHITECTURE.md](docs/PLATFORM-ARCHITECTURE.md), [docs/WORDPRESS-ORG-RELEASE.md](docs/WORDPRESS-ORG-RELEASE.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).
