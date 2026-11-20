@@ -72,6 +72,15 @@ function webhook_post(array $payload, string $secret): array
     return [$status, is_string($response) ? json_decode($response, true) : null];
 }
 
+[$healthStatus, $healthBody] = request_api('GET', '/api/health.php', null, ['Origin: ' . $origin]);
+expect(
+    $healthStatus === 200
+        && ($healthBody['status'] ?? '') === 'healthy'
+        && ($healthBody['checks']['database'] ?? '') === 'ok'
+        && ($healthBody['checks']['schema'] ?? '') === 'ok',
+    'read-only health endpoint confirms database and required schema'
+);
+
 final class IntegrationSuccessTransport implements WhatsAppTextTransport
 {
     public function sendTemplate(string $recipient, string $bodyParameter): array
