@@ -40,6 +40,8 @@ The script creates an isolated Shadow DOM widget and loads its stylesheet from t
 | `data-primary-color`, `data-accent-color` | Six-digit hex colours |
 | `data-offline-queue` | Set to `true` to save up to 20 unsent messages in this browser and retry when online |
 | `data-typing-indicator` | Set to `true` to show the animated reply-pending indicator |
+| `data-handover-ack` | Set to `true` to show the configured handover acknowledgement |
+| `data-handover-message` | Custom handover acknowledgement text |
 | `data-hide-paths` | Comma-separated exact paths or prefix patterns ending in `*` |
 | `data-show-paths` | Optional allow-list; when set, only matching paths display the widget |
 | `data-hide-selectors` | Comma-separated CSS selectors; a match suppresses the widget |
@@ -53,4 +55,4 @@ The offline queue is opt-in. It stores message text and client-generated IDs in 
 
 ## Current boundaries
 
-This release adds page targeting, appearance controls, optional local retry and visitor-side conversation switching. It does not yet provide screenshot uploads, private diagnostic bundles, a hosted agent dashboard, third-party dashboard webhooks, provider OAuth login, or a full agent inbox. Those require server-side attachment access controls, consent/retention controls and an authenticated staff interface; the public widget must not send browser logs, cookies, tokens or arbitrary page contents to the service.
+This release adds page targeting, appearance controls, optional local retry, visitor-side conversation switching and optional custom human-handover acknowledgement. It does not yet provide screenshot uploads, private diagnostic bundles, a hosted agent dashboard, third-party dashboard webhooks, provider OAuth login, or a full agent inbox. Those require server-side attachment access controls, consent/retention controls and an authenticated staff interface; the public widget must not send browser logs, cookies, tokens or arbitrary page contents to the service.
