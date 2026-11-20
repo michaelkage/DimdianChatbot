@@ -119,7 +119,7 @@ After migrations 004–007 have been applied:
 5. Configure Meta app details in private `config.php` and set `meta.enabled` to true only after the Tech Provider/Solution Partner, app review and stable Embedded Signup v5 configuration requirements are met. Test on a separate staging WordPress site and test Meta account; do not use the live Dimdian site or live business number for the first test.
 6. Tenant AI is separately opt-in. See [docs/AI.md](docs/AI.md) for provider credential encryption, knowledge import and the tenant worker.
 
-The current outbox worker is still a single-tenant legacy sender using the private `whatsapp.*` configuration. Do not enable multi-tenant outbound WhatsApp sends until the worker has been changed to decrypt and use each tenant's `channel_connections` credential.
+The outbox worker now resolves each tenant's connected Meta phone number and decrypts that tenant's channel credential. Run one worker per tenant with `php public/cron/process-outbox.php TENANT_UUID`. The global `whatsapp.outbound_enabled` flag remains the kill switch, and each business must have the configured approved message template. Expired tokens move the channel to `needs_action`; the administrator must reconnect the account.
 
 ### Private configuration
 
@@ -301,7 +301,7 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Coexistence for the actual +234 Dimdian number | Not verified |
 | Live WhatsApp message/reply round trip | Not tested |
 
-**Recommended rollout:** deploy the PHP backend to a staging environment and test website chat first with WhatsApp disabled. Test the WordPress admin Meta connector on a separate staging WordPress site with a test Meta business account. Do not enable Meta on the live Dimdian site until the full signup, webhook, contact/history sync and recovery checks pass. Multi-tenant outbound WhatsApp remains disabled until per-tenant credential use is implemented.
+**Recommended rollout:** deploy the PHP backend to a staging environment and test website chat first with WhatsApp disabled. Test the WordPress admin Meta connector on a separate staging WordPress site with a test Meta business account. Do not enable Meta on the live Dimdian site until the full signup, webhook, contact/history sync and recovery checks pass. Keep outbound WhatsApp disabled until the per-tenant sender has passed a staging send/receipt test and the required template is approved on each business account.
 
 ---
 
