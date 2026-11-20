@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
-require_once dirname(__DIR__, 2) . '/app/tenant_auth.php';
-require_once dirname(__DIR__, 2) . '/app/crypto.php';
-require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
-require_once dirname(__DIR__, 2) . '/app/meta.php';
+require_once dirname(__DIR__, 3) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/app/tenant_auth.php';
+require_once dirname(__DIR__, 3) . '/app/crypto.php';
+require_once dirname(__DIR__, 3) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 3) . '/app/meta.php';
 
 require_method('POST');
 $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
