@@ -15,6 +15,9 @@ return [
         // For a migrated single-tenant deployment, use its tenant UUID. Hosted
         // multi-tenant API requests resolve tenant ownership from tenant_sites.
         'tenant_id' => '00000000-0000-4000-8000-000000000001',
+        // Generate once with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+        // Keep this key outside the database and back it up securely.
+        'encryption_key' => 'REPLACE_WITH_64_HEX_CHARACTERS',
         'allowed_origins' => [
             'https://www.example.com',
             'https://example.com',
