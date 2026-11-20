@@ -366,7 +366,7 @@ input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isCompo
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
 window.addEventListener('online',()=>{if(features.offlineQueue)flushQueue();if(opened&&session)poll().finally(schedule);});
 window.addEventListener('offline',()=>{if(features.offlineQueue)status('You are offline. New messages can be saved on this device.','warning');});
-if(features.offlineQueue){readQueue().forEach(showQueued);try{const draft=localStorage.getItem(draftKey);if(draft&&!input.value){input.value=draft.slice(0,4000);$('.count').textContent=input.value.length+' / 4000;}}catch(_){}} 
+if(features.offlineQueue){readQueue().forEach(showQueued);try{const draft=localStorage.getItem(draftKey);if(draft&&!input.value){input.value=draft.slice(0,4000);$('.count').textContent=input.value.length+' / 4000';}}catch(_){}} 
 if(demo)status('Preview only — messages are simulated and not saved.');
 else if(session)status('Your conversation is ready.');
 if(features.offlineQueue&&navigator.onLine&&readQueue().length)flushQueue();
