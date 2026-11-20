@@ -140,6 +140,7 @@ ALTER TABLE guest_sessions
 
 ALTER TABLE messages
     MODIFY tenant_id CHAR(36) NOT NULL,
+    ADD UNIQUE KEY uq_messages_tenant_id (tenant_id, id),
     DROP INDEX uq_messages_provider_message_id,
     ADD UNIQUE KEY uq_messages_tenant_provider_id (tenant_id, provider_message_id),
     ADD CONSTRAINT fk_messages_tenant FOREIGN KEY (tenant_id)
