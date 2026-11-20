@@ -102,7 +102,7 @@ Do these steps in order. Do not change the main WordPress site or its database.
 3. **Create a separate database.** Create a new MySQL database and database user for the chat application. Grant that user access only to this database. Do not reuse the WordPress/WooCommerce database credentials.
 4. **Deploy the repository.** Use Hostinger's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
 5. **Create the private configuration file.** Copy `config.example.php` to `config.php` in the repository root (not in `public/`). Fill in the database host/name/user/password, a strong random app key, timezone, public URL and exact website origins. Keep all WhatsApp fields empty/disabled for the first launch.
-6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. Then apply `database/migrations/004_multi_tenant_foundation.sql` followed by `database/migrations/005_tenant_ai_knowledge_handover.sql` and `database/migrations/006_tenant_api_keys_and_channel_events.sql`. Do not run migrations 002 or 003 on top of the fresh schema; those are only for databases created from older schema versions. The new public API requires the tenant tables and verified origin mapping created by migration 004.
+6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. Then apply `database/migrations/004_multi_tenant_foundation.sql` followed by `database/migrations/005_tenant_ai_knowledge_handover.sql` `, `database/migrations/006_tenant_api_keys_and_channel_events.sql` and `database/migrations/007_coexistence_sync.sql`. Do not run migrations 002 or 003 on top of the fresh schema; those are only for databases created from older schema versions. The new public API requires the tenant tables and verified origin mapping created by migration 004.
 7. **Test the API before WordPress integration.** Open `https://chat.dimdian.com/api/session.php` in a browser. A method error is expected for a GET request; it confirms PHP is responding. A 503 `not_configured` response means the application cannot find its private `config.php`. A 500 response should be investigated in the hosting PHP error log. Do not expose database credentials in screenshots or support tickets.
 8. **Add the widget to WordPress** using the snippet below, after the API host is working.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
@@ -110,7 +110,7 @@ Do these steps in order. Do not change the main WordPress site or its database.
 
 ### Tenant bootstrap and WordPress connector
 
-After migrations 004–006 have been applied:
+After migrations 004–007 have been applied:
 
 1. For the existing single-site install, register the exact WordPress origin against the legacy tenant ID `00000000-0000-4000-8000-000000000001`. First insert it as `pending`, verify control of the domain through an agreed DNS/HTTP or WordPress-admin check, then mark that exact row `verified`. A browser-supplied tenant ID is never accepted.
 2. For a new business, run `php bin/provision-tenant.php "Business name" business-slug https://shop.example.com`. It creates a tenant and a pending site mapping; it does not automatically trust the domain.
@@ -291,7 +291,7 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Production WordPress embed | Not yet configured |
 | Production database and private config | Not yet created |
 | Multi-tenant runtime | Initial tenant-scoped API/webhook increment is in open PR #2; migration has not been applied to production |
-| Meta Embedded Signup v5 onboarding | Gated WordPress admin launcher and backend exchange/provisioning flow implemented on open PR #2; not yet configured or tested with a real Meta app |
+| Meta Embedded Signup v5 onboarding | Gated WordPress admin launcher, backend exchange/provisioning, PMA/WAAC mapping and Coexistence sync requests implemented on open PR #2; not yet configured or tested with a real Meta app |
 | Tenant AI provider/knowledge/handover | Provider abstraction, encrypted key storage, tenant-scoped retrieval, async queue and handover runtime in open PR #2; disabled by default; no staffed inbox UI |
 | WCFM vendor-aware catalogue/order summaries | Read-only vendor attribution in open PR #2; no vendor-authorized order access |
 | WordPress.org readiness | Not ready; plugin distribution/release gates remain open |
