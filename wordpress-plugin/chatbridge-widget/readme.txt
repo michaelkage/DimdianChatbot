@@ -4,7 +4,7 @@ Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
 Tested up to: 6.8
 Requires PHP: 8.2
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Features:
 * Configure the HTTPS chat API address, heading and welcome text.
 * Run a read-only service health check from WordPress admin.
 * No WordPress theme edits and no third-party PHP dependencies.
-* No WooCommerce dependency; it can be used on ordinary WordPress sites too.
+* Optional WooCommerce product search for published catalogue-visible products.\n* WooCommerce remains optional; the generic widget works on ordinary WordPress sites too.
 
 == Installation ==
 
@@ -48,7 +48,7 @@ Yes. The plugin only injects the support widget. WooCommerce integration is opti
 
 No. It connects the browser widget to a ChatBridge service. WhatsApp credentials and message handling belong on the server, never in WordPress page source or browser JavaScript.
 
-= Does installing the plugin create an AI chatbot? =
+= What WooCommerce data can the widget show? =\n\nWhen enabled, it searches published, catalogue-visible products and returns the product name, formatted price, product URL, image and coarse stock status. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.\n\n= Does installing the plugin create an AI chatbot? =
 
 No. The initial ChatBridge service supports customer enquiries and human support replies. Automated AI responses are not included in this release.
 
