@@ -284,6 +284,92 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
     return ['connections' => $connected, 'connection_mode' => count($modes) === 1 ? $modes[0] : 'mixed'];
 }
 
+function process_meta_coexistence_sync_jobs(PDO $pdo, string $tenantId, int $batchSize = 10): array
+{
+    $summary = ['requested' => 0, 'failed' => 0, 'expired' => 0];
+    $expire = $pdo->prepare(
+        'UPDATE channel_sync_jobs
+         SET status = "expired", last_error = "Coexistence sync window elapsed.", updated_at = UTC_TIMESTAMP()
+         WHERE tenant_id = :tenant_id AND status = "pending"
+           AND created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)'
+    );
+    $expire->execute([':tenant_id' => $tenantId]);
+    $summary['expired'] = $expire->rowCount();
+
+    $query = $pdo->prepare(
+        'SELECT j.id AS job_id, j.sync_type, c.id AS connection_id, c.phone_number_id, c.credential_ciphertext
+         FROM channel_sync_jobs j
+         INNER JOIN channel_connections c
+           ON c.tenant_id = j.tenant_id AND c.id = j.channel_connection_id
+         WHERE j.tenant_id = :tenant_id AND j.status = "pending"
+           AND c.connection_status = "connected" AND c.is_on_biz_app = 1
+           AND j.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
+         ORDER BY FIELD(j.sync_type, "smb_app_state_sync", "history"), j.created_at ASC
+         LIMIT ' . max(1, min(25, $batchSize))
+    );
+    $query->execute([':tenant_id' => $tenantId]);
+    $jobs = $query->fetchAll();
+
+    foreach ($jobs as $job) {
+        $claim = $pdo->prepare(
+            'UPDATE channel_sync_jobs
+             SET status = "submitting", attempted_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+             WHERE tenant_id = :tenant_id AND id = :id AND status = "pending"'
+        );
+        $claim->execute([':tenant_id' => $tenantId, ':id' => $job['job_id']]);
+        if ($claim->rowCount() !== 1) continue;
+
+        try {
+            $accessToken = chatbridge_decrypt_secret((string)$job['credential_ciphertext']);
+            $response = chatbridge_meta_graph_request(
+                'POST',
+                (string)$job['phone_number_id'] . '/smb_app_data',
+                $accessToken,
+                [
+                    'messaging_product' => 'whatsapp',
+                    'sync_type' => (string)$job['sync_type'],
+                ]
+            );
+            $requestId = (string)($response['request_id'] ?? '');
+            $update = $pdo->prepare(
+                'UPDATE channel_sync_jobs
+                 SET status = "requested", request_id = :request_id, requested_at = UTC_TIMESTAMP(),
+                     last_error = NULL, updated_at = UTC_TIMESTAMP()
+                 WHERE tenant_id = :tenant_id AND id = :id AND status = "submitting"'
+            );
+            $update->execute([
+                ':request_id' => $requestId !== '' ? substr($requestId, 0, 191) : null,
+                ':tenant_id' => $tenantId,
+                ':id' => $job['job_id'],
+            ]);
+            chatbridge_meta_audit_event($pdo, $tenantId, (string)$job['connection_id'], 'coexistence_sync_requested:' . (string)$job['sync_type'], $requestId);
+            $summary['requested']++;
+        } catch (Throwable $error) {
+            $update = $pdo->prepare(
+                'UPDATE channel_sync_jobs
+                 SET status = "failed", last_error = "Meta sync request failed; manual review required.",
+                     updated_at = UTC_TIMESTAMP()
+                 WHERE tenant_id = :tenant_id AND id = :id AND status = "submitting"'
+            );
+            $update->execute([':tenant_id' => $tenantId, ':id' => $job['job_id']]);
+            error_log('[ChatBridge Meta sync] ' . $error->getMessage());
+            $summary['failed']++;
+        }
+    }
+
+    // A process crash during a one-shot Meta request is ambiguous. Never
+    // automatically re-submit a request that Meta may already have accepted.
+    $stuck = $pdo->prepare(
+        'UPDATE channel_sync_jobs
+         SET status = "failed", last_error = "Sync request interrupted; verify Meta request state before retrying.",
+             updated_at = UTC_TIMESTAMP()
+         WHERE tenant_id = :tenant_id AND status = "submitting"
+           AND attempted_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)'
+    );
+    $stuck->execute([':tenant_id' => $tenantId]);
+    return $summary;
+}
+
 function resolve_meta_tenant_by_waba(PDO $pdo, string $businessAccountId): ?string
 {
     if ($businessAccountId === '') return null;
