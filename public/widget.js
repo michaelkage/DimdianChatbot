@@ -33,7 +33,7 @@ css.rel = 'stylesheet'; css.href = new URL('widget.css', script.src).href; shado
 const wrap = document.createElement('div');
 wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false" aria-controls="dimdian-chat-panel"><span class="spark">✦</span> Message us</button>' +
 '<section class="panel" id="dimdian-chat-panel" role="dialog" aria-label="Customer support chat" aria-modal="false" hidden>' +
-'<header><div class="mark">D</div><div class="heading"><h2></h2><p></p></div><button class="close" type="button" aria-label="Close chat">×</button></header>' +
+'<header><div class="mark">D</div><div class="heading"><h2></h2><p></p></div><div class="conversation-controls"><select class="conversation-select" aria-label="Choose conversation"><option value="">Current conversation</option></select><button class="new-conversation" type="button">New</button></div><button class="close" type="button" aria-label="Close chat">×</button></header>' +
 '<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">CUSTOMER SUPPORT</span><h3>How can we help?</h3><p>Ask a question, find a product, or get help with an order.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-action="products" data-prompt="I need help finding a product.">Find a product</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-action="orders" data-prompt="I have a question about an order.">Order question</button></div>' +
 '<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
 '<section class="orders" aria-label="Order lookup" hidden><div class="commerce-head"><h3>Check an order</h3><button class="orders-back" type="button">Back to chat</button></div><form class="orders-search"><label for="chatbridge-order-number">Order number</label><input id="chatbridge-order-number" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="20" placeholder="e.g. 1042" required><button type="submit">Check order</button></form><p class="orders-status" role="status"></p><div class="order-result"></div></section>' +
@@ -194,12 +194,44 @@ $('.commerce-search').addEventListener('submit',async event=>{
  }catch(error){$('.commerce-status').textContent=error.message||'Product search is temporarily unavailable.';}
 });
 function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
+const conversationsKey=key+':conversations';
+const activeConversationKey=key+':active-conversation';
+let conversations=[];
+function saveConversations(){
+ try{sessionStorage.setItem(conversationsKey,JSON.stringify(conversations.slice(-10)));}catch(_){}
+}
+function refreshConversationPicker(){
+ const select=$('.conversation-select');if(!select)return;
+ const activeId=session&&session.sessionId?session.sessionId:'';
+ select.replaceChildren();
+ const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Choose conversation';select.append(placeholder);
+ conversations.forEach((item,index)=>{
+  const option=document.createElement('option');option.value=item.sessionId;option.textContent=item.title||('Conversation '+(index+1));select.append(option);
+ });
+ select.value=activeId;
+}
 try {
- const saved=JSON.parse(sessionStorage.getItem(key)||'null');
- if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
+ const stored=JSON.parse(sessionStorage.getItem(conversationsKey)||'[]');
+ if(Array.isArray(stored))conversations=stored.filter(item=>item&&typeof item.sessionId==='string'&&/^[a-f0-9]{64}$/.test(item.token)).slice(-10);
+ const legacy=JSON.parse(sessionStorage.getItem(key)||'null');
+ if(!conversations.length&&legacy&&/^[a-f0-9]{64}$/.test(legacy.token)){
+  conversations=[{sessionId:'legacy',conversationId:'legacy',token:legacy.token,expiresAt:legacy.expiresAt||null,title:'Previous conversation'}];
+  saveConversations();
  }
+ const activeId=sessionStorage.getItem(activeConversationKey)||'';
+ session=conversations.find(item=>item.sessionId===activeId)||conversations[conversations.length-1]||null;
+ if(session){cursor=0;sessionStorage.setItem(activeConversationKey,session.sessionId);}
 } catch (_) {}
-function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,cursor}));}catch(_){}}}
+refreshConversationPicker();
+function persist(){
+ if(!session)return;
+ session.cursor=cursor;
+ const index=conversations.findIndex(item=>item.sessionId===session.sessionId);
+ if(index>=0)conversations[index]=session;else conversations.push(session);
+ conversations=conversations.slice(-10);
+ try{sessionStorage.setItem(activeConversationKey,session.sessionId);}catch(_){}
+ saveConversations();refreshConversationPicker();
+}
 function status(t,kind){$('.status').textContent=t;$('.status').dataset.kind=kind||'normal';}
 async function request(path,opts){
  const headers=Object.assign({Accept:'application/json'},opts&&opts.headers);
@@ -238,13 +270,27 @@ async function startSession(){
  if(optedIn&&!phone){status('Add your WhatsApp number before choosing WhatsApp continuation.','warning');$('.phone').focus();throw new Error('A WhatsApp number is required for WhatsApp continuation.');}
  const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:rawPhone||null,whatsapp_opt_in:optedIn})});
  if(!body.data||!/^[a-f0-9]{64}$/.test(body.data.session_token||''))throw new Error('Could not initialize a chat session.');
- session={token:body.data.session_token,expiresAt:body.data.expires_at||null};cursor=0;persist();
+ session={sessionId:body.data.session_id||newMessageId(),conversationId:body.data.conversation_id||null,token:body.data.session_token,expiresAt:body.data.expires_at||null,title:'Conversation '+(conversations.length+1),createdAt:body.data.created_at||new Date().toISOString()};cursor=0;persist();
  $('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;welcome.hidden=true;
 }
 function expired(){
- session=null;cursor=0;try{sessionStorage.removeItem(key);}catch(_){}
+ if(session){conversations=conversations.filter(item=>item.sessionId!==session.sessionId);saveConversations();}
+ session=null;cursor=0;try{sessionStorage.removeItem(activeConversationKey);}catch(_){}
+ refreshConversationPicker();
  $('.name').disabled=false;$('.phone').disabled=false;$('.wa-opt-in').disabled=false;clear();
  notice('Your previous chat session expired. Send a new message to start again.');
+}
+function switchConversation(sessionId){
+ const next=conversations.find(item=>item.sessionId===sessionId);if(!next||next.sessionId===(session&&session.sessionId))return;
+ session=next;cursor=0;clear();
+ $('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;
+ persist();status('Loading conversation…');if(opened)poll().finally(schedule);
+}
+function startNewConversation(){
+ session=null;cursor=0;clear();stop();hideTyping();
+ $('.name').disabled=false;$('.phone').disabled=false;$('.wa-opt-in').disabled=false;
+ try{sessionStorage.removeItem(activeConversationKey);}catch(_){}
+ refreshConversationPicker();status('New conversation — send a message to begin.');input.focus();
 }
 async function poll(){
  if(!opened||!session||document.hidden)return;
@@ -299,6 +345,8 @@ async function send(text){
 function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
 function close(){opened=false;panel.hidden=true;launcher.hidden=false;launcher.setAttribute('aria-expanded','false');stop();launcher.focus();}
 launcher.addEventListener('click',open);$('.close').addEventListener('click',close);
+$('.new-conversation').addEventListener('click',startNewConversation);
+$('.conversation-select').addEventListener('change',event=>{if(event.target.value)switchConversation(event.target.value);});
 panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}});
 form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim();if(text)send(text);});
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
