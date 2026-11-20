@@ -31,6 +31,9 @@ try {
 }
 meta_check($invalidPathRejected, 'Meta Graph client rejects non-resource paths before making a network request');
 
-meta_check(function_exists('resolve_meta_tenant_by_waba'), 'webhook router can resolve account-level events by WABA ID');
+meta_check(function_exists('resolve_meta_tenant_by_waba'), 'webhook router can resolve account-level events by Messaging Account or WAAC ID');
+
+$syncSummary = process_meta_coexistence_sync_jobs(database(), '00000000-0000-4000-8000-000000000001');
+meta_check(($syncSummary['requested'] ?? -1) === 0, 'Coexistence sync worker is idle without queued jobs and makes no provider request');
 
 fwrite(STDOUT, "Meta onboarding contract tests passed.\n");
