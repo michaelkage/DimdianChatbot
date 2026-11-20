@@ -313,7 +313,15 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
         return new WP_REST_Response($cached, 200);
     }
 
-    $products = wc_get_products([
+    // Exact SKU matches matter for parts and other catalogue-heavy stores.
+    // Combine those with normal title/content search, preferring exact SKU hits.
+    $skuMatches = wc_get_products([
+        'status' => 'publish',
+        'limit' => 8,
+        'sku' => $search,
+        'return' => 'objects',
+    ]);
+    $nameMatches = wc_get_products([
         'status' => 'publish',
         'limit' => 8,
         's' => $search,
@@ -321,6 +329,22 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
         'order' => 'DESC',
         'return' => 'objects',
     ]);
+    $products = [];
+    $seenProductIds = [];
+    foreach (array_merge($skuMatches, $nameMatches) as $candidate) {
+        if (!$candidate instanceof WC_Product) {
+            continue;
+        }
+        $candidateId = $candidate->get_id();
+        if (isset($seenProductIds[$candidateId])) {
+            continue;
+        }
+        $seenProductIds[$candidateId] = true;
+        $products[] = $candidate;
+        if (count($products) >= 8) {
+            break;
+        }
+    }
 
     $items = [];
     foreach ($products as $product) {
@@ -339,6 +363,7 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
 
         $items[] = [
             'name' => sanitize_text_field($product->get_name()),
+            'sku' => sanitize_text_field((string) $product->get_sku()),
             'price' => sanitize_text_field($price),
             'url' => esc_url_raw($product->get_permalink()),
             'image' => $image ? esc_url_raw($image) : '',
