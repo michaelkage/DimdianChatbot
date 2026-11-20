@@ -115,6 +115,10 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
     if (!is_array($waacIds)) $waacIds = [];
     $waacIds = array_values(array_unique(array_filter(array_map('strval', $waacIds), static fn(string $id): bool => preg_match('/^\d{5,40}$/', $id) === 1)));
 
+    if ($waacIds !== [] && count($waacIds) !== count($messagingIds)) {
+        throw new InvalidArgumentException('The v5 Messaging Account and WhatsApp Account IDs could not be paired safely.');
+    }
+
     $sessionPhoneIds = $sessionInfo['phone_number_ids'] ?? $sessionInfo['phone_number_id'] ?? [];
     if (is_string($sessionPhoneIds)) $sessionPhoneIds = [$sessionPhoneIds];
     if (!is_array($sessionPhoneIds)) $sessionPhoneIds = [];
@@ -135,7 +139,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
 
     $connected = [];
     foreach ($messagingIds as $index => $messagingAccountId) {
-        $waacId = $waacIds[$index] ?? ($waacIds[0] ?? $messagingAccountId);
+        $waacId = $waacIds[$index] ?? $messagingAccountId;
 
         $tenantConflict = $pdo->prepare(
             'SELECT id FROM channel_connections
