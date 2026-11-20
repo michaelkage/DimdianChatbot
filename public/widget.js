@@ -300,7 +300,7 @@ async function poll(){
   while(more&&opened){
    const result=await request('/messages.php?after='+encodeURIComponent(String(cursor))+'&limit=50');
    (Array.isArray(result.data)?result.data:[]).forEach(render);
-   const meta=result.meta||{};applyDeliveryUpdates(meta.delivery_updates);if(meta.handoff&&['open','assigned'].includes(meta.handoff.status)){hideTyping();status('A team member has been requested. Automated replies are paused.','warning');}if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
+   const meta=result.meta||{};applyDeliveryUpdates(meta.delivery_updates);if(meta.handoff&&['open','assigned'].includes(meta.handoff.status)){hideTyping();if(script.dataset.handoverAck==='true'){status(script.dataset.handoverMessage||'We have received your request. A support agent will be with you as soon as possible.','warning');}else{status('A team member has been requested. Automated replies are paused.','warning');}}if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
    more=Boolean(meta.has_more);
   }
   delay=3000;
