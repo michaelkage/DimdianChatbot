@@ -11,7 +11,7 @@ The installable plugin lives in `wordpress-plugin/chatbridge-widget/`. The plugi
 - Admin capability and nonce checks on the Meta completion relay.
 - Privacy-policy content suggestion through WordPress core.
 - Uninstall cleanup removes only plugin-owned WordPress options; remote ChatBridge tenant data is not deleted.
-- Package ZIP workflow and a PHPCS / WordPress Coding Standards CI job.
+- Package ZIP workflow and a targeted PHPCS security-sniff CI job (escaping, nonce verification, sanitized input and prepared SQL).
 - Stubbed adapter tests for WooCommerce order ownership and WCFM vendor attribution.
 
 ## Release blockers
@@ -19,14 +19,15 @@ The installable plugin lives in `wordpress-plugin/chatbridge-widget/`. The plugi
 Do not submit the plugin to WordPress.org until these items are complete:
 
 1. Run the official WordPress Plugin Check plugin against the release ZIP in a real WordPress installation and resolve all errors/review warnings.
-2. Test the plugin on a current WordPress release with supported PHP versions, WooCommerce, and WCFM Marketplace both enabled and disabled. The repository's PHP stubs are not a substitute for these integration tests.
-3. Confirm the WordPress.org contributor username. The current readme contributor slug is a placeholder and must be replaced with the actual account.
-4. Add real screenshots for the settings page, visitor widget, WooCommerce order lookup and Meta onboarding UI, using a non-production test site and non-customer data.
-5. Publish final support and privacy-policy URLs. The privacy-policy suggestion is not a substitute for the hosted service's full privacy notice, data retention/deletion policy or processor disclosures.
-6. Add a release-tested WordPress version to the readme only after the real test matrix passes.
-7. Confirm the plugin slug, trademarks, author identity and directory submission details.
-8. Review all remote API behavior, external script loading, security disclosures and data flows against the current WordPress.org guidelines.
-9. Obtain explicit release approval before publishing or uploading to WordPress.org SVN.
+2. Complete a full WordPress Coding Standards style pass. CI currently runs targeted security sniffs only; the full style ruleset reported extensive formatting/naming violations and is not yet clean.
+3. Test the plugin on a current WordPress release with supported PHP versions, WooCommerce, and WCFM Marketplace both enabled and disabled. The repository's PHP stubs are not a substitute for these integration tests.
+4. Confirm the WordPress.org contributor username. The current readme contributor slug is a placeholder and must be replaced with the actual account.
+5. Add real screenshots for the settings page, visitor widget, WooCommerce order lookup and Meta onboarding UI, using a non-production test site and non-customer data.
+6. Publish final support and privacy-policy URLs. The privacy-policy suggestion is not a substitute for the hosted service's full privacy notice, data retention/deletion policy or processor disclosures.
+7. Add a release-tested WordPress version to the readme only after the real test matrix passes.
+8. Confirm the plugin slug, trademarks, author identity and directory submission details.
+9. Review all remote API behavior, external script loading, security disclosures and data flows against the current WordPress.org guidelines.
+10. Obtain explicit release approval before publishing or uploading to WordPress.org SVN.
 
 ## Current boundary
 
