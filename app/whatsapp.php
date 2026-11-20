@@ -179,15 +179,16 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     } elseif ($expectedBusinessAccountId !== '') {
                         $updateConnection = $pdo->prepare(
                             'UPDATE channel_connections
-                             SET connection_status = :status,
+                             SET connection_status = CASE WHEN :reconnected = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected = 1 THEN "needs_action" ELSE :status END,
                                  credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
-                                 last_error_code = :event_name,
-                                 last_error_message = "Meta reported an account or number access change.",
+                                 last_error_code = CASE WHEN :reconnected = 1 THEN NULL ELSE :event_name END,
+                                 last_error_message = CASE WHEN :reconnected = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
                                  updated_at = UTC_TIMESTAMP()
                              WHERE tenant_id = :tenant_id AND provider = "meta" AND (business_account_id = :waba_id OR whatsapp_account_id = :waac_id)'
                         );
                         $updateConnection->execute([
                             ':status' => $revoked ? 'revoked' : 'disconnected',
+                            ':reconnected' => $reconnected ? 1 : 0,
                             ':clear_token' => $revoked ? 1 : 0,
                             ':event_name' => substr($eventName, 0, 100),
                             ':tenant_id' => $tenantId,
