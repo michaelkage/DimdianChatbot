@@ -24,7 +24,8 @@ Features:
 * Configure the HTTPS chat API address, heading and welcome text.
 * Run a read-only service health check from WordPress admin.
 * No WordPress theme edits and no third-party PHP dependencies.
-* Optional WooCommerce product search for published catalogue-visible products.\n* WooCommerce remains optional; the generic widget works on ordinary WordPress sites too.
+* Optional WooCommerce product search for published catalogue-visible products.
+* WooCommerce remains optional; the generic widget works on ordinary WordPress sites too.
 
 == Installation ==
 
@@ -42,13 +43,17 @@ The remote service must allow the exact origin of your WordPress site. Ask the s
 
 = Does this plugin work without WooCommerce? =
 
-Yes. The plugin only injects the support widget. WooCommerce integration is optional and belongs in a separate service integration.
+Yes. The generic support widget works without WooCommerce. Product search is optional and is available only when WooCommerce is active.
 
 = Does this plugin itself connect to WhatsApp? =
 
 No. It connects the browser widget to a ChatBridge service. WhatsApp credentials and message handling belong on the server, never in WordPress page source or browser JavaScript.
 
-= What WooCommerce data can the widget show? =\n\nWhen enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks exact SKU matches as well as ordinary product-name/content matches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.\n\n= Does installing the plugin create an AI chatbot? =
+= What WooCommerce data can the widget show? =
+
+When enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks SKU matches as well as product-name matches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.
+
+= Does installing the plugin create an AI chatbot? =
 
 No. The initial ChatBridge service supports customer enquiries and human support replies. Automated AI responses are not included in this release.
 
@@ -71,6 +76,10 @@ The plugin sends a visitor's browser to the configured ChatBridge service to loa
 The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. It sends no WhatsApp token or customer conversation data.
 
 == Changelog ==
+
+= 0.2.0 =
+* Add optional read-only WooCommerce product search and SKU lookup.
+* Add product-specific enquiry handoff and local compatibility diagnostics.
 
 = 0.1.0 =
 * Initial connector plugin with settings, safe defaults and remote health check.
