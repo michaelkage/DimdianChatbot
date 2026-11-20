@@ -226,7 +226,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     $conversationQuery = $pdo->prepare(
                         'SELECT c.id FROM guests g
                          INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.phone_normalized = :phone AND c.status = "open"
+                         WHERE g.tenant_id = :guest_tenant_id AND c.tenant_id = :conversation_tenant_id AND g.phone_normalized = :phone AND c.status = "open"
                          ORDER BY c.updated_at DESC LIMIT 1'
                     );
                     $conversationQuery->execute([':guest_tenant_id' => $tenantId, ':conversation_tenant_id' => $tenantId, ':phone' => $sender]);
@@ -250,7 +250,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     ]);
                     if ($insertMessage->rowCount() === 1) {
                         $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id');
-                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
+                        $update->execute([':sent_at' => $sentAt, ':tenant_id' => $tenantId, ':id' => $conversationId]);
                         mark_webhook_event($pdo, $tenantId, $eventId, 'processed');
                         $processed++;
                     } else {
