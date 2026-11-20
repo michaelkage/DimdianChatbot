@@ -36,6 +36,16 @@ if ($whatsappOptIn && $normalizedPhone === null) {
     json_response(['error' => ['code' => 'whatsapp_phone_required', 'message' => 'Enter your WhatsApp number to opt in.']], 422);
 }
 
+if (chatbridge_store_driver() === 'supabase') {
+    try {
+        $sessionData = chatbridge_supabase_create_session($name, $phone, $normalizedPhone, $whatsappOptIn);
+        json_response(['data' => $sessionData], 201);
+    } catch (Throwable $error) {
+        error_log('[ChatBridge] Supabase guest session creation failed: ' . $error->getMessage());
+        json_response(['error' => ['code' => 'server_error', 'message' => 'A chat session could not be started. Please try again.']], 500);
+    }
+}
+
 try {
     $pdo = database();
     $tenantId = resolve_request_tenant_id($pdo);
