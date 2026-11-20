@@ -35,6 +35,8 @@ CREATE TABLE channel_connections (
     tenant_id CHAR(36) NOT NULL,
     provider VARCHAR(40) NOT NULL,
     business_account_id VARCHAR(191) NULL,
+    whatsapp_account_id VARCHAR(191) NULL,
+    business_portfolio_id VARCHAR(191) NULL,
     phone_number_id VARCHAR(191) NULL,
     display_phone_number VARCHAR(64) NULL,
     connection_status ENUM('not_connected', 'signup_started', 'authorization_received', 'account_discovered', 'credentials_exchanged', 'webhook_subscribed', 'number_verified', 'connection_tested', 'connected', 'needs_action', 'disconnected', 'revoked', 'failed') NOT NULL DEFAULT 'not_connected',
@@ -51,6 +53,7 @@ CREATE TABLE channel_connections (
     PRIMARY KEY (id),
     UNIQUE KEY uq_channel_phone (provider, phone_number_id),
     KEY idx_channel_waba (provider, business_account_id),
+    KEY idx_channel_waac (provider, whatsapp_account_id),
     KEY idx_channel_tenant_status (tenant_id, connection_status),
     CONSTRAINT fk_channel_connections_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE
