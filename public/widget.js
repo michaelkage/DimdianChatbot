@@ -106,21 +106,23 @@ async function flushQueue(){
  const queue=readQueue();if(!queue.length)return;
  busy=true;
  try{
-  if(!session)await startSession();
   const activeBeforeFlush=session;
+  const displaySessionId=activeBeforeFlush&&activeBeforeFlush.sessionId?activeBeforeFlush.sessionId:null;
   for(const item of queue){
    if(item.sessionId){
     const target=conversations.find(conversation=>conversation.sessionId===item.sessionId);
     if(target)session=target;
-    else if(!session)await startSession();
+    else{session=null;await startSession();item.sessionId=session.sessionId;writeQueue(readQueue().map(saved=>saved.id===item.id?item:saved));}
    }else if(!session)await startSession();
    if(!item.sessionId&&session){item.sessionId=session.sessionId;writeQueue(readQueue().map(saved=>saved.id===item.id?item:saved));}
    const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:item.text,client_message_id:item.id})});
+   const sentInSession=session&&session.sessionId;
    removeQueued(item.id);
-   if(result.data)render(result.data);
+   if(result.data&&(!displaySessionId||displaySessionId===sentInSession))render(result.data);
   }
   session=activeBeforeFlush||session;
   refreshConversationPicker();
+  if(opened&&session&&displaySessionId!==session.sessionId){clear();poll().finally(schedule);}
   status('Saved messages sent. Waiting for a reply.');
  }catch(error){status('Some messages are still saved on this device. We will retry when the connection returns.','warning');}
  finally{busy=false;}
