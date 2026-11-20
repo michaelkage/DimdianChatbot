@@ -83,6 +83,20 @@ function chatbridge_meta_exchange_code(string $code): array
     return $decoded;
 }
 
+function chatbridge_meta_audit_event(PDO $pdo, string $tenantId, ?string $connectionId, string $eventType, string $identity): void
+{
+    $insert = $pdo->prepare(
+        'INSERT INTO channel_connection_events (tenant_id, channel_connection_id, event_type, event_sha256, created_at)
+         VALUES (:tenant_id, :connection_id, :event_type, :event_hash, UTC_TIMESTAMP())'
+    );
+    $insert->execute([
+        ':tenant_id' => $tenantId,
+        ':connection_id' => $connectionId,
+        ':event_type' => substr($eventType, 0, 100),
+        ':event_hash' => hash('sha256', $tenantId . ':' . $eventType . ':' . $identity),
+    ]);
+}
+
 function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code, array $sessionInfo): array
 {
     if ($code === '' || strlen($code) > 10000) throw new InvalidArgumentException('The Meta authorization code is invalid.');
@@ -98,6 +112,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
 
     $tokenResponse = chatbridge_meta_exchange_code($code);
     $accessToken = (string)$tokenResponse['access_token'];
+    chatbridge_meta_audit_event($pdo, $tenantId, null, 'authorization_code_exchanged', hash('sha256', $code));
     $encryptedToken = chatbridge_encrypt_secret($accessToken);
     $expiresAt = null;
     if (isset($tokenResponse['expires_in']) && is_numeric($tokenResponse['expires_in']) && (int)$tokenResponse['expires_in'] > 0) {
@@ -121,6 +136,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
         if ((string)($account['id'] ?? '') !== $businessAccountId) {
             throw new RuntimeException('Meta returned an unexpected WhatsApp business account.');
         }
+        chatbridge_meta_audit_event($pdo, $tenantId, null, 'waba_discovered', $businessAccountId);
 
         $numbers = chatbridge_meta_graph_request('GET', $businessAccountId . '/phone_numbers', $accessToken, [
             'fields' => 'id,display_phone_number,verified_name,quality_rating,platform_type',
@@ -131,6 +147,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
 
         // Subscribe the app before marking the channel as connected.
         chatbridge_meta_graph_request('POST', $businessAccountId . '/subscribed_apps', $accessToken);
+        chatbridge_meta_audit_event($pdo, $tenantId, null, 'webhook_subscribed', $businessAccountId);
 
         foreach ($phoneRows as $phone) {
             if (!is_array($phone)) continue;
@@ -144,6 +161,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
                 ? !empty($phoneDetails['is_on_biz_app'])
                 : $isOnBizApp;
             $phoneConnectionMode = $phoneIsOnBizApp ? 'coexistence' : 'standard';
+            chatbridge_meta_audit_event($pdo, $tenantId, null, 'phone_number_verified', $phoneNumberId);
 
             $existing = $pdo->prepare('SELECT tenant_id, id FROM channel_connections WHERE provider = "meta" AND phone_number_id = :phone_id LIMIT 1');
             $existing->execute([':phone_id' => $phoneNumberId]);
@@ -189,15 +207,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
                 ':expires_at' => $expiresAt,
             ]);
 
-            $event = $pdo->prepare(
-                'INSERT INTO channel_connection_events (tenant_id, channel_connection_id, event_type, event_sha256, created_at)
-                 VALUES (:tenant_id, :connection_id, "embedded_signup_connected", :event_hash, UTC_TIMESTAMP())'
-            );
-            $event->execute([
-                ':tenant_id' => $tenantId,
-                ':connection_id' => $connectionId,
-                ':event_hash' => hash('sha256', $tenantId . ':' . $phoneNumberId . ':connected'),
-            ]);
+            chatbridge_meta_audit_event($pdo, $tenantId, $connectionId, 'connected', $phoneNumberId);
             $connected[] = [
                 'phone_number_id' => $phoneNumberId,
                 'display_phone_number' => $displayNumber,
