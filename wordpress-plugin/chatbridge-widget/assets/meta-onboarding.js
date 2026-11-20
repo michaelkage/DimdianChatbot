@@ -99,7 +99,7 @@
     if (!message || message.type !== 'WA_EMBEDDED_SIGNUP') return;
 
     const data = message.data && typeof message.data === 'object' ? message.data : {};
-    const eventName = String(data.event || '').toUpperCase();
+    const eventName = String(message.event || data.event || '').toUpperCase();
     if (eventName === 'CANCEL') {
       setStatus('The Meta signup flow was cancelled. No connection was saved.', true);
       signupCode = '';
