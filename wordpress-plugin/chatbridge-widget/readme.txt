@@ -51,7 +51,7 @@ No. It connects the browser widget to a ChatBridge service. WhatsApp credentials
 
 = What WooCommerce data can the widget show? =
 
-When enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks SKU matches as well as product-name matches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.
+When enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks SKU matches as well as partial product-name searches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.
 
 = Does installing the plugin create an AI chatbot? =
 
