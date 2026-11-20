@@ -109,6 +109,12 @@ UPDATE message_status_events se
 INNER JOIN messages m ON m.provider_message_id = se.provider_message_id
 SET se.tenant_id = m.tenant_id
 WHERE se.tenant_id IS NULL;
+-- Status callbacks may arrive before the corresponding message (the integration
+-- suite explicitly covers this race). Preserve those uncorrelated events under
+-- the legacy tenant so the NOT NULL conversion is safe.
+UPDATE message_status_events
+SET tenant_id = '00000000-0000-4000-8000-000000000001'
+WHERE tenant_id IS NULL;
 
 -- Historical webhook events are assigned to the legacy tenant. Future webhook
 -- ingestion must resolve phone_number_id to a channel connection before writes.
