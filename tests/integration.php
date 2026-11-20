@@ -279,6 +279,22 @@ $historyCount = $pdo->prepare('SELECT COUNT(*) FROM coexistence_history_payloads
 $historyCount->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001']);
 expect($historySyncStatus === 200 && ($historySyncBody['processed'] ?? 0) === 1 && (int)$historyCount->fetchColumn() === 1, 'Coexistence history webhook payload is archived within its tenant boundary');
 
+$accountUpdatePayload = [
+    'object' => 'whatsapp_business_account',
+    'entry' => [[
+        'id' => 'test-waba',
+        'changes' => [[
+            'field' => 'account_update',
+            'value' => ['event' => 'PARTNER_REMOVED', 'phone_number_id' => 'test-phone-id'],
+        ]],
+    ]],
+];
+[$accountUpdateStatus, $accountUpdateBody] = webhook_post($accountUpdatePayload, $secret);
+$connectionStatus = $pdo->prepare('SELECT connection_status, credential_ciphertext FROM channel_connections WHERE tenant_id = :tenant_id AND phone_number_id = :phone_id');
+$connectionStatus->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001', ':phone_id' => 'test-phone-id']);
+$revokedConnection = $connectionStatus->fetch();
+expect($accountUpdateStatus === 200 && ($accountUpdateBody['processed'] ?? 0) === 1 && ($revokedConnection['connection_status'] ?? '') === 'revoked' && $revokedConnection['credential_ciphertext'] === null, 'Meta partner removal revokes the channel and clears its stored credential');
+
 $statusPayload = [
     'object' => 'whatsapp_business_account',
     'entry' => [[
