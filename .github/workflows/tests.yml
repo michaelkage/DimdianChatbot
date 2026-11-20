@@ -53,6 +53,7 @@ jobs:
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/schema.sql
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/004_multi_tenant_foundation.sql
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/005_tenant_ai_knowledge_handover.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/006_tenant_api_keys_and_channel_events.sql
           mysql -h127.0.0.1 -uroot -proot dimdian_test <<'SQL'
           INSERT INTO tenant_sites (tenant_id, origin, status, created_at, updated_at)
           VALUES ('00000000-0000-4000-8000-000000000001', 'https://website.example.test', 'verified', UTC_TIMESTAMP(), UTC_TIMESTAMP());
