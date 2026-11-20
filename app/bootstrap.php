@@ -6,6 +6,7 @@ declare(strict_types=1);
  * No framework, Composer packages, or long-running process required.
  */
 
+// Production secrets live in the private project-root config.php, never under public/ or in the Git repository.
 $configPath = dirname(__DIR__) . '/config.php';
 if (!is_file($configPath)) {
     http_response_code(503);
