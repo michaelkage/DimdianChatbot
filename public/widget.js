@@ -17,12 +17,17 @@ const showPaths = splitRules(script.dataset.showPaths);
 const hideSelectors = splitRules(script.dataset.hideSelectors);
 const compactSelectors = splitRules(script.dataset.compactSelectors);
 const pathMatches = pattern => pattern.endsWith('*') ? location.pathname.startsWith(pattern.slice(0, -1)) : location.pathname === pattern;
-if ((showPaths.length && !showPaths.some(pathMatches)) || hidePaths.some(pathMatches)) return;
 const matchesSelector = selectors => selectors.some(selector => {
   try { return Boolean(document.querySelector(selector)); } catch (_) { return false; }
 });
-if (matchesSelector(hideSelectors)) return;
-const compactMode = matchesSelector(compactSelectors);
+const matchesFullscreen = selectors => {
+  const element = document.fullscreenElement;
+  if (!element) return false;
+  return selectors.some(selector => {
+    try { return element.matches(selector) || Boolean(element.closest(selector)); } catch (_) { return false; }
+  });
+};
+const compactMode = matchesSelector(compactSelectors) || matchesFullscreen(compactSelectors);
 const key = 'dimdian-chat:' + api + ':' + location.origin;
 const queueKey = key + ':offline-outbox';
 const draftKey = key + ':draft';
@@ -311,6 +316,13 @@ function startNewConversation(){
  try{sessionStorage.removeItem(activeConversationKey);}catch(_){}
  refreshConversationPicker();status('New conversation — send a message to begin.');input.focus();
 }
+function applyPageRules(){
+ const pathHidden=(showPaths.length&&!showPaths.some(pathMatches))||hidePaths.some(pathMatches);
+ const selectorHidden=matchesSelector(hideSelectors)||matchesFullscreen(hideSelectors);
+ root.hidden=pathHidden||selectorHidden;
+ root.classList.toggle('compact-mode',matchesSelector(compactSelectors)||matchesFullscreen(compactSelectors));
+ if(root.hidden&&opened){opened=false;panel.hidden=true;stop();hideTyping();}
+}
 async function poll(){
  if(!opened||!session||document.hidden)return;
  try{
@@ -372,6 +384,10 @@ form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.tri
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';if(features.offlineQueue){try{if(input.value)localStorage.setItem(draftKey,input.value.slice(0,4000));else localStorage.removeItem(draftKey);}catch(_){}}});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
+document.addEventListener('fullscreenchange',applyPageRules);
+window.addEventListener('popstate',applyPageRules);
+window.addEventListener('hashchange',applyPageRules);
+applyPageRules();
 window.addEventListener('online',()=>{if(features.offlineQueue)flushQueue();if(opened&&session)poll().finally(schedule);});
 window.addEventListener('offline',()=>{if(features.offlineQueue)status('You are offline. New messages can be saved on this device.','warning');});
 if(features.offlineQueue){readQueue().forEach(showQueued);try{const draft=localStorage.getItem(draftKey);if(draft&&!input.value){input.value=draft.slice(0,4000);$('.count').textContent=input.value.length+' / 4000';}}catch(_){}} 
