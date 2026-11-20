@@ -28,6 +28,8 @@ const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
+const orderQuickReply=shadow.querySelector('[data-action="orders"]');
+if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
 shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
  if(button.dataset.action==='products'&&commerceApi){openProductSearch();return;}
  if(button.dataset.action==='orders'&&ordersApi&&restNonce){openOrderLookup();return;}
