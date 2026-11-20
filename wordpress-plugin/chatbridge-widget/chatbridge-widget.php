@@ -212,6 +212,10 @@ function chatbridge_widget_render_settings_page(): void
                 <?php echo class_exists('WooCommerce') ? esc_html__('Active', 'chatbridge-widget') : esc_html__('Not detected', 'chatbridge-widget'); ?>
             </li>
             <li>
+                <strong><?php esc_html_e('WCFM Marketplace:', 'chatbridge-widget'); ?></strong>
+                <?php echo chatbridge_widget_wcfm_available() ? esc_html__('Active — vendor attribution API detected', 'chatbridge-widget') : esc_html__('Not detected — standard WooCommerce catalogue mode', 'chatbridge-widget'); ?>
+            </li>
+            <li>
                 <strong><?php esc_html_e('Product search:', 'chatbridge-widget'); ?></strong>
                 <?php
                 if (!class_exists('WooCommerce')) {
@@ -341,6 +345,36 @@ add_action('rest_api_init', static function (): void {
     ]);
 });
 
+/**
+ * Resolve public vendor attribution through WCFM's supported in-process API.
+ * No vendor post-meta key or commission table is queried directly.
+ */
+function chatbridge_widget_wcfm_available(): bool
+{
+    return function_exists('wcfm_get_vendor_id_by_post') && function_exists('wcfm_get_vendor_store');
+}
+
+function chatbridge_widget_product_vendor(int $product_id): ?array
+{
+    if ($product_id < 1 || !chatbridge_widget_wcfm_available()) {
+        return null;
+    }
+
+    $vendor_id = (int) wcfm_get_vendor_id_by_post($product_id);
+    if ($vendor_id < 1 || (function_exists('wcfm_is_vendor') && !wcfm_is_vendor($vendor_id))) {
+        return null;
+    }
+
+    $store_name = wcfm_get_vendor_store($vendor_id);
+    if (!is_string($store_name) || trim($store_name) === '') {
+        $vendor = get_userdata($vendor_id);
+        $store_name = $vendor instanceof WP_User ? $vendor->display_name : '';
+    }
+
+    $store_name = sanitize_text_field((string) $store_name);
+    return $store_name !== '' ? ['name' => $store_name] : null;
+}
+
 function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Response
 {
     $settings = chatbridge_widget_settings();
@@ -443,8 +477,10 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
             ? wp_get_attachment_image_url($product->get_image_id(), 'woocommerce_thumbnail')
             : wc_placeholder_img_src();
 
+        $vendor = chatbridge_widget_product_vendor((int) $product->get_id());
         $items[] = [
             'name' => sanitize_text_field($product->get_name()),
+            'vendor' => $vendor ? $vendor['name'] : null,
             'sku' => sanitize_text_field((string) $product->get_sku()),
             'price' => sanitize_text_field($price),
             'url' => esc_url_raw($product->get_permalink()),
@@ -510,9 +546,13 @@ function chatbridge_widget_get_own_order(WP_REST_Request $request): WP_REST_Resp
         if (!is_object($item) || !method_exists($item, 'get_name') || !method_exists($item, 'get_quantity')) {
             continue;
         }
+        $vendor = method_exists($item, 'get_product_id')
+            ? chatbridge_widget_product_vendor((int) $item->get_product_id())
+            : null;
         $items[] = [
             'name' => sanitize_text_field((string) $item->get_name()),
             'quantity' => max(1, (int) $item->get_quantity()),
+            'vendor' => $vendor ? $vendor['name'] : null,
         ];
         if (count($items) >= 20) {
             break;
