@@ -58,7 +58,7 @@ Coexistence-specific requirements:
 - Test incoming messages, app-originated replies, delivery statuses, disconnect and token revocation.
 - Do not enable outbound sends until the approved template, recipient opt-in, number identity and webhook round-trip are verified.
 
-A Meta App ID/configuration ID/Partner Solution ID are configuration identifiers, not credentials. App Secret, access tokens and exchanged credentials are server-side secrets. The browser may launch signup and relay the short-lived code to a protected backend endpoint; it must never exchange or persist the long-lived token itself.
+Meta's partner overview distinguishes Tech Providers, Tech Partners and Solution Partners and identifies Embedded Signup as a Tech Provider capability. See [Meta's partner overview](https://whatsappbusiness.com/partners/become-a-partner/). For a provider-specific example of the onboarding prerequisites, see [Twilio's Tech Provider integration guide](https://www.twilio.com/docs/whatsapp/isv/tech-provider-program/integration-guide). A Meta App ID/configuration ID/Partner Solution ID are configuration identifiers, not credentials. App Secret, access tokens and exchanged credentials are server-side secrets. The browser may launch signup and relay the short-lived code to a protected backend endpoint; it must never exchange or persist the long-lived token itself.
 
 The mock-site Supabase webhook remains a diagnostic receiver only. It currently accepts Meta's webhook handshake and signed event POSTs and writes normalized diagnostic events. It does not yet implement Embedded Signup, authorization-code exchange, tenant provisioning or message routing into the PHP chat service.
 
@@ -102,7 +102,7 @@ The first WCFM increment must be read-only:
 - Never expose another vendor's products, line-item data, buyer contact details, commissions, payout data or store settings.
 - Do not modify vendor order status, fulfilment, commissions, Paystack payments or refunds.
 
-WCFM compatibility must be tested against the installed WCFM version and its supported APIs before enabling any vendor-specific route. The current plugin does not yet call WCFM APIs.
+WCFM's official documentation describes vendor-specific order capabilities and the separate WCFM Marketplace REST API. Its app documentation lists WCFM Marketplace REST API and JWT authentication as dependencies for that app workflow; this does not mean ChatBridge should copy its credentials or reuse its endpoints without review. We should prefer WCFM's supported in-process permission/vendor APIs where available and add a separate vendor-scoped REST adapter only if the installed WCFM release requires it. See [WCFM capability documentation](https://docs.wclovers.com/capability/), [WCFM app/API requirements](https://docs.wclovers.com/wcfm-app/) and [WCFM Marketplace documentation](https://docs.wclovers.com/). The current plugin does not yet call WCFM APIs.
 
 ## WordPress.org distribution gates
 
