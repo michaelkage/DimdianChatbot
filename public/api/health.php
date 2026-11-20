@@ -23,6 +23,16 @@ $requiredTables = [
     'webhook_events',
     'message_outbox',
     'message_status_events',
+    'tenants',
+    'tenant_sites',
+    'channel_connections',
+    'tenant_api_keys',
+    'tenant_ai_settings',
+    'knowledge_sources',
+    'ai_jobs',
+    'conversation_handoffs',
+    'ai_usage_events',
+    'channel_connection_events',
 ];
 
 try {
@@ -56,7 +66,7 @@ try {
         ],
         'missing_tables' => $missingTables,
         'whatsapp_outbound' => $whatsappEnabled ? 'enabled_in_config' : 'disabled',
-        'note' => 'This check does not test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity or live WhatsApp delivery.',
+        'note' => 'This check validates required schema tables only. It does not test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity, AI provider credentials or live WhatsApp delivery.',
     ], $schemaOk ? 200 : 503);
 } catch (Throwable $error) {
     // Detailed diagnostics belong in the private hosting error log, not HTTP.
