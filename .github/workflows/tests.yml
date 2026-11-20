@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/multi-tenant-isolation]
   pull_request:
-    branches: [main]
+    branches: [main, feat/platform-foundation, feat/multi-tenant-isolation]
 
 permissions:
   contents: read
