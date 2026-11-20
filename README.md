@@ -4,6 +4,8 @@ A lightweight customer chat widget for the Dimdian website. Visitors can send an
 
 This README is also the handover guide for the Dimdian business owner and the person maintaining the website.
 
+> **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
+
 ## 1. What this system does
 
 - Adds a small floating **Message us** button to the Dimdian website.
@@ -51,7 +53,7 @@ The public demo is a mock Dimdian website with the actual widget code running in
 
 The demo does not connect to the PHP API, database or WhatsApp. It hides the visitor name/phone and WhatsApp consent fields, simulates a support reply, and does not persist messages after the page is reloaded. It is for trying the look and feel only; it is not the production service.
 
-An owner-only diagnostic page is also being prepared at [the WhatsApp integration test console](https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html). It will display verified Meta webhook events after the separate Supabase test project is configured. It is not a customer inbox and does not initiate WhatsApp onboarding or send messages.
+An owner-only diagnostic page is available at [the WhatsApp integration test console](https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html). It will display verified Meta webhook events after the separate Supabase test project is configured. It is not a customer inbox and does not initiate WhatsApp onboarding or send messages.
 
 ## 4. Production hosting plan
 
