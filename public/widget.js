@@ -14,9 +14,9 @@ const wrap = document.createElement('div');
 wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false" aria-controls="dimdian-chat-panel"><span class="spark">✦</span> Message us</button>' +
 '<section class="panel" id="dimdian-chat-panel" role="dialog" aria-label="Customer support chat" aria-modal="false" hidden>' +
 '<header><div class="mark">D</div><div class="heading"><h2></h2><p></p></div><button class="close" type="button" aria-label="Close chat">×</button></header>' +
-'<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">DIMDIAN SUPPORT</span><h3>Looking for the right part?</h3><p>Tell us what you need help with. You can start with a quick topic or write your own message.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-prompt="I need help finding a part.">Find a part</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-prompt="I have a question about an order.">Order question</button></div>' +
+'<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">DIMDIAN SUPPORT</span><h3>Looking for the right part?</h3><p>Tell us what you need help with. You can start with a quick topic or write your own message.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-action="products" data-prompt="I need help finding a part.">Find a part</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-prompt="I have a question about an order.">Order question</button></div>' +
 '<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
-'<div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
+'<section class="commerce" aria-label="Product search" hidden><div class="commerce-head"><h3>Find a product</h3><button class="commerce-back" type="button">Back to chat</button></div><form class="commerce-search"><label class="sr" for="chatbridge-product-search">Search products</label><input id="chatbridge-product-search" type="search" minlength="2" maxlength="80" placeholder="Search the catalogue…" required><button type="submit">Search</button></form><p class="commerce-status" role="status"></p><div class="product-results"></div></section><div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
 '<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by Dimdian</footer></section>';
 shadow.append(wrap); document.body.append(root);
 const $ = s => shadow.querySelector(s);
@@ -24,11 +24,49 @@ const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
-shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{input.value=button.dataset.prompt||'';$('.count').textContent=input.value.length+' / 4000';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}));
+shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
+ if(button.dataset.action==='products'&&commerceApi){openProductSearch();return;}
+ input.value=button.dataset.prompt||'';$('.count').textContent=input.value.length+' / 4000';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
+}));
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 const messageNodes=new Map();
 let pendingSubmission=null;
+function openProductSearch(){
+ $('.welcome').hidden=true;$('.commerce').hidden=false;$('.commerce-status').textContent='Search the products available on this website.';$('.product-results').replaceChildren();$('.commerce-search input').focus();scroll();
+}
+function renderProducts(products){
+ const list=$('.product-results');list.replaceChildren();
+ if(!Array.isArray(products)||products.length===0){$('.commerce-status').textContent='No matching products found. Try another search or send us a message.';return;}
+ $('.commerce-status').textContent=products.length+' matching product'+(products.length===1?'':'s')+'.';
+ products.forEach(product=>{
+  const card=document.createElement('article');card.className='product-card';
+  if(product.image){const img=document.createElement('img');img.src=product.image;img.alt='';img.loading='lazy';card.append(img);}
+  const details=document.createElement('div');details.className='product-details';
+  const name=document.createElement('strong');name.textContent=String(product.name||'Product');details.append(name);
+  if(product.price){const price=document.createElement('span');price.className='product-price';price.textContent=String(product.price);details.append(price);}
+  const stock=document.createElement('span');stock.className='product-stock';stock.textContent=product.stock_status==='instock'?'In stock':product.stock_status==='onbackorder'?'Available on backorder':'Check availability';details.append(stock);
+  const actions=document.createElement('div');actions.className='product-actions';
+  const ask=document.createElement('button');ask.type='button';ask.textContent='Ask about this';ask.addEventListener('click',()=>{
+   input.value='I am interested in '+String(product.name||'this product')+'. Is it available? '+String(product.url||'');
+   $('.count').textContent=input.value.length+' / 4000';$('.commerce').hidden=true;$('.welcome').hidden=false;input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));
+  });actions.append(ask);
+  if(product.url){const link=document.createElement('a');link.href=product.url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='View product';actions.append(link);}
+  details.append(actions);card.append(details);list.append(card);
+ });
+}
+$('.commerce-back').addEventListener('click',()=>{$('.commerce').hidden=true;$('.welcome').hidden=false;input.focus();});
+$('.commerce-search').addEventListener('submit',async event=>{
+ event.preventDefault();const term=$('.commerce-search input').value.trim();if(term.length<2)return;
+ $('.commerce-status').textContent='Searching catalogue…';$('.product-results').replaceChildren();
+ try{
+  const url=new URL(commerceApi,location.href);url.searchParams.set('search',term);
+  const response=await fetch(url.href,{headers:{Accept:'application/json'},credentials:'omit',cache:'no-store'});
+  const body=await response.json();
+  if(!response.ok)throw new Error(body.message||'Product search is temporarily unavailable.');
+  renderProducts(body.products);
+ }catch(error){$('.commerce-status').textContent=error.message||'Product search is temporarily unavailable.';}
+});
 function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
