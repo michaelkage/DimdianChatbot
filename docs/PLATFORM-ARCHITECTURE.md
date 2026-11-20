@@ -144,7 +144,7 @@ All platform work should land through a feature branch and pull request. Do not 
 
 The first runtime increment is implemented on a feature branch and is not yet merged or deployed:
 
-- `database/migrations/004_multi_tenant_foundation.sql` creates tenants, verified site origins and Meta channel connection records; backfills existing records to the legacy tenant; adds tenant IDs to guests, conversations, guest sessions, messages, webhook events, outbox jobs and status events; and adds composite foreign keys for tenant-consistent guest/conversation/message relationships.
+- Migrations 004–007 create tenants, verified site origins, Meta channel connections, tenant API keys, AI/knowledge/handover records and Coexistence sync/contact/history tables; backfill existing records to the legacy tenant; add tenant IDs to guests, conversations, guest sessions, messages, webhook events, outbox jobs and status events; and add composite foreign keys for tenant-consistent records.
 - Public API tenant context is resolved from the verified `tenant_sites.origin` registry. The request body cannot select a tenant. Unknown origins fail closed.
 - Guest tokens are accepted only when their session, guest and conversation all belong to the origin's tenant.
 - Message reads/writes, idempotency lookup, rate-limit buckets, webhook deduplication, phone-number correlation, status callbacks and outbox worker claims/updates are tenant-scoped.
@@ -155,4 +155,4 @@ The first runtime increment is implemented on a feature branch and is not yet me
 
 This is not yet a complete hosted multi-tenant service. The CLI outbox worker still uses a single configured transport; per-tenant credential decryption and outbound sending remain outstanding. Per-tenant AI credentials are encrypted, but tenant memberships, billing/limits, automated site verification challenges, data export/deletion, history normalization/retention and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
 
-CI now builds the disposable test database from `database/schema.sql` plus migration 004 and includes a two-tenant guest-token isolation regression test. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.
+CI now builds the disposable test database from `database/schema.sql` plus migrations 004–007 and includes two-tenant guest-token isolation, AI knowledge/handover, Meta contract, Coexistence contact/history webhook, and WooCommerce/WCFM regression tests. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.
