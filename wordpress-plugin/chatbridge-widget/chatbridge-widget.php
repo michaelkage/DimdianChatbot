@@ -279,19 +279,27 @@ add_action('wp_enqueue_scripts', static function (): void {
     if (!empty($settings['woocommerce_enabled']) && class_exists('WooCommerce')) {
         $commerce_api = rest_url('chatbridge/v1/products');
     }
+    $orders_api = '';
+    $rest_nonce = '';
+    if (!empty($settings['woocommerce_orders_enabled']) && class_exists('WooCommerce') && is_user_logged_in()) {
+        $orders_api = rest_url('chatbridge/v1/orders/');
+        $rest_nonce = wp_create_nonce('wp_rest');
+    }
 
     // Add data attributes to the one external script tag; no inline executable code or theme edits.
-    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings, $commerce_api): string {
+    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings, $commerce_api, $orders_api, $rest_nonce): string {
         if ($handle_name !== $handle) {
             return $tag;
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
             esc_attr($settings['subtitle']),
-            esc_url($commerce_api)
+            esc_url($commerce_api),
+            esc_url($orders_api),
+            esc_attr($rest_nonce)
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;
