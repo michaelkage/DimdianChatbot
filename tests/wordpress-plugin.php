@@ -128,6 +128,7 @@ function delete_option(string $key): bool { unset($GLOBALS['chatbridge_options']
 function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
+function sanitize_textarea_field(string $value): string { return trim(strip_tags($value)); }
 function sanitize_key(string $value): string { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
 function esc_url_raw(string $url, array $protocols = ['http', 'https']): string { return $url; }
 function untrailingslashit(string $value): string { return rtrim($value, '/'); }
@@ -204,6 +205,19 @@ $sanitized = chatbridge_widget_sanitize_settings([
 ]);
 check($sanitized['woocommerce_enabled'] === 1, 'WooCommerce setting is saved as an explicit boolean flag');
 check($sanitized['api_base'] === 'https://chat.example.test/api', 'API base URL is normalized');
+$modular = chatbridge_widget_sanitize_settings([
+    'offline_queue_enabled' => '1',
+    'typing_indicator_enabled' => '1',
+    'primary_color' => '#12abEF',
+    'accent_color' => 'invalid',
+    'hide_paths' => "/checkout\n/watch/*",
+    'handover_ack_enabled' => '1',
+    'handover_ack_text' => '<b>We got your request.</b>',
+]);
+check($modular['offline_queue_enabled'] === 1 && $modular['typing_indicator_enabled'] === 1, 'offline queue and typing indicator are independently configurable');
+check($modular['primary_color'] === '#12ABEF' && $modular['accent_color'] === '#d7eee6', 'theme colours accept only six-digit hex values and fall back safely');
+check($modular['hide_paths'] === "/checkout\n/watch/*", 'page visibility path rules preserve line-separated patterns');
+check($modular['handover_ack_enabled'] === 1 && $modular['handover_ack_text'] === 'We got your request.', 'custom handover acknowledgement is optional and sanitized');
 
 $secretKey = str_repeat('a', 64);
 $sanitizedWithKey = chatbridge_widget_sanitize_settings(['tenant_api_key' => $secretKey]);
