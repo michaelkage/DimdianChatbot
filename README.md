@@ -4,6 +4,8 @@ A lightweight customer chat widget for the Dimdian website. Visitors can send an
 
 This README is also the handover guide for the Dimdian business owner and the person maintaining the website.
 
+> **Database options:** the mock/reference deployment can use the server-side Supabase adapter; self-hosted deployments retain MySQL/MariaDB through PDO. See [Database Adapter Guide](docs/DATABASE-ADAPTERS.md) for the security boundary and current implementation status.
+
 > **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
 ## WordPress plugin (early connector)
