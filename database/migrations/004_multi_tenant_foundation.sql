@@ -38,6 +38,8 @@ CREATE TABLE channel_connections (
     phone_number_id VARCHAR(191) NULL,
     display_phone_number VARCHAR(64) NULL,
     connection_status ENUM('not_connected', 'signup_started', 'authorization_received', 'account_discovered', 'credentials_exchanged', 'webhook_subscribed', 'number_verified', 'connection_tested', 'connected', 'needs_action', 'disconnected', 'revoked', 'failed') NOT NULL DEFAULT 'not_connected',
+    connection_mode ENUM('unknown', 'standard', 'coexistence') NOT NULL DEFAULT 'unknown',
+    is_on_biz_app TINYINT(1) NOT NULL DEFAULT 0,
     credential_ciphertext MEDIUMTEXT NULL,
     credential_key_version VARCHAR(32) NULL,
     token_expires_at DATETIME NULL,
@@ -48,7 +50,7 @@ CREATE TABLE channel_connections (
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_channel_phone (provider, phone_number_id),
-    UNIQUE KEY uq_channel_waba (provider, business_account_id),
+    KEY idx_channel_waba (provider, business_account_id),
     KEY idx_channel_tenant_status (tenant_id, connection_status),
     CONSTRAINT fk_channel_connections_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE
