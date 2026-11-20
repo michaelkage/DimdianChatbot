@@ -60,7 +60,7 @@ This code is an initial internal connector. Before submitting it to the WordPres
 5. Select **Find a part**, search for a product name or keyword, and inspect the result.
 6. Select **Ask about this** to place a product-specific question in the chat composer, or **View product** to open the product page.
 
-The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/products?search=...`. It returns a maximum of eight published products and excludes products with catalogue visibility set to hidden. Search results are cached briefly and the endpoint applies a modest per-IP request limit. Only public catalogue information is returned.
+The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/products?search=...`. It returns a maximum of eight published products and excludes products with catalogue visibility set to hidden. The endpoint is disabled unless the administrator enables the integration, even if someone calls the REST URL directly. Search results are cached briefly and the endpoint applies a modest per-IP request limit. Only public catalogue information is returned.
 
 **Order questions are not enabled yet.** Order status, customer addresses, email addresses and other private order data must never be exposed through a public product-search endpoint. A future order lookup must use an ownership-verification flow and server-side WooCommerce permissions.
 
