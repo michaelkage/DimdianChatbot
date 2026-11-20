@@ -7,8 +7,5 @@
   ],
   "config": {
     "WP_DEBUG": true
-  },
-  "mappings": {
-    "tests": "./tests"
   }
 }
