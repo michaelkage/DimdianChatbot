@@ -10,7 +10,7 @@ This README is also the handover guide for the Dimdian business owner and the pe
 
 An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, and optional read-only product search. Product search returns published catalogue-visible products and supports SKU matching as well as partial product-name search. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
 
-This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies.
+This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification.
 
 ## 1. What this system does
 
