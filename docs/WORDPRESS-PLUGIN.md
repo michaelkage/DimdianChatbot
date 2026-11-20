@@ -98,7 +98,7 @@ The order lookup endpoint accepts a WooCommerce order ID. On a default WooCommer
 
 ## Meta Embedded Signup v5 (0.4.0)
 
-The **Connect WhatsApp** control appears only when the remote service returns a valid public Meta app/configuration pair for the tenant API key. The flow is deliberately split:
+The settings page shows existing tenant WhatsApp connection and Coexistence sync status when the tenant API key is configured. The **Connect WhatsApp** control appears only when the remote service returns a valid public Meta app/configuration pair for the tenant API key. The flow is deliberately split:
 
 1. The WordPress administrator launches Meta's Facebook Login for Business dialog from the plugin settings page.
 2. The JavaScript SDK returns an authorization code; the WA_EMBEDDED_SIGNUP message event supplies v5 session info (messaging_account_ids, primary_waac_ids, is_on_biz_app).
