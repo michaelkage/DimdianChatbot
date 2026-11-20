@@ -104,7 +104,7 @@ The **Connect WhatsApp** control appears only when the remote service returns a 
 2. The JavaScript SDK returns an authorization code; the WA_EMBEDDED_SIGNUP message event supplies v5 session info (messaging_account_ids, primary_waac_ids, is_on_biz_app).
 3. WordPress sends the code and session info to its own admin-ajax.php endpoint. The tenant API key remains server-side.
 4. WordPress relays the payload to the ChatBridge service over HTTPS.
-5. ChatBridge exchanges the code, verifies WABA and phone-number IDs through Graph API, subscribes the app to the WABA and stores encrypted credentials under the authenticated tenant.
+5. ChatBridge exchanges the code, resolves Messaging Account/PMA and WhatsApp Account/WAAC IDs, discovers and verifies phone numbers through Graph API, subscribes the app to the Messaging Account and stores encrypted credentials under the authenticated tenant.
 
 The service must be configured with an approved Meta app, current stable Embedded Signup configuration ID, Graph API version, App Secret and (where required) Partner Solution ID. The platform must meet Meta's Tech Provider/Solution Partner and App Review requirements. The plugin does not bypass those requirements.
 
