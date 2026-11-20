@@ -148,11 +148,11 @@ The first runtime increment is implemented on a feature branch and is not yet me
 - Public API tenant context is resolved from the verified `tenant_sites.origin` registry. The request body cannot select a tenant. Unknown origins fail closed.
 - Guest tokens are accepted only when their session, guest and conversation all belong to the origin's tenant.
 - Message reads/writes, idempotency lookup, rate-limit buckets, webhook deduplication, phone-number correlation, status callbacks and outbox worker claims/updates are tenant-scoped.
-- Meta webhook changes are resolved by the change's `metadata.phone_number_id` to a connected `channel_connections` row. The single global phone-number ID is no longer used as the tenant routing key.
+- Meta webhook changes are resolved by phone-number ID or Messaging Account/WAAC ID to a tenant-owned `channel_connections` row. Account updates handle offboarding/reconnection; Coexistence contact/history requests are queued and triggered within the 24-hour window, with contacts stored and history payloads archived tenant-locally.
 - `bin/provision-tenant.php` creates a tenant and a pending site mapping. An operator must verify domain ownership before changing the mapping to `verified`.
 
 ### Remaining tenant-platform work
 
-This is not yet a complete hosted multi-tenant service. The CLI outbox worker currently requires an explicit `app.tenant_id` and a single configured transport. Per-tenant encrypted credential decryption, per-tenant worker scheduling, tenant API credentials/memberships, billing/limits, audited tenant lifecycle, site verification challenges, data export/deletion and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
+This is not yet a complete hosted multi-tenant service. The CLI outbox worker still uses a single configured transport; per-tenant credential decryption and outbound sending remain outstanding. Per-tenant AI credentials are encrypted, but tenant memberships, billing/limits, automated site verification challenges, data export/deletion, history normalization/retention and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
 
 CI now builds the disposable test database from `database/schema.sql` plus migration 004 and includes a two-tenant guest-token isolation regression test. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.
