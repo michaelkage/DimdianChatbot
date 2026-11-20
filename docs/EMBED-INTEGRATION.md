@@ -28,7 +28,7 @@ Add this script near the end of the page's `<body>`. Replace the API URL and pub
 ></script>
 ```
 
-The script creates an isolated Shadow DOM widget and loads its stylesheet from the same ChatBridge host. The API determines the tenant from the verified request origin; never add a tenant ID, API key, WhatsApp token or AI provider key to this public script tag.
+The script creates an isolated Shadow DOM widget and loads its stylesheet from the same ChatBridge host. For the Supabase mock site, set `data-api-base` to `https://<project-ref>.supabase.co/functions/v1/chatbridge-mock-api`; the Edge Function determines the tenant from the verified request origin. Never add a tenant ID, API key, WhatsApp token, AI provider key or Supabase secret key to this public script tag.
 
 ## Optional attributes
 
