@@ -64,7 +64,7 @@ test('page visibility rules can hide or compact the widget without executing con
 
 test('typing animation and human acknowledgement are independently configurable', () => {
   assert.match(widget, /typingIndicator: script\.dataset\.typingIndicator === 'true'/);
-  assert.match(widget, /data-handover-message/);
+  assert.match(widget, /script\.dataset\.handoverMessage/);
   assert.match(css, /@keyframes cb-type/);
 });
 
