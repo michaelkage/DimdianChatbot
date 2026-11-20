@@ -76,6 +76,6 @@ The chat project does not currently read WooCommerce products/orders, WCFM vendo
 
 ## Escalation
 
-If the first checks do not solve it, contact the technical maintainer and provide the fault report above. The maintainer should check the Hostinger PHP error log, chat database connection, GitHub Actions deployment status and (only for WhatsApp issues) Meta webhook diagnostics.
+If the first checks do not solve it, contact the technical maintainer and provide the fault report above. The maintainer should check the Hostinger PHP error log and chat database connection. Check GitHub Pages deployment status only when the public demo is the part that failed; GitHub Actions does not deploy the PHP backend to Hostinger. For WhatsApp-only issues, inspect Meta webhook diagnostics.
 
 **Keep the store running. Isolate the fault before changing anything.**
