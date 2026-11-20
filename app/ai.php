@@ -120,13 +120,14 @@ function chatbridge_create_handover(PDO $pdo, string $tenantId, string $conversa
     if ($existing->fetchColumn()) return;
     $insert = $pdo->prepare(
         'INSERT IGNORE INTO conversation_handoffs
-            (id, tenant_id, conversation_id, reason, status, created_at)
-         VALUES (:id, :tenant_id, :conversation_id, :reason, "open", UTC_TIMESTAMP())'
+            (id, tenant_id, conversation_id, active_conversation_id, reason, status, created_at)
+         VALUES (:id, :tenant_id, :conversation_id, :active_conversation_id, :reason, "open", UTC_TIMESTAMP())'
     );
     $insert->execute([
         ':id' => uuid_v4(),
         ':tenant_id' => $tenantId,
         ':conversation_id' => $conversationId,
+        ':active_conversation_id' => $conversationId,
         ':reason' => $reason,
     ]);
 }
