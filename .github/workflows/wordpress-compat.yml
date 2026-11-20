@@ -1,0 +1,83 @@
+name: WordPress and WooCommerce compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'wordpress-plugin/**'
+      - 'tests/wordpress-smoke-*.php'
+      - '.wp-env.json'
+      - '.github/workflows/wordpress-compat.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  wordpress-woocommerce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install WordPress environment runner
+        run: npm install --no-save --no-package-lock @wordpress/env
+
+      - name: Start WordPress 7.1.4 and WooCommerce 11.3.0
+        run: npx wp-env start
+
+      - name: Install WordPress if needed
+        run: |
+          npx wp-env run cli wp core is-installed || \
+            npx wp-env run cli wp core install \
+              --url=http://localhost:8888 \
+              --title="ChatBridge Compatibility Test" \
+              --admin_user=admin \
+              --admin_password=chatbridge-test-password \
+              --admin_email=admin@example.test
+
+      - name: Activate WooCommerce and ChatBridge
+        run: npx wp-env run cli wp plugin activate woocommerce chatbridge-widget
+
+      - name: Create public, hidden and draft product fixtures
+        run: npx wp-env run cli wp eval-file tests/wordpress-smoke-setup.php
+
+      - name: Confirm product search is disabled by default
+        run: |
+          status=$(curl --silent --output /tmp/chatbridge-disabled.json --write-out '%{http_code}' \
+            'http://localhost:8888/wp-json/chatbridge/v1/products?search=Brake')
+          test "$status" = "403"
+          grep -q 'product_search_disabled' /tmp/chatbridge-disabled.json
+
+      - name: Enable product search for smoke tests
+        run: npx wp-env run cli wp eval-file tests/wordpress-smoke-enable.php
+
+      - name: Verify partial product-name search
+        run: |
+          response=$(curl --fail --silent \
+            'http://localhost:8888/wp-json/chatbridge/v1/products?search=Brake%20Pad')
+          echo "$response" | jq -e '.count == 1 and .products[0].name == "Brake Pad Set" and .products[0].sku == "BP-001"'
+
+      - name: Verify SKU search
+        run: |
+          response=$(curl --fail --silent \
+            'http://localhost:8888/wp-json/chatbridge/v1/products?search=BP-001')
+          echo "$response" | jq -e '.count == 1 and .products[0].name == "Brake Pad Set"'
+
+      - name: Verify hidden and draft products stay private
+        run: |
+          hidden=$(curl --fail --silent \
+            'http://localhost:8888/wp-json/chatbridge/v1/products?search=Secret%20Hidden')
+          draft=$(curl --fail --silent \
+            'http://localhost:8888/wp-json/chatbridge/v1/products?search=Unpublished%20Draft')
+          echo "$hidden" | jq -e '.count == 0'
+          echo "$draft" | jq -e '.count == 0'
+
+      - name: Stop WordPress environment
+        if: always()
+        run: npx wp-env stop
