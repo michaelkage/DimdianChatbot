@@ -58,23 +58,40 @@ function request_origin(): ?string
 function enforce_allowed_origin(): void
 {
     $origin = request_origin();
-    $allowed = app_config('app.allowed_origins') ?? [];
-    if (!is_array($allowed)) {
-        $allowed = [];
+    if ($origin === null) {
+        return;
     }
 
-    $normalized = array_map(static fn($value): string => rtrim((string)$value, '/'), $allowed);
-    if ($origin !== null && !in_array($origin, $normalized, true)) {
-        json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not allowed to use this chat service.']], 403);
+    // The verified tenant_sites registry is the authoritative CORS allowlist.
+    // Do not trust an Origin merely because it appears in a client payload or
+    // in a static global allowlist shared by every tenant.
+    $normalizedOrigin = normalize_request_origin($origin);
+    if ($normalizedOrigin === null) {
+        json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website origin is invalid.']], 403);
     }
 
-    if ($origin !== null) {
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Vary: Origin');
-        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN');
-        header('Access-Control-Max-Age: 600');
+    try {
+        $pdo = database();
+        $check = $pdo->prepare(
+            'SELECT 1 FROM tenant_sites s
+             INNER JOIN tenants t ON t.id = s.tenant_id
+             WHERE s.origin = :origin AND s.status = "verified" AND t.status = "active"
+             LIMIT 1'
+        );
+        $check->execute([':origin' => $normalizedOrigin]);
+        if (!$check->fetchColumn()) {
+            json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not registered with the chat service.']], 403);
+        }
+    } catch (Throwable $error) {
+        error_log('[ChatBridge] Origin validation failed: ' . $error->getMessage());
+        json_response(['error' => ['code' => 'service_unavailable', 'message' => 'The chat service is temporarily unavailable.']], 503);
     }
+
+    header('Access-Control-Allow-Origin: ' . $normalizedOrigin);
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN');
+    header('Access-Control-Max-Age: 600');
 }
 
 function handle_preflight(): void
