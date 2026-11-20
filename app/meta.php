@@ -25,8 +25,8 @@ function chatbridge_meta_graph_request(string $method, string $path, string $acc
     if (strtoupper($method) === 'GET') {
         $url .= '?' . http_build_query($parameters);
     } else {
-        $headers .= "Content-Type: application/x-www-form-urlencoded\r\n";
-        $content = http_build_query($parameters);
+        $headers .= "Content-Type: application/json\r\n";
+        $content = $parameters === [] ? '' : (string)json_encode($parameters, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     $context = stream_context_create([
