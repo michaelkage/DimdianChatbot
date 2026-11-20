@@ -6,6 +6,12 @@ This README is also the handover guide for the Dimdian business owner and the pe
 
 > **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
+## WordPress plugin (early connector)
+
+An installable plugin is now available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, lets an administrator configure the remote HTTPS chat API, and provides a read-only connection check. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
+
+This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies.
+
 ## 1. What this system does
 
 - Adds a small floating **Message us** button to the Dimdian website.
