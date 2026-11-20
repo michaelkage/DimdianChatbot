@@ -8,7 +8,7 @@ This README is also the handover guide for the Dimdian business owner and the pe
 
 ## WordPress plugin (early connector)
 
-An installable plugin is now available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, lets an administrator configure the remote HTTPS chat API, and provides a read-only connection check. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
+An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, and optional read-only product search. Product search returns published catalogue-visible products and supports exact SKU matches as well as ordinary product-name/content search. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
 
 This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies.
 
@@ -24,7 +24,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, staff accounts, a shared inbox, agent assignment, WooCommerce/order lookup, product catalogue, payments, inventory, CRM, attachments, voice notes or group chats. It currently synchronizes text messages only.
+This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, staff accounts, a shared inbox, agent assignment, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only.
 
 ## 2. How a conversation works
 
