@@ -16,6 +16,15 @@ if (!in_array($method, ['GET', 'POST'], true)) {
     json_response(['error' => ['code' => 'method_not_allowed', 'message' => 'Use GET to retrieve messages or POST to send one.']], 405);
 }
 
+if (chatbridge_store_driver() === 'supabase') {
+    try {
+        chatbridge_supabase_messages_api($method);
+    } catch (Throwable $error) {
+        error_log('[ChatBridge] Supabase message API failed: ' . $error->getMessage());
+        json_response(['error' => ['code' => 'server_error', 'message' => 'The chat service could not complete that request. Please try again.']], 500);
+    }
+}
+
 try {
     $pdo = database();
     $session = authenticate_guest_session($pdo, $method === 'POST');
