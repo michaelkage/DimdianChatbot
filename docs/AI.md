@@ -9,7 +9,7 @@ The AI layer is optional and disabled for every tenant until explicitly configur
 - Provider API keys are encrypted with AES-256-GCM before they are stored in `tenant_ai_settings`. The master encryption key is configured outside MySQL in private `config.php`.
 - `knowledge_sources` stores tenant-owned FAQ, policy, product, page and document text. Retrieval is filtered by tenant ID and uses the MySQL full-text index.
 - `ai_jobs` queues work outside the visitor request. The worker loads a tenant's provider configuration, retrieves that tenant's knowledge and writes a business reply into the same conversation.
-- `conversation_handoffs` records explicit visitor requests, low-knowledge cases, AI errors and budget exhaustion. A single active handover per conversation is enforced by a unique generated-column key.
+- `conversation_handoffs` records explicit visitor requests, low-knowledge cases, AI errors and budget exhaustion. A single active handover per conversation is enforced by a unique nullable active-conversation key; resolution must clear that key when a handover is closed.
 - `ai_usage_events` records provider/model token usage for the tenant. If the provider omits token counts, the adapter records a rough character-based estimate.
 
 ## Setup
