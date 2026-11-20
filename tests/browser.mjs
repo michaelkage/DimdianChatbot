@@ -112,6 +112,7 @@ test('optional WooCommerce search renders safe product cards and creates a produ
           count: 1,
           products: [{
             name: 'Brake Pad Set',
+            sku: 'BP-001',
             price: '₦45,000',
             url: 'https://store.example.test/product/brake-pad-set',
             image: 'https://store.example.test/product.jpg',
@@ -136,6 +137,7 @@ test('optional WooCommerce search renders safe product cards and creates a produ
     await widget.locator('.commerce-search input').fill('brake pads');
     await widget.locator('.commerce-search button').click();
     await widget.getByText('Brake Pad Set').waitFor();
+    await widget.getByText('SKU: BP-001').waitFor();
     await widget.getByText('₦45,000').waitFor();
     await widget.getByText('In stock').waitFor();
     await widget.getByRole('button', { name: 'Ask about this' }).click();
