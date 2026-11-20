@@ -31,7 +31,7 @@ add_action('admin_init', static function (): void {
     }
     $content = '<p>' . esc_html__('The ChatBridge Widget loads a support chat interface from the ChatBridge service configured by this site. When a visitor uses the chat, their messages and any details they choose to submit (such as a name or WhatsApp number) are sent to that service and processed according to the service operator’s privacy policy and retention settings.', 'chatbridge-widget') . '</p>';
     $content .= '<p>' . esc_html__('If WhatsApp continuation is enabled, a visitor’s phone number is sent to the ChatBridge service only after the visitor explicitly opts in. The service may then process the message through Meta WhatsApp Business Platform. This plugin does not store chat conversations or WhatsApp access tokens in the WordPress database.', 'chatbridge-widget') . '</p>';
-    $content .= '<p>' . esc_html__('The site administrator may store a tenant API key in WordPress for server-to-server administrative requests. It is not exposed to public visitors or the widget JavaScript.', 'chatbridge-widget') . '</p>';
+    $content .= '<p>' . esc_html__('The site administrator may store a tenant API key in WordPress for server-to-server administrative requests. It is not exposed to public visitors or the widget JavaScript. If an administrator starts Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to select and authorize business assets.', 'chatbridge-widget') . '</p>';
     wp_add_privacy_policy_content(__('ChatBridge Widget', 'chatbridge-widget'), wp_kses_post($content));
 }, 20);
 
