@@ -24,10 +24,12 @@ try {
     }
 
     $result = complete_meta_embedded_signup($pdo, (string)$auth['tenant_id'], $code, $sessionInfo);
+    $syncSummary = process_meta_coexistence_sync_jobs($pdo, (string)$auth['tenant_id'], 10);
     json_response([
         'ok' => true,
         'connections' => $result['connections'],
         'connection_mode' => $result['connection_mode'],
+        'coexistence_sync' => $syncSummary,
     ], 201);
 } catch (InvalidArgumentException $error) {
     json_response(['error' => ['code' => 'invalid_signup_payload', 'message' => $error->getMessage()]], 422);
