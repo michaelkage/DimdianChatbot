@@ -4,6 +4,7 @@ const script = document.currentScript;
 if (!script) return;
 const demo = script.dataset.demo === 'true';
 const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace(/\/+$/, '');
+const commerceApi = script.dataset.commerceApi || '';
 const key = 'dimdian-chat:' + api + ':' + location.origin;
 const root = document.createElement('div');
 root.id = 'dimdian-chat-widget';
