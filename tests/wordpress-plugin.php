@@ -16,8 +16,11 @@ final class WP_REST_Server
 final class WP_REST_Request
 {
     private array $params = [];
-    public function __construct($methodOrParams = [], private string $route = '')
+    private string $route = '';
+
+    public function __construct($methodOrParams = [], string $route = '')
     {
+        $this->route = $route;
         if (is_array($methodOrParams)) {
             $this->params = $methodOrParams;
         }
@@ -28,7 +31,14 @@ final class WP_REST_Request
 
 final class WP_REST_Response
 {
-    public function __construct(private array $data, private int $status = 200) {}
+    private array $data;
+    private int $status;
+
+    public function __construct(array $data, int $status = 200)
+    {
+        $this->data = $data;
+        $this->status = $status;
+    }
     public function get_data(): array { return $this->data; }
     public function get_status(): int { return $this->status; }
 }
@@ -36,14 +46,28 @@ final class WP_REST_Response
 class WooCommerce {}
 class WC_Product
 {
+    private string $name;
+    private string $status;
+    private string $visibility;
+    private string $price;
+    private string $stock;
+    private int $imageId;
+
     public function __construct(
-        private string $name,
-        private string $status = 'publish',
-        private string $visibility = 'visible',
-        private string $price = '₦45,000',
-        private string $stock = 'instock',
-        private int $imageId = 1
-    ) {}
+        string $name,
+        string $status = 'publish',
+        string $visibility = 'visible',
+        string $price = '₦45,000',
+        string $stock = 'instock',
+        int $imageId = 1
+    ) {
+        $this->name = $name;
+        $this->status = $status;
+        $this->visibility = $visibility;
+        $this->price = $price;
+        $this->stock = $stock;
+        $this->imageId = $imageId;
+    }
     public function get_id(): int { return crc32($this->name); }
     public function get_sku(): string { return $this->name === 'Brake Pad Set' ? 'BP-001' : ''; }
     public function get_status(): string { return $this->status; }
