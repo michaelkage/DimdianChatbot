@@ -232,10 +232,10 @@ add_action('admin_post_chatbridge_save_ai', static function (): void {
         wp_safe_redirect(add_query_arg('chatbridge_ai_saved', 'connection_missing', menu_page_url('chatbridge-widget', false)));
         exit;
     }
-    $api_key = isset($_POST['ai_api_key']) ? trim((string) wp_unslash($_POST['ai_api_key'])) : '';
+    $api_key = isset($_POST['ai_api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['ai_api_key']))) : '';
     $payload = [
         'provider' => 'openai_compatible',
-        'base_url' => isset($_POST['ai_base_url']) ? esc_url_raw(trim((string) wp_unslash($_POST['ai_base_url'])), ['https']) : 'https://api.openai.com/v1',
+        'base_url' => isset($_POST['ai_base_url']) ? esc_url_raw(trim(sanitize_text_field(wp_unslash($_POST['ai_base_url']))), ['https']) : 'https://api.openai.com/v1',
         'model' => isset($_POST['ai_model']) ? sanitize_text_field(wp_unslash($_POST['ai_model'])) : '',
         'enabled' => !empty($_POST['ai_enabled']),
         'max_output_tokens' => isset($_POST['ai_max_output_tokens']) ? absint($_POST['ai_max_output_tokens']) : 500,
