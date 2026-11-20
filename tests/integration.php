@@ -250,8 +250,8 @@ $statusCheck = $pdo->query("SELECT delivery_status FROM messages WHERE provider_
 expect($statusCheck === 'delivered', 'reconciled early status updates the message row');
 $pdo->prepare(
     'INSERT IGNORE INTO message_status_events (tenant_id, provider_message_id, status, event_timestamp, created_at)
-     VALUES ('00000000-0000-4000-8000-000000000001', "wamid.integration.early-status", "failed", 1739321027, UTC_TIMESTAMP())'
-)->execute();
+     VALUES (:tenant_id, "wamid.integration.early-status", "failed", 1739321027, UTC_TIMESTAMP())'
+)->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001']);
 apply_provider_message_status($pdo, 'wamid.integration.early-status', '00000000-0000-4000-8000-000000000001');
 $statusAfterLateFailure = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusAfterLateFailure === 'delivered', 'late failure callback cannot downgrade a delivered message');
@@ -260,12 +260,12 @@ $sentThenFailedId = 'e0000000-0000-4000-8000-000000000006';
 $pdo->prepare(
     'INSERT INTO messages (id, tenant_id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
      VALUES (:id, :tenant_id, :conversation_id, "visitor", "sent then failed", "wamid.integration.sent-then-failed", "sent", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $sentThenFailedId, ':conversation_id' => $conversationId]);
+)->execute([':id' => $sentThenFailedId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':conversation_id' => $conversationId]);
 $pdo->prepare(
     'INSERT IGNORE INTO message_status_events (tenant_id, provider_message_id, status, event_timestamp, created_at)
-     VALUES ('00000000-0000-4000-8000-000000000001', "wamid.integration.sent-then-failed", "sent", 1739321028, UTC_TIMESTAMP()),
-            ("wamid.integration.sent-then-failed", "failed", 1739321029, UTC_TIMESTAMP())'
-)->execute();
+     VALUES (:tenant_id, "wamid.integration.sent-then-failed", "sent", 1739321028, UTC_TIMESTAMP()),
+            (:tenant_id, "wamid.integration.sent-then-failed", "failed", 1739321029, UTC_TIMESTAMP())'
+)->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001']);
 apply_provider_message_status($pdo, 'wamid.integration.sent-then-failed', '00000000-0000-4000-8000-000000000001');
 $failedAfterSent = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$sentThenFailedId}'")->fetchColumn();
 expect($failedAfterSent === 'failed', 'failure status supersedes sent when delivery does not complete');
@@ -274,7 +274,7 @@ $successMessageId = 'e0000000-0000-4000-8000-000000000002';
 $pdo->prepare(
     'INSERT INTO messages (id, tenant_id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :tenant_id, :conversation_id, "visitor", "template success", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $successMessageId, ':conversation_id' => $conversationId]);
+)->execute([':id' => $successMessageId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':conversation_id' => $conversationId]);
 enqueue_whatsapp_notification($pdo, '00000000-0000-4000-8000-000000000001', $successMessageId, '2348031234567', 'Template body parameter');
 $success = process_whatsapp_outbox($pdo, new IntegrationSuccessTransport(), '00000000-0000-4000-8000-000000000001', 1, 3);
 expect($success['sent'] === 1, 'outbox worker sends and acknowledges a successful job');
@@ -285,7 +285,7 @@ $retryMessageId = 'e0000000-0000-4000-8000-000000000003';
 $pdo->prepare(
     'INSERT INTO messages (id, tenant_id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :tenant_id, :conversation_id, "visitor", "temporary failure", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $retryMessageId, ':conversation_id' => $conversationId]);
+)->execute([':id' => $retryMessageId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':conversation_id' => $conversationId]);
 enqueue_whatsapp_notification($pdo, '00000000-0000-4000-8000-000000000001', $retryMessageId, '2348031234567', 'Temporary failure');
 $retry = process_whatsapp_outbox($pdo, new IntegrationRetryTransport(), '00000000-0000-4000-8000-000000000001', 1, 3);
 $retryRow = $pdo->query("SELECT status, attempts FROM message_outbox WHERE message_id = '{$retryMessageId}'")->fetch();
@@ -295,7 +295,7 @@ $failedMessageId = 'e0000000-0000-4000-8000-000000000004';
 $pdo->prepare(
     'INSERT INTO messages (id, tenant_id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :tenant_id, :conversation_id, "visitor", "permanent failure", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $failedMessageId, ':conversation_id' => $conversationId]);
+)->execute([':id' => $failedMessageId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':conversation_id' => $conversationId]);
 enqueue_whatsapp_notification($pdo, '00000000-0000-4000-8000-000000000001', $failedMessageId, '2348031234567', 'Permanent failure');
 $failedSummary = process_whatsapp_outbox($pdo, new IntegrationPermanentFailureTransport(), '00000000-0000-4000-8000-000000000001', 1, 3);
 $failedStatus = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$failedMessageId}'")->fetchColumn();
@@ -306,14 +306,14 @@ $staleOutboxId = 'f0000000-0000-4000-8000-000000000005';
 $pdo->prepare(
     'INSERT INTO messages (id, tenant_id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :tenant_id, :conversation_id, "visitor", "exhausted worker lease", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $staleMessageId, ':conversation_id' => $conversationId]);
+)->execute([':id' => $staleMessageId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':conversation_id' => $conversationId]);
 $pdo->prepare(
     'INSERT INTO message_outbox
-        (id, message_id, recipient, payload_text, status, attempts, available_at, locked_at, lock_token, created_at, updated_at)
-     VALUES (:id, :message_id, "2348031234567", "already attempted six times", "processing", 6,
+        (id, tenant_id, message_id, recipient, payload_text, status, attempts, available_at, locked_at, lock_token, created_at, updated_at)
+     VALUES (:id, :tenant_id, :message_id, "2348031234567", "already attempted six times", "processing", 6,
              UTC_TIMESTAMP(), DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), "f0000000-0000-4000-8000-000000000006",
              UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-)->execute([':id' => $staleOutboxId, ':message_id' => $staleMessageId]);
+)->execute([':id' => $staleOutboxId, ':tenant_id' => '00000000-0000-4000-8000-000000000001', ':message_id' => $staleMessageId]);
 $countingTransport = new IntegrationCountingTransport();
 $staleSummary = process_whatsapp_outbox($pdo, $countingTransport, '00000000-0000-4000-8000-000000000001', 1, 6);
 $staleOutboxStatus = $pdo->query("SELECT status FROM message_outbox WHERE id = '{$staleOutboxId}'")->fetchColumn();
