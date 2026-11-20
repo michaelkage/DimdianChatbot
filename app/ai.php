@@ -68,8 +68,8 @@ final class OpenAICompatibleChatProvider implements ChatBridgeAIProvider
         $usage = is_array($decoded['usage'] ?? null) ? $decoded['usage'] : [];
         return [
             'content' => trim($content),
-            'input_tokens' => max(0, (int)($usage['prompt_tokens'] ?? 0)),
-            'output_tokens' => max(0, (int)($usage['completion_tokens'] ?? 0)),
+            'input_tokens' => max(0, (int)($usage['prompt_tokens'] ?? (int)ceil(strlen((string)$payload) / 4))),
+            'output_tokens' => max(0, (int)($usage['completion_tokens'] ?? (int)ceil(strlen($content) / 4))),
             'model' => (string)($decoded['model'] ?? $this->model),
         ];
     }
@@ -143,6 +143,19 @@ function chatbridge_retrieve_knowledge(PDO $pdo, string $tenantId, string $quest
     return $query->fetchAll();
 }
 
+function chatbridge_handover_pending_ai_jobs(PDO $pdo, string $tenantId): int
+{
+    $query = $pdo->prepare('SELECT id, conversation_id FROM ai_jobs WHERE tenant_id = :tenant_id AND status = "pending"');
+    $query->execute([':tenant_id' => $tenantId]);
+    $jobs = $query->fetchAll();
+    foreach ($jobs as $job) {
+        chatbridge_create_handover($pdo, $tenantId, (string)$job['conversation_id'], 'budget_exhausted');
+        $cancel = $pdo->prepare('UPDATE ai_jobs SET status = "cancelled", updated_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id AND status = "pending"');
+        $cancel->execute([':tenant_id' => $tenantId, ':id' => $job['id']]);
+    }
+    return count($jobs);
+}
+
 function process_tenant_ai_jobs(PDO $pdo, string $tenantId, int $batchSize = 5, int $maxAttempts = 3): array
 {
     $summary = ['generated' => 0, 'handed_over' => 0, 'failed' => 0, 'skipped' => 0];
@@ -159,7 +172,10 @@ function process_tenant_ai_jobs(PDO $pdo, string $tenantId, int $batchSize = 5, 
     $usageQuery->execute([':tenant_id' => $tenantId]);
     $usedTokens = (int)$usageQuery->fetchColumn();
     $budget = (int)$settings['monthly_token_budget'];
-    if ($budget > 0 && $usedTokens >= $budget) return $summary;
+    if ($budget > 0 && $usedTokens >= $budget) {
+        $summary['handed_over'] += chatbridge_handover_pending_ai_jobs($pdo, $tenantId);
+        return $summary;
+    }
 
     $apiKey = chatbridge_decrypt_secret((string)$settings['api_key_ciphertext']);
     $provider = new OpenAICompatibleChatProvider(
@@ -169,6 +185,10 @@ function process_tenant_ai_jobs(PDO $pdo, string $tenantId, int $batchSize = 5, 
     );
 
     for ($i = 0; $i < max(1, min(25, $batchSize)); $i++) {
+        if ($budget > 0 && $usedTokens >= $budget) {
+            $summary['handed_over'] += chatbridge_handover_pending_ai_jobs($pdo, $tenantId);
+            break;
+        }
         $lock = uuid_v4();
         $pdo->beginTransaction();
         try {
@@ -271,6 +291,7 @@ function process_tenant_ai_jobs(PDO $pdo, string $tenantId, int $batchSize = 5, 
             $done = $pdo->prepare('UPDATE ai_jobs SET status = "completed", locked_at = NULL, lock_token = NULL, updated_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id AND lock_token = :lock');
             $done->execute([':tenant_id' => $tenantId, ':id' => $job['id'], ':lock' => $lock]);
             $pdo->commit();
+            $usedTokens += $result['input_tokens'] + $result['output_tokens'];
             $summary['generated']++;
         } catch (Throwable $error) {
             if ($pdo->inTransaction()) $pdo->rollBack();
