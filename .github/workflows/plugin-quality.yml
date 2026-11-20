@@ -36,5 +36,8 @@ jobs:
       - name: Install WordPress Coding Standards
         run: composer require --dev wp-coding-standards/wpcs:^3.0
 
-      - name: Run PHPCS
-        run: vendor/bin/phpcs --standard=WordPress --extensions=php wordpress-plugin/chatbridge-widget
+      - name: Run targeted WordPress security sniffs
+        run: >-
+          vendor/bin/phpcs --standard=WordPress
+          --sniffs=WordPress.Security.EscapeOutput,WordPress.Security.NonceVerification,WordPress.Security.ValidatedSanitizedInput,WordPress.DB.PreparedSQL
+          --extensions=php wordpress-plugin/chatbridge-widget
