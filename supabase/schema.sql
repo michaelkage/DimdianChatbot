@@ -297,3 +297,12 @@ GRANT EXECUTE ON FUNCTION public.chatbridge_take_rate_limit(char, uuid, integer,
 GRANT EXECUTE ON FUNCTION public.chatbridge_create_guest_session(uuid, text, text, text, boolean, char, timestamptz) TO service_role;
 GRANT EXECUTE ON FUNCTION public.chatbridge_auth_guest_session(uuid, char, boolean) TO service_role;
 GRANT EXECUTE ON FUNCTION public.chatbridge_append_message(uuid, uuid, uuid, text) TO service_role;
+
+
+-- Cover composite foreign keys identified by Supabase performance advisors.
+CREATE INDEX IF NOT EXISTS idx_chatbridge_attachments_message_fk
+  ON public.chatbridge_attachments (tenant_id, conversation_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_chatbridge_guest_sessions_guest_fk
+  ON public.chatbridge_guest_sessions (tenant_id, guest_id);
+CREATE INDEX IF NOT EXISTS idx_chatbridge_rate_limits_tenant_fk
+  ON public.chatbridge_rate_limits (tenant_id);
