@@ -4,7 +4,7 @@ Contributors: chatbridge
 Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,11 @@ This initial release is a connector plugin. A ChatBridge-compatible service endp
 Features:
 * Simple WordPress settings screen.
 * Enable/disable the public widget without editing theme files.
-* Configure the HTTPS chat API address, heading and welcome text.
+* Configure the HTTPS chat API address, heading, welcome text, launcher label, logo and colours.
+* Configure URL path and CSS selector rules to hide the widget or use a compact launcher on selected pages.
+* Optional animated reply-pending indicator and custom human-handover acknowledgement.
+* Optional browser-local offline message queue (up to 20 unsent messages) with automatic retry when connectivity returns.
+* Visitor-side switching between up to ten conversations in the current browser tab.
 * Run a read-only service health check from WordPress admin.
 * No WordPress theme edits and no third-party PHP dependencies.
 * Optional Meta Embedded Signup v5 launcher in WordPress admin, gated by the service configuration and tenant API key.
@@ -74,11 +78,15 @@ No. It uses WordPress's script enqueue system and an independent settings page.
 
 == Privacy ==
 
-The plugin sends a visitor's browser to the configured ChatBridge service to load the widget and communicate with that service. The service's own privacy policy and data-retention rules apply to chat messages. Site owners should disclose the chat service in their privacy notice.
+The plugin sends a visitor's browser to the configured ChatBridge service to load the widget and communicate with that service. The service's own privacy policy and data-retention rules apply to chat messages. Site owners should disclose the chat service in their privacy notice. If the offline queue is enabled, up to 20 unsent message texts and client message IDs are stored in the visitor's browser local storage until successfully sent or cleared; do not enable it on shared/public devices.
 
 The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. The optional Meta onboarding flow uses a tenant API key only in server-side WordPress requests; the API key is not exposed to the public page or widget JavaScript. When an administrator launches Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to authorize and select WhatsApp business assets.
 
 == Changelog ==
+
+= 0.5.0 =
+* Add appearance, page visibility, compact launcher and handover acknowledgement settings.
+* Add optional typing feedback, browser-local offline retry and multiple conversation switching.
 
 = 0.4.0 =
 * Add a gated Meta Embedded Signup v5 launcher with server-side authorization-code relay.
