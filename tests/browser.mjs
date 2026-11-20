@@ -43,7 +43,7 @@ test('real widget works on desktop and mobile in demo mode', async () => {
 
     const input = widget.locator('textarea');
     await widget.locator('.quick-reply').first().click();
-    assert.equal(await input.inputValue(), 'I need help finding a part.');
+    assert.equal(await input.inputValue(), 'I need help finding a product.');
     await input.fill('Hello, I would like to know more.');
     await widget.locator('.send').click();
     await page.getByText('Hello, I would like to know more.').waitFor();
@@ -131,7 +131,7 @@ test('optional WooCommerce search renders safe product cards and creates a produ
     });
     const widget = page.locator('#dimdian-chat-widget');
     await widget.locator('.launcher').click();
-    await widget.getByRole('button', { name: 'Find a part' }).click();
+    await widget.getByRole('button', { name: 'Find a product' }).click();
     await widget.locator('.commerce').waitFor({ state: 'visible' });
     await widget.locator('.commerce-search input').fill('brake pads');
     await widget.locator('.commerce-search button').click();
