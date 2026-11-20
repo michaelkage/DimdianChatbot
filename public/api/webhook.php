@@ -66,7 +66,7 @@ try {
                 $businessAccountId = (string)($entry['id'] ?? '');
                 $tenantId = $phoneNumberId !== ''
                     ? resolve_meta_tenant($pdo, $phoneNumberId)
-                    : resolve_meta_tenant_by_waba($pdo, $businessAccountId);
+                    : resolve_meta_tenant_by_account_id($pdo, $businessAccountId);
                 if ($tenantId === null) {
                     $summary['ignored']++;
                     continue;
