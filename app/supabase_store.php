@@ -514,13 +514,17 @@ function chatbridge_supabase_attachments_api(string $method): never
             '/storage/v1/object/sign/chatbridge-private/' . $encodedPath,
             ['expiresIn' => 60]
         );
+        $signedUrl = (string)($signed['signedURL'] ?? '');
+        if ($signedUrl !== '' && str_starts_with($signedUrl, '/')) {
+            $signedUrl = chatbridge_supabase_config()['url'] . $signedUrl;
+        }
         $items[] = [
             'id' => $row['id'],
             'filename' => $row['original_filename'],
             'mime_type' => $row['mime_type'],
             'byte_size' => (int)$row['byte_size'],
             'created_at' => $row['created_at'],
-            'signed_url' => $signed['signedURL'] ?? null,
+            'signed_url' => $signedUrl !== '' ? $signedUrl : null,
             'url_expires_in' => 60,
         ];
     }
