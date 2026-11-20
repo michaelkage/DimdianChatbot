@@ -108,6 +108,19 @@ Do these steps in order. Do not change the main WordPress site or its database.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
 10. **Set up backups and monitoring.** Back up the chat database regularly and keep a copy of the private configuration file in a secure password manager or other restricted backup location. Never commit it to Git.
 
+### Tenant bootstrap and WordPress connector
+
+After migrations 004–006 have been applied:
+
+1. For the existing single-site install, register the exact WordPress origin against the legacy tenant ID `00000000-0000-4000-8000-000000000001`. First insert it as `pending`, verify control of the domain through an agreed DNS/HTTP or WordPress-admin check, then mark that exact row `verified`. A browser-supplied tenant ID is never accepted.
+2. For a new business, run `php bin/provision-tenant.php "Business name" business-slug https://shop.example.com`. It creates a tenant and a pending site mapping; it does not automatically trust the domain.
+3. Create a tenant admin key with `php bin/create-tenant-api-key.php TENANT_UUID "WordPress connector" owner`. Copy the one-time 64-character key and enter it in **Settings → ChatBridge Widget**. The database stores only its SHA-256 hash.
+4. Keep the tenant API key server-side in WordPress. It is used for admin-only Meta onboarding calls and is never added to the public widget.
+5. Configure Meta app details in private `config.php` and set `meta.enabled` to true only after the Tech Provider/Solution Partner, app review and stable Embedded Signup v5 configuration requirements are met. Test on a separate staging WordPress site and test Meta account; do not use the live Dimdian site or live business number for the first test.
+6. Tenant AI is separately opt-in. See [docs/AI.md](docs/AI.md) for provider credential encryption, knowledge import and the tenant worker.
+
+The current outbox worker is still a single-tenant legacy sender using the private `whatsapp.*` configuration. Do not enable multi-tenant outbound WhatsApp sends until the worker has been changed to decrypt and use each tenant's `channel_connections` credential.
+
 ### Private configuration
 
 Start from `config.example.php`. The important application values are:
