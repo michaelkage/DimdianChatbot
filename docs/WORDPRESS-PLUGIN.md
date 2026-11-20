@@ -37,7 +37,7 @@ If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does
 - Admin settings require `manage_options` and use the WordPress Settings API nonce.
 - The health-check action uses a WordPress nonce, an 8-second timeout and TLS certificate verification.
 - The frontend uses `wp_enqueue_script`; no theme file edits are needed.
-- WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, formatted price, product URL, image and coarse stock status. It does not expose customer/order data or exact inventory counts.\n- Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.\n- WCFM, Paystack and Mobex APIs are not called.
+- WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. Exact SKU matches are checked before ordinary product-name/content matches. It does not expose customer/order data or exact inventory counts.\n- Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.\n- WCFM, Paystack and Mobex APIs are not called.
 - The plugin does not create a chat backend or make the service public automatically.
 
 ## Before public distribution
