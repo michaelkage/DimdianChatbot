@@ -152,7 +152,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
             if ($field === 'account_update') {
                 $eventName = strtoupper((string)($value['event'] ?? 'UNKNOWN'));
                 $accountEventId = 'account_update:' . hash('sha256', $eventName . ':' . $receivedPhoneNumberId . ':' . $expectedBusinessAccountId . ':' . $payloadHash);
-                if (!webhook_event_insert($pdo, $tenantId, $accountEventId, 'account_update:' . strtolower($eventName), $payloadHash)) continue;
+                if (!webhook_event_insert($pdo, $tenantId, $accountEventId, substr('account_update:' . strtolower($eventName), 0, 100), $payloadHash)) continue;
 
                 $revoked = in_array($eventName, ['PARTNER_REMOVED', 'ACCOUNT_REMOVED', 'ACCOUNT_REVOKED', 'ACCOUNT_OFFBOARDED'], true);
                 $disconnected = in_array($eventName, ['PHONE_NUMBER_DISCONNECTED', 'NUMBER_DISCONNECTED'], true);
