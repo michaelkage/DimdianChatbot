@@ -129,3 +129,16 @@ php public/cron/process-meta-sync.php TENANT_UUID
 ```
 
 A job marked `failed` is not automatically retried. Verify whether Meta accepted the one-shot request before attempting any manual recovery. The history archive is not yet rendered as normal conversation history and currently has no automated retention purge.
+
+
+## Tenant-scoped outbound delivery
+
+Outbound WhatsApp is still protected by the global `whatsapp.outbound_enabled` kill switch. Before a visitor message is queued, the API requires explicit WhatsApp opt-in, a connected Meta channel for that same tenant, a usable token and a configured template name. The worker resolves the tenant's own encrypted channel credential and phone-number ID; it does not use another tenant's token.
+
+Run one worker per tenant:
+
+```sh
+php public/cron/process-outbox.php TENANT_UUID
+```
+
+If a token is expired or within five minutes of expiry, the connection is moved to `needs_action` and the message is not sent. Automatic token refresh is not implemented; an administrator must reconnect through Embedded Signup. If a tenant has multiple connected numbers, the worker currently selects the earliest connected number; an explicit primary-number selector remains future work. The template name/language are currently shared service configuration and must be approved on each tenant's WhatsApp account.
