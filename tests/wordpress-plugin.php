@@ -15,7 +15,14 @@ final class WP_REST_Server
 
 final class WP_REST_Request
 {
-    public function __construct(private array $params = []) {}
+    private array $params = [];
+    public function __construct($methodOrParams = [], private string $route = '')
+    {
+        if (is_array($methodOrParams)) {
+            $this->params = $methodOrParams;
+        }
+    }
+    public function set_param(string $key, $value): void { $this->params[$key] = $value; }
     public function get_param(string $key) { return $this->params[$key] ?? null; }
 }
 
@@ -55,6 +62,7 @@ $GLOBALS['chatbridge_transients'] = [];
 $GLOBALS['chatbridge_options'] = [];
 $GLOBALS['chatbridge_wc_args'] = null;
 $GLOBALS['chatbridge_wc_queries'] = [];
+$GLOBALS['chatbridge_store_api_params'] = [];
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
 {
@@ -93,6 +101,29 @@ function wc_get_products(array $args): array
         new WC_Product('Unpublished Part', 'draft'),
     ];
 }
+function wc_get_product(int $productId): ?WC_Product
+{
+    foreach ([
+        new WC_Product('Brake Pad Set'),
+        new WC_Product('Hidden Workshop Item', 'publish', 'hidden'),
+        new WC_Product('Unpublished Part', 'draft'),
+    ] as $product) {
+        if ($product->get_id() === $productId) return $product;
+    }
+    return null;
+}
+function rest_do_request(WP_REST_Request $request): WP_REST_Response
+{
+    $GLOBALS['chatbridge_store_api_params'] = [
+        'search' => $request->get_param('search'),
+        'per_page' => $request->get_param('per_page'),
+    ];
+    return new WP_REST_Response([
+        ['id' => (new WC_Product('Brake Pad Set'))->get_id()],
+        ['id' => (new WC_Product('Hidden Workshop Item', 'publish', 'hidden'))->get_id()],
+        ['id' => (new WC_Product('Unpublished Part', 'draft'))->get_id()],
+    ], 200);
+}
 
 require_once dirname(__DIR__) . '/wordpress-plugin/chatbridge-widget/chatbridge-widget.php';
 
@@ -130,8 +161,9 @@ $data = $response->get_data();
 check($response->get_status() === 200, 'valid catalogue search returns HTTP 200');
 check(($GLOBALS['chatbridge_wc_args']['status'] ?? null) === 'publish', 'WooCommerce query only requests published products');
 check(($GLOBALS['chatbridge_wc_args']['limit'] ?? null) === 8, 'WooCommerce query is capped at eight products');
-check(($GLOBALS['chatbridge_wc_queries'][0]['sku'] ?? null) === 'brake', 'exact SKU lookup runs before ordinary text search');
-check(($GLOBALS['chatbridge_wc_queries'][1]['name'] ?? null) === 'brake', 'product-name search runs after SKU matching');
+check(($GLOBALS['chatbridge_wc_queries'][0]['sku'] ?? null) === 'brake', 'SKU matching runs through WC_Product_Query');
+check(($GLOBALS['chatbridge_store_api_params']['search'] ?? null) === 'brake', 'partial product-name search uses WooCommerce Store API');
+check(($GLOBALS['chatbridge_store_api_params']['per_page'] ?? null) === 8, 'Store API product search is capped at eight results');
 check(count($data['products'] ?? []) === 1, 'hidden and unpublished products are excluded');
 $product = $data['products'][0] ?? [];
 check(($product['name'] ?? '') === 'Brake Pad Set', 'product name is returned');
