@@ -26,6 +26,8 @@ Features:
 * Optional animated reply-pending indicator and custom human-handover acknowledgement.
 * Optional browser-local offline message queue (up to 20 unsent messages) with automatic retry when connectivity returns.
 * Visitor-side switching between up to ten conversations in the current browser tab.
+* Optional OpenAI-compatible provider API-key setup from WordPress admin; the key is sent server-to-server and encrypted by ChatBridge, never stored in the WordPress options table.
+* Per-tenant AI enable switch, model, response-token limit and monthly token budget.
 * Run a read-only service health check from WordPress admin.
 * No WordPress theme edits and no third-party PHP dependencies.
 * Optional Meta Embedded Signup v5 launcher in WordPress admin, gated by the service configuration and tenant API key.
@@ -62,7 +64,7 @@ When enabled, it searches published, catalogue-visible products and returns the 
 
 = Does installing the plugin create an AI chatbot? =
 
-No. The optional AI provider and business-knowledge runtime is configured on the ChatBridge service and is disabled by default. The plugin does not configure AI providers or knowledge sources.
+No. AI remains disabled by default. A site administrator can optionally configure an OpenAI-compatible API endpoint, model and API key in the plugin settings. The key is sent server-to-server to ChatBridge and encrypted there; it is not stored in WordPress. OAuth login is not available in this release. Business knowledge sources still need to be imported into the ChatBridge service separately.
 
 = Does the health check test WhatsApp? =
 
@@ -80,13 +82,14 @@ No. It uses WordPress's script enqueue system and an independent settings page.
 
 The plugin sends a visitor's browser to the configured ChatBridge service to load the widget and communicate with that service. The service's own privacy policy and data-retention rules apply to chat messages. Site owners should disclose the chat service in their privacy notice. If the offline queue is enabled, up to 20 unsent message texts and client message IDs are stored in the visitor's browser local storage until successfully sent or cleared; do not enable it on shared/public devices.
 
-The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. The optional Meta onboarding flow uses a tenant API key only in server-side WordPress requests; the API key is not exposed to the public page or widget JavaScript. When an administrator launches Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to authorize and select WhatsApp business assets.
+The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. If an administrator configures an AI provider, the API key is sent from WordPress to ChatBridge over HTTPS and stored encrypted by the service; the plugin does not retain the key in WordPress. The optional Meta onboarding flow uses a tenant API key only in server-side WordPress requests; the API key is not exposed to the public page or widget JavaScript. When an administrator launches Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to authorize and select WhatsApp business assets.
 
 == Changelog ==
 
 = 0.5.0 =
 * Add appearance, page visibility, compact launcher and handover acknowledgement settings.
 * Add optional typing feedback, browser-local offline retry and multiple conversation switching.
+* Add server-side AI API-key setup, encrypted tenant credential storage and per-tenant usage limits.
 
 = 0.4.0 =
 * Add a gated Meta Embedded Signup v5 launcher with server-side authorization-code relay.
