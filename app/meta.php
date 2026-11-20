@@ -295,8 +295,9 @@ function get_tenant_meta_channel(PDO $pdo, string $tenantId): ?array
         'SELECT id, phone_number_id, credential_ciphertext, token_expires_at, connection_status
          FROM channel_connections
          WHERE tenant_id = :tenant_id AND provider = "meta"
-           AND connection_status = "connected" AND credential_ciphertext IS NOT NULL
-         ORDER BY (token_expires_at IS NULL OR token_expires_at > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)) DESC,
+           AND connection_status IN ("connected", "needs_action") AND credential_ciphertext IS NOT NULL
+         ORDER BY (connection_status = "connected" AND (token_expires_at IS NULL OR token_expires_at > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE))) DESC,
+                  (connection_status = "connected") DESC,
                   connected_at ASC, created_at ASC, id ASC
          LIMIT 1'
     );
@@ -314,6 +315,10 @@ final class TenantMetaCloudApiTransport implements WhatsAppTextTransport
         $channel = get_tenant_meta_channel($this->pdo, $this->tenantId);
         if (!is_array($channel)) {
             throw new WhatsAppTransportException('This tenant has no connected WhatsApp phone number.', false);
+        }
+
+        if ((string)($channel['connection_status'] ?? '') !== 'connected') {
+            throw new WhatsAppTransportException('This tenant WhatsApp connection requires reauthorization.', false);
         }
 
         $expiresAt = (string)($channel['token_expires_at'] ?? '');
