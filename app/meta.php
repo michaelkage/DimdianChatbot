@@ -254,6 +254,21 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
             ]);
 
             chatbridge_meta_audit_event($pdo, $tenantId, $connectionId, 'connected', $phoneNumberId);
+            if ($phoneConnectionMode === 'coexistence') {
+                $syncInsert = $pdo->prepare(
+                    'INSERT IGNORE INTO channel_sync_jobs
+                        (id, tenant_id, channel_connection_id, sync_type, status, created_at, updated_at)
+                     VALUES (:id, :tenant_id, :connection_id, :sync_type, "pending", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                );
+                foreach (['smb_app_state_sync', 'history'] as $syncType) {
+                    $syncInsert->execute([
+                        ':id' => uuid_v4(),
+                        ':tenant_id' => $tenantId,
+                        ':connection_id' => $connectionId,
+                        ':sync_type' => $syncType,
+                    ]);
+                }
+            }
             $connected[] = [
                 'phone_number_id' => $phoneNumberId,
                 'display_phone_number' => $displayNumber,
