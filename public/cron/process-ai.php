@@ -12,7 +12,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 try {
-    $tenantId = (string)app_config('app.tenant_id');
+    $tenantId = trim((string)($argv[1] ?? app_config('app.tenant_id')));
     if ($tenantId === '') {
         throw new RuntimeException('app.tenant_id must be configured for this tenant-scoped AI worker.');
     }
