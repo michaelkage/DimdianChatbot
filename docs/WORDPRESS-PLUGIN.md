@@ -8,7 +8,7 @@ The `wordpress-plugin/chatbridge-widget/` directory contains the installable Wor
 
 This is a **connector**, not a self-hosted WhatsApp chatbot product. It loads the existing remote widget JavaScript from a configured ChatBridge service and passes the API base URL and display text as script attributes.
 
-The connected service currently provides guest website chat and optional WhatsApp continuation after explicit opt-in and server-side Meta configuration. Staff replies remain human replies. There is no AI auto-responder in this release. When enabled, the optional WooCommerce adapter searches published, catalogue-visible products directly on the same WordPress site.
+The connected service provides guest website chat, optional WhatsApp integration and (on the feature branch) a tenant-scoped AI runtime disabled by default. The plugin includes an optional Meta Embedded Signup v5 launcher for eligible Meta Tech Providers/Solution Partners. Staff replies remain human replies unless a separately configured AI knowledge system generates a reply. When enabled, the WooCommerce adapter searches published, catalogue-visible products directly on the same WordPress site and can attribute products/order line items to WCFM vendors.
 
 ## Requirements
 
@@ -25,19 +25,21 @@ The WordPress plugin and remote chat service run in different PHP environments. 
 2. In WordPress, open **Plugins → Add New → Upload Plugin**, upload the ZIP and activate it.
 3. Open **Settings → ChatBridge Widget**.
 4. Enter the HTTPS API base URL, for example `https://chat.example.com/api`.
-5. Save and run **Test chat connection**.
-6. Enable the widget only after the connection test passes.
+5. Paste the tenant API key supplied by the service operator. The key is stored server-side in a separate non-autoload option and is never passed to the public widget.
+6. Save and run **Test chat connection**.
+7. Enable the widget only after the connection test passes. If Meta onboarding is enabled on the service, the page also shows **Connect WhatsApp**.
 
-The remote service must allow the exact WordPress origin in its CORS allowlist. The plugin never changes that server-side policy.
+The remote service must have a verified `tenant_sites` mapping for the exact WordPress origin. The plugin never changes that server-side policy.
 
 ## Configuration and diagnostics
 
-The plugin stores only:
-- Whether the widget is enabled.
+The plugin stores:
+- Whether the widget and optional WooCommerce features are enabled.
 - The remote API base URL.
 - The widget heading and welcome text.
+- A tenant API key in a separate non-autoload WordPress option for server-to-server admin requests.
 
-It does not store WhatsApp access tokens, Meta app secrets, customer conversations or WooCommerce credentials. The health check calls the remote `/health.php` endpoint server-to-server and reports only a generic service health state.
+It does not store WhatsApp access tokens, Meta app secrets, customer conversations or WooCommerce credentials. The tenant API key is never included in the widget script attributes or public REST response. The health check calls the remote `/health.php` endpoint server-to-server and reports only a generic service health state.
 
 If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does not inject the public widget.
 
@@ -48,7 +50,8 @@ If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does
 - The frontend uses `wp_enqueue_script`; no theme file edits are needed.
 - WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. SKU matches are retrieved with WooCommerce's product query API; partial product-name searches use the WooCommerce Store API. It does not expose customer/order data or exact inventory counts.
 - Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.
-- WCFM, Paystack and Mobex APIs are not called.
+- WCFM vendor attribution uses WCFM's in-process vendor lookup functions only; it does not call vendor-private REST endpoints or grant vendor access to customer orders.
+- Paystack and Mobex APIs are not called.
 - The plugin does not create a chat backend or make the service public automatically.
 
 ## Before public distribution
@@ -91,3 +94,24 @@ Order lookup is an opt-in setting. It is intentionally separate from public prod
 This first increment does not support guest checkout, email-only verification, order-key lookup, sequential/custom order-number plugins, vendor dashboards or Paystack transaction details. It does not expose addresses, email, payment tokens, notes or private metadata. If the visitor is not signed in, the order lookup control is not offered by the widget.
 
 The order lookup endpoint accepts a WooCommerce order ID. On a default WooCommerce installation this normally matches the displayed order number; custom order-number extensions require a dedicated compatibility adapter.
+
+
+## Meta Embedded Signup v5 (0.4.0)
+
+The **Connect WhatsApp** control appears only when the remote service returns a valid public Meta app/configuration pair for the tenant API key. The flow is deliberately split:
+
+1. The WordPress administrator launches Meta's Facebook Login for Business dialog from the plugin settings page.
+2. The JavaScript SDK returns an authorization code; the WA_EMBEDDED_SIGNUP message event supplies v5 session info (messaging_account_ids, primary_waac_ids, is_on_biz_app).
+3. WordPress sends the code and session info to its own admin-ajax.php endpoint. The tenant API key remains server-side.
+4. WordPress relays the payload to the ChatBridge service over HTTPS.
+5. ChatBridge exchanges the code, verifies WABA and phone-number IDs through Graph API, subscribes the app to the WABA and stores encrypted credentials under the authenticated tenant.
+
+The service must be configured with an approved Meta app, current stable Embedded Signup configuration ID, Graph API version, App Secret and (where required) Partner Solution ID. The platform must meet Meta's Tech Provider/Solution Partner and App Review requirements. The plugin does not bypass those requirements.
+
+Do not run this flow on the live Dimdian site until a separate staging WordPress installation and test Meta business account have passed the complete signup/webhook round trip. The public GitHub Pages demo cannot run the WordPress admin connector.
+
+## WCFM vendor attribution (0.4.0)
+
+When WCFM Marketplace is active, each public product result and each item in the authenticated customer's own order summary can include the WCFM store name. The adapter uses wcfm_get_vendor_id_by_post() and wcfm_get_vendor_store() when available. If those functions are unavailable, the plugin falls back to ordinary WooCommerce output.
+
+This does not add vendor dashboard access, vendor order filtering, commission details, payouts, or vendor-scoped customer PII. The order endpoint continues to require that the signed-in WordPress user owns the parent WooCommerce order.
