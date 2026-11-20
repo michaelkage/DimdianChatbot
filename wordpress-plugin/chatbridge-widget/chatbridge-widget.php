@@ -3,7 +3,7 @@
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight support chat widget connected to ChatBridge, with optional WooCommerce, WCFM and Meta onboarding integrations.
  * Plugin URI: https://github.com/michaelkage/DimdianChatbot/tree/main/wordpress-plugin/chatbridge-widget
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge Contributors
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.4.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.5.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 add_action('init', static function (): void {
