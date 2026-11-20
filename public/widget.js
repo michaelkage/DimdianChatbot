@@ -45,6 +45,7 @@ function renderProducts(products){
   if(product.image){const img=document.createElement('img');img.src=product.image;img.alt='';img.loading='lazy';card.append(img);}
   const details=document.createElement('div');details.className='product-details';
   const name=document.createElement('strong');name.textContent=String(product.name||'Product');details.append(name);
+  if(product.sku){const sku=document.createElement('span');sku.className='product-sku';sku.textContent='SKU: '+String(product.sku);details.append(sku);}
   if(product.price){const price=document.createElement('span');price.className='product-price';price.textContent=String(product.price);details.append(price);}
   const stock=document.createElement('span');stock.className='product-stock';stock.textContent=product.stock_status==='instock'?'In stock':product.stock_status==='onbackorder'?'Available on backorder':'Check availability';details.append(stock);
   const actions=document.createElement('div');actions.className='product-actions';
