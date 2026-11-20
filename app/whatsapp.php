@@ -154,21 +154,23 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                 $accountEventId = 'account_update:' . hash('sha256', $eventName . ':' . $receivedPhoneNumberId . ':' . $expectedBusinessAccountId . ':' . $payloadHash);
                 if (!webhook_event_insert($pdo, $tenantId, $accountEventId, 'account_update:' . strtolower($eventName), $payloadHash)) continue;
 
-                $revoked = in_array($eventName, ['PARTNER_REMOVED', 'ACCOUNT_REMOVED', 'ACCOUNT_REVOKED'], true);
+                $revoked = in_array($eventName, ['PARTNER_REMOVED', 'ACCOUNT_REMOVED', 'ACCOUNT_REVOKED', 'ACCOUNT_OFFBOARDED'], true);
                 $disconnected = in_array($eventName, ['PHONE_NUMBER_DISCONNECTED', 'NUMBER_DISCONNECTED'], true);
-                if ($revoked || $disconnected) {
+                $reconnected = in_array($eventName, ['ACCOUNT_RECONNECTED', 'PHONE_NUMBER_CONNECTED'], true);
+                if ($revoked || $disconnected || $reconnected) {
                     if ($receivedPhoneNumberId !== '') {
                         $updateConnection = $pdo->prepare(
                             'UPDATE channel_connections
-                             SET connection_status = :status,
+                             SET connection_status = CASE WHEN :reconnected = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected = 1 THEN "needs_action" ELSE :status END,
                                  credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
-                                 last_error_code = :event_name,
-                                 last_error_message = "Meta reported an account or number access change.",
+                                 last_error_code = CASE WHEN :reconnected = 1 THEN NULL ELSE :event_name END,
+                                 last_error_message = CASE WHEN :reconnected = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
                                  updated_at = UTC_TIMESTAMP()
                              WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id'
                         );
                         $updateConnection->execute([
                             ':status' => $revoked ? 'revoked' : 'disconnected',
+                            ':reconnected' => $reconnected ? 1 : 0,
                             ':clear_token' => $revoked ? 1 : 0,
                             ':event_name' => substr($eventName, 0, 100),
                             ':tenant_id' => $tenantId,
@@ -222,6 +224,106 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     ':event_hash' => hash('sha256', $tenantId . ':' . $accountEventId),
                 ]);
                 mark_webhook_event($pdo, $tenantId, $accountEventId, 'processed');
+                $processed++;
+            } elseif ($field === 'smb_app_state_sync') {
+                $syncEventId = 'smb_app_state_sync:' . hash('sha256', $tenantId . ':' . $receivedPhoneNumberId . ':' . $payloadHash);
+                if (!webhook_event_insert($pdo, $tenantId, $syncEventId, 'smb_app_state_sync', $payloadHash)) continue;
+
+                $channelQuery = $pdo->prepare(
+                    'SELECT id FROM channel_connections
+                     WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id LIMIT 1'
+                );
+                $channelQuery->execute([':tenant_id' => $tenantId, ':phone_id' => $receivedPhoneNumberId]);
+                $channelId = $channelQuery->fetchColumn();
+                $contacts = $value['state_sync'] ?? $value['contacts'] ?? [];
+                $stored = 0;
+                if (is_string($channelId) && $channelId !== '' && is_array($contacts)) {
+                    foreach ($contacts as $contactEvent) {
+                        if (!is_array($contactEvent)) continue;
+                        $contact = is_array($contactEvent['contact'] ?? null) ? $contactEvent['contact'] : $contactEvent;
+                        $phone = normalize_whatsapp_number((string)($contact['phone_number'] ?? $contact['wa_id'] ?? ''));
+                        if ($phone === '') continue;
+                        $action = strtolower((string)($contactEvent['action'] ?? $contact['action'] ?? 'add'));
+                        $contactStatus = $action === 'remove' ? 'removed' : 'active';
+                        $fullName = mb_substr_safe((string)($contact['full_name'] ?? $contact['name'] ?? ''), 0, 191);
+                        $firstName = mb_substr_safe((string)($contact['first_name'] ?? ''), 0, 100);
+                        $upsertContact = $pdo->prepare(
+                            'INSERT INTO whatsapp_contacts
+                                (tenant_id, channel_connection_id, phone_normalized, display_name, first_name, status, last_synced_at, created_at, updated_at)
+                             VALUES (:tenant_id, :channel_id, :phone, :display_name, :first_name, :status, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP())
+                             ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), first_name = VALUES(first_name),
+                                status = VALUES(status), last_synced_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()'
+                        );
+                        $upsertContact->execute([
+                            ':tenant_id' => $tenantId,
+                            ':channel_id' => $channelId,
+                            ':phone' => $phone,
+                            ':display_name' => $fullName !== '' ? $fullName : null,
+                            ':first_name' => $firstName !== '' ? $firstName : null,
+                            ':status' => $contactStatus,
+                        ]);
+                        $stored++;
+                    }
+                }
+                $isFinal = !empty($value['is_final']) || (int)($value['progress'] ?? 0) >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
+                if (is_string($channelId) && $channelId !== '') {
+                    $syncUpdate = $pdo->prepare(
+                        'UPDATE channel_sync_jobs SET status = :status,
+                            completed_at = CASE WHEN :is_final = 1 THEN UTC_TIMESTAMP() ELSE completed_at END,
+                            updated_at = UTC_TIMESTAMP()
+                         WHERE tenant_id = :tenant_id AND channel_connection_id = :channel_id AND sync_type = "smb_app_state_sync"
+                           AND status IN ("requested", "receiving")'
+                    );
+                    $syncUpdate->execute([
+                        ':status' => $isFinal ? 'completed' : 'receiving',
+                        ':is_final' => $isFinal ? 1 : 0,
+                        ':tenant_id' => $tenantId,
+                        ':channel_id' => $channelId,
+                    ]);
+                    chatbridge_meta_audit_event($pdo, $tenantId, $channelId, 'coexistence_contacts_received', (string)$stored . ':' . $payloadHash);
+                }
+                mark_webhook_event($pdo, $tenantId, $syncEventId, 'processed');
+                $processed++;
+            } elseif ($field === 'history') {
+                $historyEventId = 'history:' . hash('sha256', $tenantId . ':' . $receivedPhoneNumberId . ':' . $payloadHash);
+                if (!webhook_event_insert($pdo, $tenantId, $historyEventId, 'history', $payloadHash)) continue;
+
+                $channelQuery = $pdo->prepare(
+                    'SELECT id FROM channel_connections
+                     WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id LIMIT 1'
+                );
+                $channelQuery->execute([':tenant_id' => $tenantId, ':phone_id' => $receivedPhoneNumberId]);
+                $channelId = $channelQuery->fetchColumn();
+                $historyJson = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                if (is_string($channelId) && $channelId !== '' && is_string($historyJson) && strlen($historyJson) <= 15000000) {
+                    $storeHistory = $pdo->prepare(
+                        'INSERT IGNORE INTO coexistence_history_payloads
+                            (tenant_id, channel_connection_id, payload_sha256, payload_json, received_at)
+                         VALUES (:tenant_id, :channel_id, :payload_hash, :payload, UTC_TIMESTAMP())'
+                    );
+                    $storeHistory->execute([
+                        ':tenant_id' => $tenantId,
+                        ':channel_id' => $channelId,
+                        ':payload_hash' => hash('sha256', $historyJson),
+                        ':payload' => $historyJson,
+                    ]);
+                    $isFinal = !empty($value['is_final']) || (int)($value['progress'] ?? 0) >= 100 || strtolower((string)($value['status'] ?? '')) === 'completed';
+                    $syncUpdate = $pdo->prepare(
+                        'UPDATE channel_sync_jobs SET status = :status,
+                            completed_at = CASE WHEN :is_final = 1 THEN UTC_TIMESTAMP() ELSE completed_at END,
+                            updated_at = UTC_TIMESTAMP()
+                         WHERE tenant_id = :tenant_id AND channel_connection_id = :channel_id AND sync_type = "history"
+                           AND status IN ("requested", "receiving")'
+                    );
+                    $syncUpdate->execute([
+                        ':status' => $isFinal ? 'completed' : 'receiving',
+                        ':is_final' => $isFinal ? 1 : 0,
+                        ':tenant_id' => $tenantId,
+                        ':channel_id' => $channelId,
+                    ]);
+                    chatbridge_meta_audit_event($pdo, $tenantId, $channelId, 'coexistence_history_received', $payloadHash);
+                }
+                mark_webhook_event($pdo, $tenantId, $historyEventId, 'processed');
                 $processed++;
             } elseif ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
