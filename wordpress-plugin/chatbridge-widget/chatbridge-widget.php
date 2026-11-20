@@ -343,22 +343,33 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
         return new WP_REST_Response($cached, 200);
     }
 
-    // Exact SKU matches matter for parts and other catalogue-heavy stores.
-    // Combine those with normal title/content search, preferring exact SKU hits.
+    // SKU matching is supported directly by WC_Product_Query and is useful
+    // for parts. Use WooCommerce's public Store API for partial product-name
+    // search, rather than raw SQL or undocumented query arguments.
     $skuMatches = wc_get_products([
         'status' => 'publish',
         'limit' => 8,
         'sku' => $search,
         'return' => 'objects',
     ]);
-    $nameMatches = wc_get_products([
-        'status' => 'publish',
-        'limit' => 8,
-        'name' => $search,
-        'orderby' => 'name',
-        'order' => 'ASC',
-        'return' => 'objects',
-    ]);
+
+    $nameMatches = [];
+    $storeRequest = new WP_REST_Request('GET', '/wc/store/v1/products');
+    $storeRequest->set_param('search', $search);
+    $storeRequest->set_param('per_page', 8);
+    $storeResponse = rest_do_request($storeRequest);
+    if ($storeResponse instanceof WP_REST_Response && $storeResponse->get_status() < 400) {
+        foreach ($storeResponse->get_data() as $storeProduct) {
+            $productId = isset($storeProduct['id']) ? (int) $storeProduct['id'] : 0;
+            if ($productId > 0) {
+                $candidate = wc_get_product($productId);
+                if ($candidate instanceof WC_Product) {
+                    $nameMatches[] = $candidate;
+                }
+            }
+        }
+    }
+
     $products = [];
     $seenProductIds = [];
     foreach (array_merge($skuMatches, $nameMatches) as $candidate) {
