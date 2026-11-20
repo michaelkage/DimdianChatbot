@@ -47,6 +47,7 @@ try {
     $sessionId = uuid_v4();
     $conversationId = uuid_v4();
     $guestId = uuid_v4();
+    // The browser receives this random token once. Only its SHA-256 hash is stored in MySQL, so a database read does not reveal reusable session credentials.
     $token = bin2hex(random_bytes(32));
     $tokenHash = hash('sha256', $token);
 
