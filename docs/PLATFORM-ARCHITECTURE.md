@@ -45,11 +45,11 @@ not_connected → signup_started → authorization_received → account_discover
 
 Failure/exit states include cancelled, needs_action, disconnected and revoked. Store timestamps and a sanitized failure reason for each transition. Never log authorization codes, access tokens, app secrets, QR payloads or verification codes.
 
-For Embedded Signup v4, the Meta implementation guide supplied for this project says the integrating business must already be a Meta Solution Partner or Tech Provider. It also requires an HTTPS origin, a Facebook Login for Business configuration, the account_update webhook subscription, and a server-side exchange of the short-lived authorization code. The authorization code expires quickly; exchange it server-side immediately.
+The Meta implementation guide supplied for this project describes Embedded Signup v4 and says the integrating business must already be a Meta Solution Partner or Tech Provider. The accompanying default-flow guide says v5 is now the latest version. Therefore the implementation must target the current supported version (v5, subject to a fresh check of Meta's version/migration documentation), not blindly copy the v4 sample. It also requires an HTTPS origin, a Facebook Login for Business configuration, the account_update webhook subscription, and a server-side exchange of the short-lived authorization code. The authorization code expires quickly; exchange it server-side immediately.
 
 Coexistence-specific requirements:
 
-- Use the Coexistence feature in the supported Embedded Signup flow, not a generic Cloud API number-add flow.
+- Use the Coexistence feature in the current supported Embedded Signup flow, not a generic Cloud API number-add flow. Do not freeze v4-specific launch parameters into production code while v5 is current.
 - The business owner must authenticate and approve the exact business assets being connected.
 - The owner must scan/approve the in-app QR step when Meta presents it.
 - Preserve the existing WhatsApp Business app workflow; do not tell the owner that this is guaranteed until the actual number completes onboarding.
