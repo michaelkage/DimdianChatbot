@@ -229,4 +229,23 @@ for ($i = 0; $i < 30; $i++) {
 $blocked = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 check($blocked->get_status() === 429, 'public product search is rate limited after thirty requests per minute');
 
+$GLOBALS['chatbridge_options']['chatbridge_widget_settings'] = ['woocommerce_orders_enabled' => 1];
+$orderRoute = $GLOBALS['chatbridge_routes']['chatbridge/v1/orders/(?P<order_id>\\d+)'] ?? null;
+check(is_array($orderRoute), 'registers a separate customer order lookup route');
+check(($orderRoute['permission_callback'] ?? null) === 'chatbridge_widget_can_read_own_order', 'order route requires authenticated ownership permission');
+check(chatbridge_widget_can_read_own_order() === false, 'anonymous visitors cannot access order lookup');
+$GLOBALS['chatbridge_is_logged_in'] = true;
+$GLOBALS['chatbridge_current_user_id'] = 55;
+$GLOBALS['chatbridge_test_order'] = new WC_Order(55);
+check(chatbridge_widget_can_read_own_order() === true, 'signed-in customers can use order lookup when enabled');
+$ownOrder = chatbridge_widget_get_own_order(new WP_REST_Request(['order_id' => '1042']));
+$ownData = $ownOrder->get_data();
+check($ownOrder->get_status() === 200, 'customer can retrieve their own order');
+check(($ownData['order']['number'] ?? '') === '1042', 'order lookup returns public order number');
+check(count($ownData['order']['items'] ?? []) === 1, 'order lookup returns a bounded item summary');
+$GLOBALS['chatbridge_test_order'] = new WC_Order(99);
+$foreignOrder = chatbridge_widget_get_own_order(new WP_REST_Request(['order_id' => '1042']));
+check($foreignOrder->get_status() === 404, 'another customer order is indistinguishable from a missing order');
+$GLOBALS['chatbridge_is_logged_in'] = false;
+
 fwrite(STDOUT, "WooCommerce adapter tests passed.\n");
