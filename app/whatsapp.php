@@ -400,7 +400,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, str
             $claim = $pdo->prepare(
                 'UPDATE message_outbox
                  SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(), lock_token = :lock_token, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id'
+                 WHERE tenant_id = :tenant_id AND id = :id'
             );
             $claim->execute([':attempt' => $attempt, ':lock_token' => $lockToken, ':tenant_id' => $tenantId, ':id' => $job['id']]);
             $pdo->commit();
@@ -440,7 +440,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, str
                 'UPDATE message_outbox
                  SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
                      locked_at = NULL, lock_token = NULL, last_error = :last_error, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND lock_token = :lock_token'
+                 WHERE tenant_id = :tenant_id AND id = :id AND lock_token = :lock_token'
             );
             $update->execute([
                 ':status' => $shouldRetry ? 'pending' : 'failed',
@@ -451,7 +451,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, str
                 ':lock_token' => $lockToken,
             ]);
             if (!$shouldRetry) {
-                $failed = $pdo->prepare('UPDATE messages SET delivery_status = "failed" WHERE id = :id');
+                $failed = $pdo->prepare('UPDATE messages SET delivery_status = "failed" WHERE tenant_id = :tenant_id AND id = :id');
                 $failed->execute([':tenant_id' => $job['tenant_id'], ':id' => $job['message_id']]);
                 $summary['failed']++;
             } else {
