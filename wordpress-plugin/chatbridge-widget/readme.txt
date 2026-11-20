@@ -3,7 +3,6 @@
 Contributors: chatbridge
 Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
-Tested up to: 6.8
 Requires PHP: 7.4
 Stable tag: 0.4.0
 License: GPLv2 or later
