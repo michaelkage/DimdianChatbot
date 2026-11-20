@@ -124,6 +124,7 @@ function wcfm_get_vendor_store(int $vendorId): string { return $vendorId === 77 
 function wcfm_is_vendor(int $vendorId): bool { return $vendorId === 77; }
 function wc_get_order(int $orderId): ?WC_Order { return $orderId === 1042 ? $GLOBALS['chatbridge_test_order'] : null; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
+function delete_option(string $key): bool { unset($GLOBALS['chatbridge_options'][$key]); return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
 function sanitize_key(string $value): string { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
