@@ -184,7 +184,19 @@ function chatbridge_widget_render_settings_page(): void
         <h2><?php esc_html_e('Store compatibility', 'chatbridge-widget'); ?></h2>
         <ul>
             <li>
+                <strong><?php esc_html_e('WordPress:', 'chatbridge-widget'); ?></strong>
+                <?php echo esc_html((string) get_bloginfo('version')); ?>
+            </li>
+            <li>
+                <strong><?php esc_html_e('PHP:', 'chatbridge-widget'); ?></strong>
+                <?php echo esc_html(PHP_VERSION); ?>
+            </li>
+            <li>
                 <strong><?php esc_html_e('WooCommerce:', 'chatbridge-widget'); ?></strong>
+                <?php echo defined('WC_VERSION') ? esc_html(WC_VERSION) : esc_html__('Not detected', 'chatbridge-widget'); ?>
+            </li>
+            <li>
+                <strong><?php esc_html_e('WooCommerce status:', 'chatbridge-widget'); ?></strong>
                 <?php echo class_exists('WooCommerce') ? esc_html__('Active', 'chatbridge-widget') : esc_html__('Not detected', 'chatbridge-widget'); ?>
             </li>
             <li>
