@@ -58,8 +58,11 @@ try {
             foreach (($entry['changes'] ?? []) as $change) {
                 if (!is_array($change)) continue;
                 $value = is_array($change['value'] ?? null) ? $change['value'] : [];
-                $phoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
-                $tenantId = resolve_meta_tenant($pdo, $phoneNumberId);
+                $phoneNumberId = (string)($value['metadata']['phone_number_id'] ?? $value['phone_number_id'] ?? '');
+                $businessAccountId = (string)($entry['id'] ?? '');
+                $tenantId = $phoneNumberId !== ''
+                    ? resolve_meta_tenant($pdo, $phoneNumberId)
+                    : resolve_meta_tenant_by_waba($pdo, $businessAccountId);
                 if ($tenantId === null) {
                     $summary['ignored']++;
                     continue;
@@ -71,7 +74,7 @@ try {
                         'changes' => [$change],
                     ]],
                 ];
-                $part = process_meta_webhook($pdo, $isolatedPayload, $rawBody, $tenantId, $phoneNumberId);
+                $part = process_meta_webhook($pdo, $isolatedPayload, $rawBody, $tenantId, $phoneNumberId, $businessAccountId);
                 $summary['processed'] += $part['processed'];
                 $summary['ignored'] += $part['ignored'];
             }
