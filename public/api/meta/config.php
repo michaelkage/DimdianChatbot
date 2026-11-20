@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
-require_once dirname(__DIR__, 2) . '/app/tenant_auth.php';
+require_once dirname(__DIR__, 3) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/app/tenant_auth.php';
 
 require_method('GET');
 
