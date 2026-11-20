@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.3.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.4.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 function chatbridge_widget_defaults(): array
@@ -32,7 +32,9 @@ function chatbridge_widget_defaults(): array
 function chatbridge_widget_settings(): array
 {
     $saved = get_option('chatbridge_widget_settings', []);
-    return wp_parse_args(is_array($saved) ? $saved : [], chatbridge_widget_defaults());
+    $settings = wp_parse_args(is_array($saved) ? $saved : [], chatbridge_widget_defaults());
+    $settings['tenant_api_key'] = (string) get_option('chatbridge_widget_tenant_api_key', '');
+    return $settings;
 }
 
 function chatbridge_widget_sanitize_settings($input): array
@@ -41,6 +43,10 @@ function chatbridge_widget_sanitize_settings($input): array
     $defaults = chatbridge_widget_defaults();
     $api_base = isset($input['api_base']) ? esc_url_raw(trim((string) $input['api_base']), ['https']) : '';
     $api_base = untrailingslashit($api_base);
+    $tenant_api_key = isset($input['tenant_api_key']) ? trim((string) $input['tenant_api_key']) : '';
+    if ($tenant_api_key !== '' && preg_match('/^[a-f0-9]{64}$/i', $tenant_api_key)) {
+        update_option('chatbridge_widget_tenant_api_key', $tenant_api_key, false);
+    }
 
     return [
         'enabled' => !empty($input['enabled']) ? 1 : 0,
@@ -74,6 +80,38 @@ add_action('admin_menu', static function (): void {
     );
 });
 
+function chatbridge_widget_meta_config(array $settings)
+{
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $api_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $api_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        return null;
+    }
+    $response = wp_remote_get($api_base . '/meta/config.php', [
+        'timeout' => 10,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => [
+            'Accept' => 'application/json',
+            'X-ChatBridge-Tenant-Key' => $api_key,
+        ],
+    ]);
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return null;
+    }
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (!is_array($body) || empty($body['enabled']) || empty($body['app_id']) || empty($body['configuration_id'])) {
+        return null;
+    }
+    return [
+        'app_id' => sanitize_text_field((string) $body['app_id']),
+        'configuration_id' => sanitize_text_field((string) $body['configuration_id']),
+        'solution_id' => sanitize_text_field((string) ($body['solution_id'] ?? '')),
+        'graph_api_version' => sanitize_text_field((string) ($body['graph_api_version'] ?? 'v27.0')),
+        'embedded_signup_version' => 'v5',
+    ];
+}
+
 function chatbridge_widget_health_check(string $api_base)
 {
     if ($api_base === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
@@ -96,6 +134,7 @@ function chatbridge_widget_render_settings_page(): void
     }
 
     $settings = chatbridge_widget_settings();
+    $meta_config = chatbridge_widget_meta_config($settings);
     $health_result = null;
 
     if (isset($_GET['chatbridge_check'])) {
@@ -181,6 +220,14 @@ function chatbridge_widget_render_settings_page(): void
                     </td>
                 </tr>
                 <tr>
+                    <th scope="row"><label for="chatbridge-tenant-api-key"><?php esc_html_e('Private tenant API key', 'chatbridge-widget'); ?></label></th>
+                    <td>
+                        <input id="chatbridge-tenant-api-key" class="regular-text code" type="password" autocomplete="new-password" name="chatbridge_widget_settings[tenant_api_key]" value="" placeholder="<?php echo !empty($settings['tenant_api_key']) ? esc_attr__('Key already saved — leave blank to keep it', 'chatbridge-widget') : esc_attr__('Paste the one-time key from your service administrator', 'chatbridge-widget'); ?>">
+                        <p class="description"><?php esc_html_e('Used only by WordPress server-side requests to your ChatBridge API. It is never added to the public widget JavaScript. Leave blank to keep the saved key.', 'chatbridge-widget'); ?></p>
+                        <p class="description"><?php echo !empty($settings['tenant_api_key']) ? esc_html__('Tenant key: configured', 'chatbridge-widget') : esc_html__('Tenant key: not configured', 'chatbridge-widget'); ?></p>
+                    </td>
+                </tr>
+                <tr>
                     <th scope="row"><label for="chatbridge-title"><?php esc_html_e('Widget heading', 'chatbridge-widget'); ?></label></th>
                     <td><input id="chatbridge-title" class="regular-text" type="text" maxlength="80" name="chatbridge_widget_settings[title]" value="<?php echo esc_attr($settings['title']); ?>"></td>
                 </tr>
@@ -231,6 +278,24 @@ function chatbridge_widget_render_settings_page(): void
         <p class="description"><?php esc_html_e('This connector does not modify Paystack, WCFM, product prices, stock, cart or checkout.', 'chatbridge-widget'); ?></p>
 
         <hr>
+        <h2><?php esc_html_e('WhatsApp connection', 'chatbridge-widget'); ?></h2>
+        <?php if ($meta_config !== null) : ?>
+            <div id="chatbridge-meta-onboarding"
+                 data-app-id="<?php echo esc_attr($meta_config['app_id']); ?>"
+                 data-config-id="<?php echo esc_attr($meta_config['configuration_id']); ?>"
+                 data-solution-id="<?php echo esc_attr($meta_config['solution_id']); ?>"
+                 data-graph-version="<?php echo esc_attr($meta_config['graph_api_version']); ?>"
+                 data-ajax-url="<?php echo esc_url(admin_url('admin-ajax.php')); ?>"
+                 data-nonce="<?php echo esc_attr(wp_create_nonce('chatbridge_meta_finish')); ?>">
+                <p><?php esc_html_e('Connect an eligible WhatsApp Business account using Meta Embedded Signup v5. The business owner completes the flow in Meta and, if eligible, confirms Coexistence inside the WhatsApp Business app.', 'chatbridge-widget'); ?></p>
+                <button type="button" class="button button-primary" id="chatbridge-meta-connect"><?php esc_html_e('Connect WhatsApp', 'chatbridge-widget'); ?></button>
+                <p id="chatbridge-meta-status" role="status" aria-live="polite"></p>
+            </div>
+        <?php else : ?>
+            <p class="description"><?php esc_html_e('Meta onboarding is unavailable. Confirm the private tenant API key and that the service administrator has enabled a valid Meta app and Embedded Signup configuration.', 'chatbridge-widget'); ?></p>
+        <?php endif; ?>
+
+        <hr>
         <h2><?php esc_html_e('Connection check', 'chatbridge-widget'); ?></h2>
         <p><?php esc_html_e('Save your settings, then check whether the configured chat API and its database/schema are responding.', 'chatbridge-widget'); ?></p>
         <?php
@@ -248,6 +313,64 @@ function chatbridge_widget_render_settings_page(): void
     </div>
     <?php
 }
+
+add_action('wp_ajax_chatbridge_meta_finish', static function (): void {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => __('You are not allowed to connect a business account.', 'chatbridge-widget')], 403);
+    }
+    check_ajax_referer('chatbridge_meta_finish', 'nonce');
+    $settings = chatbridge_widget_settings();
+    $api_base = untrailingslashit((string) $settings['api_base']);
+    $api_key = (string) ($settings['tenant_api_key'] ?? '');
+    $code = isset($_POST['code']) ? sanitize_text_field(wp_unslash($_POST['code'])) : '';
+    $session_raw = isset($_POST['session_info']) ? wp_unslash($_POST['session_info']) : '';
+    $session_info = is_string($session_raw) ? json_decode($session_raw, true) : null;
+    if ($api_key === '' || $code === '' || !is_array($session_info)) {
+        wp_send_json_error(['message' => __('The signup response is incomplete. Please try again.', 'chatbridge-widget')], 422);
+    }
+
+    $response = wp_remote_post($api_base . '/meta/onboarding.php', [
+        'timeout' => 35,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'X-ChatBridge-Tenant-Key' => $api_key,
+        ],
+        'body' => wp_json_encode(['code' => $code, 'session_info' => $session_info]),
+    ]);
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => __('Could not reach the ChatBridge service. Check the connection and try again.', 'chatbridge-widget')], 502);
+    }
+    $status = (int) wp_remote_retrieve_response_code($response);
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if ($status < 200 || $status >= 300 || !is_array($body) || empty($body['ok'])) {
+        wp_send_json_error(['message' => __('Meta onboarding did not complete. Check the ChatBridge service log for details.', 'chatbridge-widget')], $status >= 400 && $status < 600 ? $status : 502);
+    }
+    wp_send_json_success([
+        'connections' => isset($body['connections']) && is_array($body['connections']) ? $body['connections'] : [],
+        'connection_mode' => sanitize_key((string) ($body['connection_mode'] ?? 'unknown')),
+    ]);
+});
+
+add_action('admin_enqueue_scripts', static function (string $hook): void {
+    if ($hook !== 'settings_page_chatbridge-widget') {
+        return;
+    }
+    $settings = chatbridge_widget_settings();
+    if (chatbridge_widget_meta_config($settings) === null) {
+        return;
+    }
+    wp_enqueue_script('chatbridge-meta-sdk', 'https://connect.facebook.net/en_US/sdk.js', [], null, true);
+    wp_enqueue_script(
+        'chatbridge-meta-onboarding',
+        plugins_url('assets/meta-onboarding.js', __FILE__),
+        ['chatbridge-meta-sdk'],
+        CHATBRIDGE_WIDGET_VERSION,
+        true
+    );
+});
 
 add_action('wp_enqueue_scripts', static function (): void {
     $settings = chatbridge_widget_settings();
