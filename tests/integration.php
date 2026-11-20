@@ -234,6 +234,51 @@ $inboundPayload = [
 [$inboundStatus, $inboundBody] = webhook_post($inboundPayload, $secret);
 expect($inboundStatus === 200 && ($inboundBody['processed'] ?? 0) === 1, 'inbound WhatsApp text is correlated to the website conversation');
 
+$contactSyncPayload = [
+    'object' => 'whatsapp_business_account',
+    'entry' => [[
+        'id' => 'test-waba',
+        'changes' => [[
+            'field' => 'smb_app_state_sync',
+            'value' => [
+                'metadata' => ['phone_number_id' => 'test-phone-id'],
+                'progress' => 100,
+                'state_sync' => [[
+                    'action' => 'add',
+                    'contact' => ['phone_number' => '2348037654321', 'full_name' => 'Synced Contact'],
+                ]],
+            ],
+        ]],
+    ]],
+];
+[$contactSyncStatus, $contactSyncBody] = webhook_post($contactSyncPayload, $secret);
+$contactQuery = $pdo->prepare('SELECT display_name, status FROM whatsapp_contacts WHERE tenant_id = :tenant_id AND phone_normalized = :phone LIMIT 1');
+$contactQuery->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001', ':phone' => '2348037654321']);
+$contactRow = $contactQuery->fetch();
+expect($contactSyncStatus === 200 && ($contactSyncBody['processed'] ?? 0) === 1 && ($contactRow['display_name'] ?? '') === 'Synced Contact', 'Coexistence contact sync stores tenant-scoped contact changes');
+
+$historySyncPayload = [
+    'object' => 'whatsapp_business_account',
+    'entry' => [[
+        'id' => 'test-waba',
+        'changes' => [[
+            'field' => 'history',
+            'value' => [
+                'metadata' => ['phone_number_id' => 'test-phone-id'],
+                'progress' => 100,
+                'threads' => [[
+                    'id' => '2348037654321',
+                    'messages' => [['id' => 'wamid.integration.history.1', 'text' => ['body' => 'Historical message']]],
+                ]],
+            ],
+        ]],
+    ]],
+];
+[$historySyncStatus, $historySyncBody] = webhook_post($historySyncPayload, $secret);
+$historyCount = $pdo->prepare('SELECT COUNT(*) FROM coexistence_history_payloads WHERE tenant_id = :tenant_id');
+$historyCount->execute([':tenant_id' => '00000000-0000-4000-8000-000000000001']);
+expect($historySyncStatus === 200 && ($historySyncBody['processed'] ?? 0) === 1 && (int)$historyCount->fetchColumn() === 1, 'Coexistence history webhook payload is archived within its tenant boundary');
+
 $statusPayload = [
     'object' => 'whatsapp_business_account',
     'entry' => [[
