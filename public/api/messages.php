@@ -32,7 +32,7 @@ try {
         $rateConfig = app_config('app.message_rate_limit') ?? [];
         $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 8));
         $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 60));
-        enforce_rate_limit($pdo, 'message:' . $session['session_id'], $maxRequests, $windowSeconds);
+        enforce_rate_limit($pdo, 'message:' . $session['tenant_id'] . ':' . $session['session_id'], $maxRequests, $windowSeconds);
 
         $clientMessageId = $body['client_message_id'] ?? null;
         if ($clientMessageId === null) $clientMessageId = uuid_v4();
