@@ -82,7 +82,9 @@ expect(
 );
 
 $tenantApiKey = bin2hex(random_bytes(32));
-$tenantIdForSettings = '00000000-0000-4000-8000-000000000001';
+$tenantIdForSettings = uuid_v4();
+$pdo->prepare('INSERT INTO tenants (id, name, slug, status, created_at, updated_at) VALUES (:id, "AI settings test tenant", :slug, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())')
+    ->execute([':id' => $tenantIdForSettings, ':slug' => 'ai-settings-' . substr(str_replace('-', '', $tenantIdForSettings), 0, 12)]);
 $pdo->prepare(
     'INSERT INTO tenant_api_keys (id, tenant_id, label, key_sha256, role, status, created_at)
      VALUES (:id, :tenant_id, "AI settings integration", :key_hash, "owner", "active", UTC_TIMESTAMP())'
