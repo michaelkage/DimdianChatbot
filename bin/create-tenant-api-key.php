@@ -30,6 +30,7 @@ try {
         ':hash' => hash('sha256', $token),
         ':role' => $role,
     ]);
+    fwrite(STDOUT, "Key ID: {$keyId}\n");
     fwrite(STDOUT, "Copy this key now. It is shown only once:\n{$token}\n");
 } catch (Throwable $error) {
     fwrite(STDERR, "API key creation failed: " . $error->getMessage() . "\n");
