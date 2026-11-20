@@ -54,6 +54,8 @@ function chatbridge_widget_defaults(): array
         'show_paths' => '',
         'hide_selectors' => '',
         'compact_selectors' => '',
+        'handover_ack_enabled' => 0,
+        'handover_ack_text' => 'We have received your request. A support agent will be with you as soon as possible.',
     ];
 }
 
@@ -93,6 +95,8 @@ function chatbridge_widget_sanitize_settings($input): array
         'show_paths' => isset($input['show_paths']) ? sanitize_textarea_field($input['show_paths']) : '',
         'hide_selectors' => isset($input['hide_selectors']) ? sanitize_textarea_field($input['hide_selectors']) : '',
         'compact_selectors' => isset($input['compact_selectors']) ? sanitize_textarea_field($input['compact_selectors']) : '',
+        'handover_ack_enabled' => !empty($input['handover_ack_enabled']) ? 1 : 0,
+        'handover_ack_text' => isset($input['handover_ack_text']) ? sanitize_text_field($input['handover_ack_text']) : $defaults['handover_ack_text'],
     ];
 }
 
@@ -342,6 +346,13 @@ function chatbridge_widget_render_settings_page(): void
                     <th scope="row"><label for="chatbridge-compact-selectors"><?php esc_html_e('Use compact launcher when page contains selector', 'chatbridge-widget'); ?></label></th>
                     <td><textarea id="chatbridge-compact-selectors" class="large-text code" rows="2" name="chatbridge_widget_settings[compact_selectors]"><?php echo esc_textarea($settings['compact_selectors']); ?></textarea><p class="description"><?php esc_html_e('Optional CSS selectors, one per line. Matching pages get a smaller launcher.', 'chatbridge-widget'); ?></p></td>
                 </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Human support acknowledgement', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[handover_ack_enabled]" value="1" <?php checked($settings['handover_ack_enabled'], 1); ?>> <?php esc_html_e('Show a custom acknowledgement when a visitor requests a person or AI hands over.', 'chatbridge-widget'); ?></label>
+                        <p><textarea class="large-text" rows="2" maxlength="240" name="chatbridge_widget_settings[handover_ack_text]"><?php echo esc_textarea($settings['handover_ack_text']); ?></textarea></p>
+                    </td>
+                </tr>
             </table>
             <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
         </form>
@@ -558,7 +569,7 @@ add_action('wp_enqueue_scripts', static function (): void {
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s" data-launcher-text="%7$s" data-logo-url="%8$s" data-primary-color="%9$s" data-accent-color="%10$s" data-offline-queue="%11$s" data-typing-indicator="%12$s" data-hide-paths="%13$s" data-show-paths="%14$s" data-hide-selectors="%15$s" data-compact-selectors="%16$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s" data-launcher-text="%7$s" data-logo-url="%8$s" data-primary-color="%9$s" data-accent-color="%10$s" data-offline-queue="%11$s" data-typing-indicator="%12$s" data-hide-paths="%13$s" data-show-paths="%14$s" data-hide-selectors="%15$s" data-compact-selectors="%16$s" data-handover-ack="%17$s" data-handover-message="%18$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
             esc_attr($settings['subtitle']),
@@ -574,7 +585,9 @@ add_action('wp_enqueue_scripts', static function (): void {
             esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_paths']))),
             esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['show_paths']))),
             esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_selectors']))),
-            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['compact_selectors'])))
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['compact_selectors']))),
+            !empty($settings['handover_ack_enabled']) ? 'true' : 'false',
+            esc_attr($settings['handover_ack_text'])
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;
