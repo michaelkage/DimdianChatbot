@@ -18,12 +18,13 @@ if (!preg_match('/^[0-9a-f-]{36}$/i', $tenantId) || $label === '' || strlen($lab
 
 try {
     $token = bin2hex(random_bytes(32));
+    $keyId = uuid_v4();
     $statement = database()->prepare(
         'INSERT INTO tenant_api_keys (id, tenant_id, label, key_sha256, role, status, created_at)
          VALUES (:id, :tenant_id, :label, :hash, :role, "active", UTC_TIMESTAMP())'
     );
     $statement->execute([
-        ':id' => uuid_v4(),
+        ':id' => $keyId,
         ':tenant_id' => $tenantId,
         ':label' => $label,
         ':hash' => hash('sha256', $token),
