@@ -302,6 +302,14 @@ add_action('rest_api_init', static function (): void {
 
 function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Response
 {
+    $settings = chatbridge_widget_settings();
+    if (empty($settings['woocommerce_enabled'])) {
+        return new WP_REST_Response([
+            'code' => 'product_search_disabled',
+            'message' => 'Product search is disabled by this website.',
+        ], 403);
+    }
+
     if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
         return new WP_REST_Response([
             'code' => 'woocommerce_unavailable',
