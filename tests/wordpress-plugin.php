@@ -44,6 +44,23 @@ final class WP_REST_Response
 }
 
 class WooCommerce {}
+class WC_Order_Item_Test
+{
+    public function get_name(): string { return 'Brake Pad Set'; }
+    public function get_quantity(): int { return 2; }
+}
+class WC_Order
+{
+    private int $customerId;
+    public function __construct(int $customerId) { $this->customerId = $customerId; }
+    public function get_customer_id(): int { return $this->customerId; }
+    public function get_items(): array { return [new WC_Order_Item_Test()]; }
+    public function get_order_number(): string { return '1042'; }
+    public function get_status(): string { return 'processing'; }
+    public function get_date_created() { return new DateTimeImmutable('2026-11-20T09:00:00+00:00'); }
+    public function get_currency(): string { return 'NGN'; }
+    public function get_formatted_order_total(): string { return '₦90,000.00'; }
+}
 class WC_Product
 {
     private string $name;
@@ -87,6 +104,9 @@ $GLOBALS['chatbridge_options'] = [];
 $GLOBALS['chatbridge_wc_args'] = null;
 $GLOBALS['chatbridge_wc_queries'] = [];
 $GLOBALS['chatbridge_store_api_params'] = [];
+$GLOBALS['chatbridge_current_user_id'] = 0;
+$GLOBALS['chatbridge_is_logged_in'] = false;
+$GLOBALS['chatbridge_test_order'] = null;
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
 {
@@ -96,6 +116,9 @@ function register_rest_route(string $namespace, string $route, array $args): voi
 {
     $GLOBALS['chatbridge_routes'][$namespace . $route] = $args;
 }
+function is_user_logged_in(): bool { return $GLOBALS['chatbridge_is_logged_in']; }
+function get_current_user_id(): int { return (int) $GLOBALS['chatbridge_current_user_id']; }
+function wc_get_order(int $orderId): ?WC_Order { return $orderId === 1042 ? $GLOBALS['chatbridge_test_order'] : null; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
