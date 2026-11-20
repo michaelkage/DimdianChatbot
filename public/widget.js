@@ -68,7 +68,7 @@ if (script.dataset.logoUrl) {
   } catch (_) {}
 }
 if (compactMode) root.classList.add('compact-mode');
-if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
+if(demo||script.dataset.minimalContact==='true'){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
 const orderQuickReply=shadow.querySelector('[data-action="orders"]');
 if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
 shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
