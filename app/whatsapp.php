@@ -231,9 +231,19 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
 
                 $channelQuery = $pdo->prepare(
                     'SELECT id FROM channel_connections
-                     WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id LIMIT 1'
+                     WHERE tenant_id = :tenant_id AND provider = "meta"
+                       AND ((:phone_filter <> "" AND phone_number_id = :phone_id)
+                         OR (:account_filter <> "" AND (business_account_id = :messaging_id OR whatsapp_account_id = :waac_id)))
+                     LIMIT 1'
                 );
-                $channelQuery->execute([':tenant_id' => $tenantId, ':phone_id' => $receivedPhoneNumberId]);
+                $channelQuery->execute([
+                    ':tenant_id' => $tenantId,
+                    ':phone_filter' => $receivedPhoneNumberId,
+                    ':phone_id' => $receivedPhoneNumberId,
+                    ':account_filter' => $expectedBusinessAccountId,
+                    ':messaging_id' => $expectedBusinessAccountId,
+                    ':waac_id' => $expectedBusinessAccountId,
+                ]);
                 $channelId = $channelQuery->fetchColumn();
                 $contacts = $value['state_sync'] ?? $value['contacts'] ?? [];
                 $stored = 0;
@@ -290,9 +300,19 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
 
                 $channelQuery = $pdo->prepare(
                     'SELECT id FROM channel_connections
-                     WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id LIMIT 1'
+                     WHERE tenant_id = :tenant_id AND provider = "meta"
+                       AND ((:phone_filter <> "" AND phone_number_id = :phone_id)
+                         OR (:account_filter <> "" AND (business_account_id = :messaging_id OR whatsapp_account_id = :waac_id)))
+                     LIMIT 1'
                 );
-                $channelQuery->execute([':tenant_id' => $tenantId, ':phone_id' => $receivedPhoneNumberId]);
+                $channelQuery->execute([
+                    ':tenant_id' => $tenantId,
+                    ':phone_filter' => $receivedPhoneNumberId,
+                    ':phone_id' => $receivedPhoneNumberId,
+                    ':account_filter' => $expectedBusinessAccountId,
+                    ':messaging_id' => $expectedBusinessAccountId,
+                    ':waac_id' => $expectedBusinessAccountId,
+                ]);
                 $channelId = $channelQuery->fetchColumn();
                 $historyJson = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 if (is_string($channelId) && $channelId !== '' && is_string($historyJson) && strlen($historyJson) <= 15000000) {
