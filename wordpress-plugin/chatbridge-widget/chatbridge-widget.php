@@ -232,14 +232,20 @@ add_action('admin_post_chatbridge_save_ai', static function (): void {
         wp_safe_redirect(add_query_arg('chatbridge_ai_saved', 'connection_missing', menu_page_url('chatbridge-widget', false)));
         exit;
     }
-    $api_key = isset($_POST['ai_api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['ai_api_key']))) : '';
+    $raw_ai_api_key = filter_input(INPUT_POST, 'ai_api_key', FILTER_UNSAFE_RAW);
+    $raw_ai_base_url = filter_input(INPUT_POST, 'ai_base_url', FILTER_UNSAFE_RAW);
+    $raw_ai_model = filter_input(INPUT_POST, 'ai_model', FILTER_UNSAFE_RAW);
+    $raw_ai_enabled = filter_input(INPUT_POST, 'ai_enabled', FILTER_UNSAFE_RAW);
+    $raw_ai_max_tokens = filter_input(INPUT_POST, 'ai_max_output_tokens', FILTER_VALIDATE_INT);
+    $raw_ai_monthly_budget = filter_input(INPUT_POST, 'ai_monthly_token_budget', FILTER_VALIDATE_INT);
+    $api_key = is_string($raw_ai_api_key) ? trim(sanitize_text_field($raw_ai_api_key)) : '';
     $payload = [
         'provider' => 'openai_compatible',
-        'base_url' => isset($_POST['ai_base_url']) ? esc_url_raw(trim(sanitize_text_field(wp_unslash($_POST['ai_base_url']))), ['https']) : 'https://api.openai.com/v1',
-        'model' => isset($_POST['ai_model']) ? sanitize_text_field(wp_unslash($_POST['ai_model'])) : '',
-        'enabled' => !empty($_POST['ai_enabled']),
-        'max_output_tokens' => isset($_POST['ai_max_output_tokens']) ? absint($_POST['ai_max_output_tokens']) : 500,
-        'monthly_token_budget' => isset($_POST['ai_monthly_token_budget']) ? absint($_POST['ai_monthly_token_budget']) : 0,
+        'base_url' => is_string($raw_ai_base_url) ? esc_url_raw(trim(sanitize_text_field($raw_ai_base_url)), ['https']) : 'https://api.openai.com/v1',
+        'model' => is_string($raw_ai_model) ? sanitize_text_field($raw_ai_model) : '',
+        'enabled' => is_string($raw_ai_enabled) && $raw_ai_enabled === '1',
+        'max_output_tokens' => is_int($raw_ai_max_tokens) ? absint($raw_ai_max_tokens) : 500,
+        'monthly_token_budget' => is_int($raw_ai_monthly_budget) ? absint($raw_ai_monthly_budget) : 0,
     ];
     if ($api_key !== '') {
         $payload['api_key'] = $api_key;
