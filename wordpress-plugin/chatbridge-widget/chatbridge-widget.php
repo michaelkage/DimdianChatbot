@@ -525,7 +525,7 @@ function chatbridge_widget_get_own_order(WP_REST_Request $request): WP_REST_Resp
             'status' => sanitize_key((string) $order->get_status()),
             'date_created' => $order->get_date_created() ? $order->get_date_created()->date(DATE_ATOM) : null,
             'currency' => sanitize_key((string) $order->get_currency()),
-            'total' => wp_strip_all_tags((string) $order->get_formatted_order_total()),
+            'total' => html_entity_decode(wp_strip_all_tags((string) $order->get_formatted_order_total()), ENT_QUOTES, get_bloginfo('charset') ?: 'UTF-8'),
             'items' => $items,
         ],
     ], 200);
