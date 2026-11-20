@@ -82,3 +82,68 @@ test('real widget works on desktop and mobile in demo mode', async () => {
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+
+test('optional WooCommerce search renders safe product cards and creates a product enquiry', async () => {
+  const server = createServer(async (req, res) => {
+    try {
+      const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+      const file = normalize(join(root, pathname === '/' ? 'index.html' : pathname));
+      if (!file.startsWith(normalize(root))) throw new Error('Invalid path');
+      const body = await readFile(file);
+      res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream' });
+      res.end(body);
+    } catch {
+      res.writeHead(404); res.end('Not found');
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.route('**/wp-json/chatbridge/v1/products?**', async route => {
+      const url = new URL(route.request().url());
+      assert.equal(url.searchParams.get('search'), 'brake pads');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          count: 1,
+          products: [{
+            name: 'Brake Pad Set',
+            price: '₦45,000',
+            url: 'https://store.example.test/product/brake-pad-set',
+            image: 'https://store.example.test/product.jpg',
+            stock_status: 'instock'
+          }]
+        })
+      });
+    });
+    const origin = `http://127.0.0.1:${address.port}`;
+    await page.goto(origin + '/');
+    await page.addScriptTag({
+      url: origin + '/widget.js',
+      attributes: {
+        'data-commerce-api': origin + '/wp-json/chatbridge/v1/products',
+        'data-api-base': origin + '/api'
+      }
+    });
+    const widget = page.locator('#dimdian-chat-widget');
+    await widget.locator('.launcher').click();
+    await widget.getByRole('button', { name: 'Find a part' }).click();
+    await widget.locator('.commerce').waitFor({ state: 'visible' });
+    await widget.locator('.commerce-search input').fill('brake pads');
+    await widget.locator('.commerce-search button').click();
+    await widget.getByText('Brake Pad Set').waitFor();
+    await widget.getByText('₦45,000').waitFor();
+    await widget.getByText('In stock').waitFor();
+    await widget.getByRole('button', { name: 'Ask about this' }).click();
+    const message = widget.locator('textarea');
+    assert.match(await message.inputValue(), /Brake Pad Set/);
+    assert.match(await message.inputValue(), /store\.example\.test\/product\/brake-pad-set/);
+  } finally {
+    await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
