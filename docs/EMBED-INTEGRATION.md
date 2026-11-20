@@ -4,8 +4,8 @@ ChatBridge does not require WordPress. Any site that can include a JavaScript fi
 
 ## Requirements
 
-- A running ChatBridge PHP API with the tenant migrations applied.
-- The exact website origin registered and verified for the tenant in `tenant_sites`.
+- A running ChatBridge API: the PHP backend for self-hosted MySQL/MariaDB deployments, or the Supabase Edge Function for the mock/reference site.
+- The exact website origin registered and verified for the tenant (`tenant_sites` in MySQL/MariaDB, or `chatbridge_site_origins` in Supabase).
 - HTTPS on both the website and ChatBridge API.
 - The API host configured to allow that website origin.
 
