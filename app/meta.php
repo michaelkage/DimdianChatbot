@@ -62,6 +62,7 @@ function chatbridge_meta_exchange_code(string $code): array
         throw new RuntimeException('Meta Embedded Signup is not enabled or configured.');
     }
     $version = (string)($config['graph_api_version'] ?? 'v27.0');
+    if (!preg_match('/^v\\d+\\.\\d+$/', $version)) throw new RuntimeException('Meta Graph API version is not configured.');
     $url = 'https://graph.facebook.com/' . $version . '/oauth/access_token?' . http_build_query([
         'client_id' => $appId,
         'client_secret' => $appSecret,
@@ -106,6 +107,16 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
 
     $connected = [];
     foreach ($accountIds as $businessAccountId) {
+        $tenantConflict = $pdo->prepare(
+            'SELECT id FROM channel_connections
+             WHERE provider = "meta" AND business_account_id = :waba_id
+               AND tenant_id <> :tenant_id LIMIT 1'
+        );
+        $tenantConflict->execute([':waba_id' => $businessAccountId, ':tenant_id' => $tenantId]);
+        if ($tenantConflict->fetchColumn()) {
+            throw new RuntimeException('This Meta business account is already connected to another tenant.');
+        }
+
         // Confirm the WABA exists and is accessible with the exchanged business token.
         $account = chatbridge_meta_graph_request('GET', $businessAccountId, $accessToken, ['fields' => 'id,name']);
         if ((string)($account['id'] ?? '') !== $businessAccountId) {
