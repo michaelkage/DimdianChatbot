@@ -12,6 +12,9 @@ return [
         'app_key' => 'replace-with-at-least-32-random-bytes',
         'timezone' => 'Africa/Lagos',
         'public_base_url' => 'https://chat.example.com',
+        // For a migrated single-tenant deployment, use its tenant UUID. Hosted
+        // multi-tenant API requests resolve tenant ownership from tenant_sites.
+        'tenant_id' => '00000000-0000-4000-8000-000000000001',
         'allowed_origins' => [
             'https://www.example.com',
             'https://example.com',
