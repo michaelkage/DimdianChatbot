@@ -4,7 +4,7 @@ Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -83,3 +83,10 @@ The admin health-check button makes a server-side HTTPS request from WordPress t
 
 = 0.1.0 =
 * Initial connector plugin with settings, safe defaults and remote health check.
+
+
+== Secure order lookup (0.3.0) ==
+
+Order lookup is an optional integration and is disabled by default. When enabled, it is available only to customers signed in to their WordPress account. The endpoint requires WordPress REST cookie authentication and a REST nonce, then verifies that the WooCommerce order belongs to the current user. It returns a limited order summary and does not expose billing addresses, email addresses, payment tokens, order notes or another customer's order.
+
+Guest-checkout order lookup and custom/sequential order-number plugins are not supported by this first increment. The order lookup UI is shown only when the customer is signed in and the integration is enabled.
