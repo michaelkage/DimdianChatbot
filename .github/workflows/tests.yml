@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, feat/multi-tenant-isolation]
+    branches: [main, feat/multi-tenant-isolation, feat/modular-widget-experience]
   pull_request:
     branches: [main, feat/platform-foundation, feat/multi-tenant-isolation]
 
