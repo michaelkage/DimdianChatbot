@@ -14,7 +14,10 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ## 1. What this system does
 
-- Adds a small floating **Message us** button to the Dimdian website.
+- Adds a small floating **Message us** button to a website, with optional appearance and page-targeting controls.
+- Supports a standalone JavaScript embed on non-WordPress sites.
+- Can optionally queue up to 20 unsent messages in browser local storage and retry when the connection returns.
+- Can show an animated reply-pending indicator and lets visitors switch between up to ten chat sessions in the current browser tab.
 - Opens a chat panel without sending the visitor to another page.
 - Lets a visitor start chatting as a guest. No account, password, OTP or registration.
 - Saves website messages and replies in a MySQL database.
@@ -24,7 +27,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide a staffed shared inbox, staff accounts, agent assignment/resolution UI, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. An optional tenant-scoped AI queue and knowledge retrieval runtime exists on the feature branch; it is disabled by default and has no staff inbox UI. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only.
+This is a focused enquiry channel, not a full customer-management system. It does not provide a staffed shared inbox, staff accounts, agent assignment/resolution UI, cart/checkout actions, inventory management, payments, CRM, screenshot/file attachments, voice notes or group chats. An optional tenant-scoped AI queue and knowledge retrieval runtime exists on the feature branch; it is disabled by default and has no staff inbox UI. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only. Screenshot capture/upload and private diagnostic bundles are not implemented yet.
 
 ## 2. How a conversation works
 
