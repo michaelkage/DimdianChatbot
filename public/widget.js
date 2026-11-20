@@ -45,16 +45,22 @@ const $ = s => shadow.querySelector(s);
 const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome');
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
-if (script.dataset.primaryColor) root.style.setProperty('--cb-primary', script.dataset.primaryColor);
-if (script.dataset.accentColor) root.style.setProperty('--cb-accent', script.dataset.accentColor);
+if (/^#[0-9a-fA-F]{6}$/.test(script.dataset.primaryColor || '')) root.style.setProperty('--cb-primary', script.dataset.primaryColor);
+if (/^#[0-9a-fA-F]{6}$/.test(script.dataset.accentColor || '')) root.style.setProperty('--cb-accent', script.dataset.accentColor);
 if (script.dataset.launcherText) launcher.lastChild.textContent = ' ' + script.dataset.launcherText;
 if (script.dataset.logoUrl) {
-  const mark = $('.mark');
-  mark.textContent = '';
-  mark.style.backgroundImage = 'url("' + script.dataset.logoUrl.replace(/["\\\\]/g, '') + '")';
-  mark.style.backgroundSize = 'cover';
-  mark.style.backgroundPosition = 'center';
-  mark.setAttribute('aria-label', script.dataset.title || 'Support');
+  try {
+    const logoUrl = new URL(script.dataset.logoUrl, location.href);
+    if (logoUrl.protocol === 'https:') {
+      const mark = $('.mark');
+      const logo = document.createElement('img');
+      logo.src = logoUrl.href;
+      logo.alt = '';
+      logo.loading = 'lazy';
+      mark.replaceChildren(logo);
+      mark.setAttribute('aria-label', script.dataset.title || 'Support');
+    }
+  } catch (_) {}
 }
 if (compactMode) root.classList.add('compact-mode');
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
