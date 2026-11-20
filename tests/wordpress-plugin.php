@@ -125,6 +125,7 @@ function wcfm_is_vendor(int $vendorId): bool { return $vendorId === 77; }
 function wc_get_order(int $orderId): ?WC_Order { return $orderId === 1042 ? $GLOBALS['chatbridge_test_order'] : null; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
 function delete_option(string $key): bool { unset($GLOBALS['chatbridge_options'][$key]); return true; }
+function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
 function sanitize_key(string $value): string { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
@@ -203,6 +204,11 @@ $sanitized = chatbridge_widget_sanitize_settings([
 ]);
 check($sanitized['woocommerce_enabled'] === 1, 'WooCommerce setting is saved as an explicit boolean flag');
 check($sanitized['api_base'] === 'https://chat.example.test/api', 'API base URL is normalized');
+
+$secretKey = str_repeat('a', 64);
+$sanitizedWithKey = chatbridge_widget_sanitize_settings(['tenant_api_key' => $secretKey]);
+check(($GLOBALS['chatbridge_options']['chatbridge_widget_tenant_api_key'] ?? '') === $secretKey && ($GLOBALS['chatbridge_autoload']['chatbridge_widget_tenant_api_key'] ?? true) === false, 'tenant API key is stored separately and non-autoloaded');
+check(!isset($sanitizedWithKey['tenant_api_key']), 'tenant API key is excluded from the public widget settings array');
 
 $disabled = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 check($disabled->get_status() === 403, 'public endpoint respects the administrator product-search toggle');
