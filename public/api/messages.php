@@ -51,12 +51,13 @@ try {
         try {
             $insert = $pdo->prepare(
                 'INSERT IGNORE INTO messages
-                    (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
+                    (id, tenant_id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES
-                    (:id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    (:id, :tenant_id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
             $insert->execute([
                 ':id' => $messageId,
+                ':tenant_id' => $session['tenant_id'],
                 ':conversation_id' => $session['conversation_id'],
                 ':client_message_id' => $clientMessageId,
                 ':body' => $messageText,
@@ -64,8 +65,8 @@ try {
             ]);
 
             $wasInserted = $insert->rowCount() === 1;
-            $sequenceQuery = $pdo->prepare('SELECT id, sequence_id, sent_at, delivery_status, body FROM messages WHERE conversation_id = :conversation_id AND client_message_id = :client_message_id LIMIT 1');
-            $sequenceQuery->execute([':conversation_id' => $session['conversation_id'], ':client_message_id' => $clientMessageId]);
+            $sequenceQuery = $pdo->prepare('SELECT id, sequence_id, sent_at, delivery_status, body FROM messages WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND client_message_id = :client_message_id LIMIT 1');
+            $sequenceQuery->execute([':tenant_id' => $session['tenant_id'], ':conversation_id' => $session['conversation_id'], ':client_message_id' => $clientMessageId]);
             $saved = $sequenceQuery->fetch();
             if (!$saved) throw new RuntimeException('Message idempotency lookup failed.');
             if (!hash_equals((string)$saved['body'], $messageText)) {
@@ -77,12 +78,12 @@ try {
             $update = $pdo->prepare(
                 'UPDATE conversations
                  SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "open"'
+                 WHERE tenant_id = :tenant_id AND id = :id AND status = "open"'
             );
-            if ($wasInserted) $update->execute([':id' => $session['conversation_id']]);
+            if ($wasInserted) $update->execute([':tenant_id' => $session['tenant_id'], ':id' => $session['conversation_id']]);
 
             if ($wasInserted && $outboundEnabled) {
-                enqueue_whatsapp_notification($pdo, $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
+                enqueue_whatsapp_notification($pdo, (string)$session['tenant_id'], $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
                 $transportState = 'queued';
             }
 
@@ -128,10 +129,11 @@ try {
     $query = $pdo->prepare(
         'SELECT sequence_id, id, sender_type, body, delivery_status, sent_at
          FROM messages
-         WHERE conversation_id = :conversation_id AND sequence_id > :after
+         WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND sequence_id > :after
          ORDER BY sequence_id ASC
          LIMIT ' . ($limit + 1)
     );
+    $query->bindValue(':tenant_id', $session['tenant_id']);
     $query->bindValue(':conversation_id', $session['conversation_id']);
     $query->bindValue(':after', $after, PDO::PARAM_INT);
     $query->execute();
@@ -155,10 +157,10 @@ try {
     $nextCursor = $items === [] ? $after : $items[array_key_last($items)]['sequence_id'];
     $statusQuery = $pdo->prepare(
         'SELECT id, delivery_status FROM messages
-         WHERE conversation_id = :conversation_id AND sender_type = "visitor"
+         WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND sender_type = "visitor"
          ORDER BY sequence_id DESC LIMIT 50'
     );
-    $statusQuery->execute([':conversation_id' => $session['conversation_id']]);
+    $statusQuery->execute([':tenant_id' => $session['tenant_id'], ':conversation_id' => $session['conversation_id']]);
     $deliveryUpdates = array_map(static fn(array $row): array => [
         'id' => $row['id'], 'delivery_status' => $row['delivery_status'],
     ], $statusQuery->fetchAll());
