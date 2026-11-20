@@ -69,7 +69,9 @@ CREATE TABLE conversation_handoffs (
     assigned_to VARCHAR(191) NULL,
     created_at DATETIME NOT NULL,
     resolved_at DATETIME NULL,
+    active_conversation_id CHAR(36) NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_handoffs_one_active (tenant_id, active_conversation_id),
     KEY idx_handoffs_tenant_status (tenant_id, status, created_at),
     KEY idx_handoffs_tenant_conversation (tenant_id, conversation_id, status),
     CONSTRAINT fk_handoffs_tenant FOREIGN KEY (tenant_id)
