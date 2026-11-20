@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/crypto.php';
+require_once dirname(__DIR__, 2) . '/app/meta.php';
 require_once dirname(__DIR__, 2) . '/app/ai.php';
 
 enforce_allowed_origin();
@@ -47,11 +49,20 @@ try {
         $whatsappConfig = app_config('whatsapp') ?? [];
         $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
-        $legacyOutboundTenantId = (string)app_config('app.tenant_id');
-        // The current outbox sender uses one legacy transport credential. Never queue another tenant's message for that sender.
-        $outboundEnabled = $legacyOutboundTenantId !== ''
-            && hash_equals($legacyOutboundTenantId, (string)$session['tenant_id'])
-            && is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
+        $tenantChannel = get_tenant_meta_channel($pdo, (string)$session['tenant_id']);
+        $tokenExpiry = is_array($tenantChannel) ? (string)($tenantChannel['token_expires_at'] ?? '') : '';
+        $tokenUsable = $tokenExpiry === '' || (strtotime($tokenExpiry . ' UTC') !== false && strtotime($tokenExpiry . ' UTC') > time() + 300);
+        $outboundConfigured = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']);
+        $outboundEnabled = $outboundConfigured && $visitorOptedIn && is_array($tenantChannel) && $tokenUsable;
+        if (!$visitorOptedIn) {
+            $transportState = 'website_chat_only';
+        } elseif (!is_array($tenantChannel)) {
+            $transportState = 'whatsapp_not_connected';
+        } elseif (!$tokenUsable) {
+            $transportState = 'whatsapp_reconnect_required';
+        } elseif (!$outboundConfigured) {
+            $transportState = 'outbound_disabled';
+        }
         $pdo->beginTransaction();
         try {
             $insert = $pdo->prepare(
