@@ -47,9 +47,35 @@ try {
     }
 
     $pdo = database();
+    $summary = ['processed' => 0, 'ignored' => 0];
     $pdo->beginTransaction();
     try {
-        $summary = process_meta_webhook($pdo, $payload, $rawBody, (string)app_config('whatsapp.phone_number_id'));
+        // A single Meta webhook delivery can contain changes for more than one
+        // business. Resolve every phone_number_id to exactly one tenant before
+        // handing that isolated change to the domain processor.
+        foreach (($payload['entry'] ?? []) as $entry) {
+            if (!is_array($entry)) continue;
+            foreach (($entry['changes'] ?? []) as $change) {
+                if (!is_array($change)) continue;
+                $value = is_array($change['value'] ?? null) ? $change['value'] : [];
+                $phoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
+                $tenantId = resolve_meta_tenant($pdo, $phoneNumberId);
+                if ($tenantId === null) {
+                    $summary['ignored']++;
+                    continue;
+                }
+                $isolatedPayload = [
+                    'object' => 'whatsapp_business_account',
+                    'entry' => [[
+                        'id' => (string)($entry['id'] ?? ''),
+                        'changes' => [$change],
+                    ]],
+                ];
+                $part = process_meta_webhook($pdo, $isolatedPayload, $rawBody, $tenantId, $phoneNumberId);
+                $summary['processed'] += $part['processed'];
+                $summary['ignored'] += $part['ignored'];
+            }
+        }
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
