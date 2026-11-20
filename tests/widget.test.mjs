@@ -77,7 +77,7 @@ test('widget theming uses validated CSS custom properties and optional logo URL'
 test('standalone embed guide exists and never asks users to expose tenant credentials', () => {
   const guide = readFileSync(new URL('../docs/EMBED-INTEGRATION.md', import.meta.url), 'utf8');
   assert.match(guide, /does not require WordPress/i);
-  assert.match(guide, /never add a tenant ID, API key, WhatsApp token or AI provider key/i);
+  assert.match(guide, /never add a tenant ID, API key, WhatsApp token, AI provider key or Supabase secret key/i);
 });
 
 test('screenshot capture is click-initiated, previewed, and uploaded only after confirmation', () => {
