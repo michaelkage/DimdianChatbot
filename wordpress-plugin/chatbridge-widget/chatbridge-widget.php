@@ -354,9 +354,9 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
     $nameMatches = wc_get_products([
         'status' => 'publish',
         'limit' => 8,
-        's' => $search,
-        'orderby' => 'relevance',
-        'order' => 'DESC',
+        'name' => $search,
+        'orderby' => 'name',
+        'order' => 'ASC',
         'return' => 'objects',
     ]);
     $products = [];
