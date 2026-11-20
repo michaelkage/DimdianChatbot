@@ -148,6 +148,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                 continue;
             }
 
+            // Only Coexistence app-echo events can mirror staff replies typed in WhatsApp Business. We accept text echoes and match the echo recipient to the visitor's opted-in number; unsupported media is deliberately ignored.
             if ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
                     if (!is_array($echo)) continue;
