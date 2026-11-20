@@ -29,7 +29,7 @@ function chatbridge_supabase_config(): array
  * Call the Supabase REST or Storage API from the PHP server.
  * Paths must be application-authored; never accept an arbitrary URL from a request.
  */
-function chatbridge_supabase_request(string $method, string $path, ?array $payload = null, array $extraHeaders = []): array
+function chatbridge_supabase_request(string $method, string $path, ?array $payload = null, array $extraHeaders = []): mixed
 {
     if (!function_exists('curl_init')) {
         throw new RuntimeException('The PHP cURL extension is required for the Supabase adapter.');
@@ -87,9 +87,6 @@ function chatbridge_supabase_request(string $method, string $path, ?array $paylo
         return [];
     }
     $decoded = json_decode($response, true);
-    if (!is_array($decoded)) {
-        throw new RuntimeException('Supabase returned an invalid JSON response.');
-    }
     return $decoded;
 }
 
