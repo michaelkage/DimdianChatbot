@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - feat/multi-tenant-isolation
+      - feat/modular-widget-experience
     paths:
       - 'wordpress-plugin/**'
       - '.github/workflows/plugin-quality.yml'

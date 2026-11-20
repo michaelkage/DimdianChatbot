@@ -77,7 +77,7 @@ Target design:
 - Persist model/provider, prompt version, retrieval references, token/cost metadata and handover reason, but avoid storing chain-of-thought.
 - Add per-tenant rate limits, budget ceilings, retention controls and a kill switch.
 
-Do not select or hard-code an AI vendor until provider pricing, data handling, regional availability and a free/low-cost development path have been compared. The legacy AI implementation under archive/legacy-marketplace-support/ is archived reference code, not an active supported runtime.
+The active runtime currently exposes an OpenAI-compatible adapter. The WordPress connector now offers server-to-server API-key setup, model selection, an enable switch, output-token limits and a monthly token budget; the key is encrypted by the PHP service and never saved in WordPress options or exposed to widget JavaScript. Provider OAuth login is not implemented because API-platform OAuth support is provider-specific and must not be simulated with a generic login button. Additional native provider adapters and a verified OAuth flow can be added later. The legacy AI implementation under archive/legacy-marketplace-support/ is archived reference code, not an active supported runtime.
 
 ## WooCommerce order lookup: current first increment
 
@@ -156,3 +156,12 @@ The first runtime increment is implemented on a feature branch and is not yet me
 This is not yet a complete hosted multi-tenant service. The CLI outbox worker now selects a tenant-owned Meta channel and decrypts its credential; it accepts the tenant UUID as its first argument. Per-tenant AI credentials are encrypted, but tenant memberships, billing/limits, automated site verification challenges, data export/deletion, history normalization/retention and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
 
 CI now builds the disposable test database from `database/schema.sql` plus migrations 004–007 and includes two-tenant guest-token isolation, AI knowledge/handover, Meta contract, Coexistence contact/history webhook, and WooCommerce/WCFM regression tests. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.
+
+
+## Modular visitor experience (current increment)
+
+The widget now supports configurable appearance (heading, launcher label, logo, primary/accent colours), page allow/deny path rules, CSS-selector hide/compact rules, optional animated reply-pending feedback, optional custom handover acknowledgement, up to ten browser-tab conversations, and an opt-in local offline queue capped at twenty messages. The queue is browser-local storage, not an encrypted vault; it should not be enabled on shared devices. Conversation credentials remain tab-scoped in session storage.
+
+The same public widget script can be embedded on non-WordPress sites. The API resolves tenant ownership from a verified origin mapping; the embed must never contain tenant API keys, Meta tokens or AI provider keys. See [Standalone widget installation](EMBED-INTEGRATION.md).
+
+Still outstanding: screenshot capture/upload and private diagnostic bundles, secure attachment retention and deletion, a staffed shared inbox, external dashboard/event delivery, agent assignment and resolution, provider OAuth login, knowledge-source management UI, multi-account channel routing, and full customer-facing conversation history across browsers/devices. The current visitor-side conversation picker is limited to ten sessions in the same browser tab.

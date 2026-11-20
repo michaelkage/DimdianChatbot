@@ -8,7 +8,7 @@ The `wordpress-plugin/chatbridge-widget/` directory contains the installable Wor
 
 This is a **connector**, not a self-hosted WhatsApp chatbot product. It loads the existing remote widget JavaScript from a configured ChatBridge service and passes the API base URL and display text as script attributes.
 
-The connected service provides guest website chat, optional WhatsApp integration and (on the feature branch) a tenant-scoped AI runtime disabled by default. The plugin includes an optional Meta Embedded Signup v5 launcher for eligible Meta Tech Providers/Solution Partners. Staff replies remain human replies unless a separately configured AI knowledge system generates a reply. When enabled, the WooCommerce adapter searches published, catalogue-visible products directly on the same WordPress site and can attribute products/order line items to WCFM vendors.
+The connected service provides guest website chat, optional WhatsApp integration and a tenant-scoped AI runtime disabled by default. The connector now provides optional server-to-server configuration for an OpenAI-compatible provider API key, model and token limits; knowledge-source imports remain a separate service operation. The plugin includes an optional Meta Embedded Signup v5 launcher for eligible Meta Tech Providers/Solution Partners. Staff replies remain human replies unless a separately configured AI knowledge system generates a reply. When enabled, the WooCommerce adapter searches published, catalogue-visible products directly on the same WordPress site and can attribute products/order line items to WCFM vendors.
 
 ## Requirements
 
@@ -36,10 +36,13 @@ The remote service must have a verified `tenant_sites` mapping for the exact Wor
 The plugin stores:
 - Whether the widget and optional WooCommerce features are enabled.
 - The remote API base URL.
-- The widget heading and welcome text.
+- The widget heading, welcome text, launcher label, logo and colours.
+- Optional offline queue and typing feedback.
+- Page path and CSS selector rules for hiding or compacting the widget.
+- Optional custom human-handover acknowledgement.
 - A tenant API key in a separate non-autoload WordPress option for server-to-server admin requests.
 
-It does not store WhatsApp access tokens, Meta app secrets, customer conversations or WooCommerce credentials. The tenant API key is never included in the widget script attributes or public REST response. The health check calls the remote `/health.php` endpoint server-to-server and reports only a generic service health state.
+AI provider keys are submitted server-to-server to `/api/ai/settings.php` and encrypted by the ChatBridge service; they are not saved in WordPress options. The connector supports OpenAI-compatible API keys in this release; provider OAuth login is not implemented. It does not store WhatsApp access tokens, Meta app secrets, customer conversations or WooCommerce credentials. The tenant API key is never included in the widget script attributes or public REST response. The health check calls the remote `/health.php` endpoint server-to-server and reports only a generic service health state.
 
 If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does not inject the public widget.
 
@@ -115,3 +118,15 @@ Do not run this flow on the live Dimdian site until a separate staging WordPress
 When WCFM Marketplace is active, each public product result and each item in the authenticated customer's own order summary can include the WCFM store name. The adapter uses wcfm_get_vendor_id_by_post() and wcfm_get_vendor_store() when available. If those functions are unavailable, the plugin falls back to ordinary WooCommerce output.
 
 This does not add vendor dashboard access, vendor order filtering, commission details, payouts, or vendor-scoped customer PII. The order endpoint continues to require that the signed-in WordPress user owns the parent WooCommerce order.
+
+
+## AI provider configuration
+
+1. Confirm the remote ChatBridge service has migrations 004–007 applied and the WordPress tenant API key has owner/admin permission.
+2. Open **Settings → ChatBridge Widget → AI provider**.
+3. Set the HTTPS API endpoint (OpenAI defaults to `https://api.openai.com/v1`), model name, response-token limit and optional monthly token budget.
+4. Paste the provider API key. It is sent from the WordPress server to ChatBridge over HTTPS; it is not saved in WordPress.
+5. Leave **Enable AI** unticked until the tenant has imported and reviewed its own knowledge sources.
+6. Save settings. Saving does not call the AI provider. Actual model usage begins only after AI is enabled and visitor messages enter the tenant AI queue.
+
+The current adapter speaks the OpenAI-compatible Chat Completions API. OAuth login and provider-native adapters are not included in this release. A monthly budget of zero means no token ceiling; set a positive limit to stop AI jobs and hand over when that limit is reached.

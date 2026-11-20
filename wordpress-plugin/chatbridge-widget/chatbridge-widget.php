@@ -3,7 +3,7 @@
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight support chat widget connected to ChatBridge, with optional WooCommerce, WCFM and Meta onboarding integrations.
  * Plugin URI: https://github.com/michaelkage/DimdianChatbot/tree/main/wordpress-plugin/chatbridge-widget
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge Contributors
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.4.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.5.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 add_action('init', static function (): void {
@@ -32,6 +32,8 @@ add_action('admin_init', static function (): void {
     $content = '<p>' . esc_html__('The ChatBridge Widget loads a support chat interface from the ChatBridge service configured by this site. When a visitor uses the chat, their messages and any details they choose to submit (such as a name or WhatsApp number) are sent to that service and processed according to the service operator’s privacy policy and retention settings.', 'chatbridge-widget') . '</p>';
     $content .= '<p>' . esc_html__('If WhatsApp continuation is enabled, a visitor’s phone number is sent to the ChatBridge service only after the visitor explicitly opts in. The service may then process the message through Meta WhatsApp Business Platform. This plugin does not store chat conversations or WhatsApp access tokens in the WordPress database.', 'chatbridge-widget') . '</p>';
     $content .= '<p>' . esc_html__('The site administrator may store a tenant API key in WordPress for server-to-server administrative requests. It is not exposed to public visitors or the widget JavaScript. If an administrator starts Meta Embedded Signup, the settings page loads the Facebook JavaScript SDK and the administrator interacts directly with Meta to select and authorize business assets.', 'chatbridge-widget') . '</p>';
+    $content .= '<p>' . esc_html__('If the site administrator enables the optional offline queue, up to 20 unsent message texts and client-generated message IDs are stored in the visitor’s browser local storage until the messages are sent or the visitor clears site data. The site owner should disclose this browser-side storage in the privacy notice.', 'chatbridge-widget') . '</p>';
+    $content .= '<p>' . esc_html__('If AI responses are enabled, visitor messages and tenant-approved knowledge snippets may be sent to the configured AI provider. The provider API key is stored encrypted by the ChatBridge service. Site owners should identify the provider and explain the applicable data processing and retention in their privacy notice.', 'chatbridge-widget') . '</p>';
     wp_add_privacy_policy_content(__('ChatBridge Widget', 'chatbridge-widget'), wp_kses_post($content));
 }, 20);
 
@@ -44,6 +46,18 @@ function chatbridge_widget_defaults(): array
         'api_base' => '',
         'title' => 'Chat with us',
         'subtitle' => 'Send us a message. Our team will reply as soon as we can.',
+        'launcher_text' => 'Message us',
+        'logo_url' => '',
+        'primary_color' => '#171717',
+        'accent_color' => '#d7eee6',
+        'offline_queue_enabled' => 0,
+        'typing_indicator_enabled' => 0,
+        'hide_paths' => '',
+        'show_paths' => '',
+        'hide_selectors' => '',
+        'compact_selectors' => '',
+        'handover_ack_enabled' => 0,
+        'handover_ack_text' => 'We have received your request. A support agent will be with you as soon as possible.',
     ];
 }
 
@@ -73,6 +87,18 @@ function chatbridge_widget_sanitize_settings($input): array
         'api_base' => $api_base,
         'title' => isset($input['title']) ? sanitize_text_field($input['title']) : $defaults['title'],
         'subtitle' => isset($input['subtitle']) ? sanitize_text_field($input['subtitle']) : $defaults['subtitle'],
+        'launcher_text' => isset($input['launcher_text']) ? sanitize_text_field($input['launcher_text']) : $defaults['launcher_text'],
+        'logo_url' => isset($input['logo_url']) ? esc_url_raw($input['logo_url'], ['https']) : '',
+        'primary_color' => isset($input['primary_color']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $input['primary_color']) ? strtoupper((string) $input['primary_color']) : $defaults['primary_color'],
+        'accent_color' => isset($input['accent_color']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $input['accent_color']) ? strtoupper((string) $input['accent_color']) : $defaults['accent_color'],
+        'offline_queue_enabled' => !empty($input['offline_queue_enabled']) ? 1 : 0,
+        'typing_indicator_enabled' => !empty($input['typing_indicator_enabled']) ? 1 : 0,
+        'hide_paths' => isset($input['hide_paths']) ? sanitize_textarea_field($input['hide_paths']) : '',
+        'show_paths' => isset($input['show_paths']) ? sanitize_textarea_field($input['show_paths']) : '',
+        'hide_selectors' => isset($input['hide_selectors']) ? sanitize_textarea_field($input['hide_selectors']) : '',
+        'compact_selectors' => isset($input['compact_selectors']) ? sanitize_textarea_field($input['compact_selectors']) : '',
+        'handover_ack_enabled' => !empty($input['handover_ack_enabled']) ? 1 : 0,
+        'handover_ack_text' => isset($input['handover_ack_text']) ? sanitize_text_field($input['handover_ack_text']) : $defaults['handover_ack_text'],
     ];
 }
 
@@ -174,6 +200,72 @@ function chatbridge_widget_health_check(string $api_base)
     ]);
 }
 
+function chatbridge_widget_ai_settings(array $settings)
+{
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $api_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $api_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        return null;
+    }
+    $response = wp_remote_get($api_base . '/ai/settings.php', [
+        'timeout' => 10,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => ['Accept' => 'application/json', 'X-ChatBridge-Tenant-Key' => $api_key],
+    ]);
+    if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        return null;
+    }
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    return is_array($body) ? $body : null;
+}
+
+add_action('admin_post_chatbridge_save_ai', static function (): void {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('You are not allowed to change AI settings.', 'chatbridge-widget'));
+    }
+    check_admin_referer('chatbridge_save_ai');
+    $settings = chatbridge_widget_settings();
+    $api_base = untrailingslashit((string) ($settings['api_base'] ?? ''));
+    $tenant_key = (string) ($settings['tenant_api_key'] ?? '');
+    if ($api_base === '' || $tenant_key === '' || !wp_http_validate_url($api_base) || wp_parse_url($api_base, PHP_URL_SCHEME) !== 'https') {
+        wp_safe_redirect(add_query_arg('chatbridge_ai_saved', 'connection_missing', menu_page_url('chatbridge-widget', false)));
+        exit;
+    }
+    $raw_ai_api_key = filter_input(INPUT_POST, 'ai_api_key', FILTER_UNSAFE_RAW);
+    $raw_ai_base_url = filter_input(INPUT_POST, 'ai_base_url', FILTER_UNSAFE_RAW);
+    $raw_ai_model = filter_input(INPUT_POST, 'ai_model', FILTER_UNSAFE_RAW);
+    $raw_ai_enabled = filter_input(INPUT_POST, 'ai_enabled', FILTER_UNSAFE_RAW);
+    $raw_ai_max_tokens = filter_input(INPUT_POST, 'ai_max_output_tokens', FILTER_VALIDATE_INT);
+    $raw_ai_monthly_budget = filter_input(INPUT_POST, 'ai_monthly_token_budget', FILTER_VALIDATE_INT);
+    $api_key = is_string($raw_ai_api_key) ? trim(sanitize_text_field($raw_ai_api_key)) : '';
+    $payload = [
+        'provider' => 'openai_compatible',
+        'base_url' => is_string($raw_ai_base_url) ? esc_url_raw(trim(sanitize_text_field($raw_ai_base_url)), ['https']) : 'https://api.openai.com/v1',
+        'model' => is_string($raw_ai_model) ? sanitize_text_field($raw_ai_model) : '',
+        'enabled' => is_string($raw_ai_enabled) && $raw_ai_enabled === '1',
+        'max_output_tokens' => is_int($raw_ai_max_tokens) ? absint($raw_ai_max_tokens) : 500,
+        'monthly_token_budget' => is_int($raw_ai_monthly_budget) ? absint($raw_ai_monthly_budget) : 0,
+    ];
+    if ($api_key !== '') {
+        $payload['api_key'] = $api_key;
+    }
+    $response = wp_remote_post($api_base . '/ai/settings.php', [
+        'timeout' => 20,
+        'redirection' => 0,
+        'sslverify' => true,
+        'headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+            'X-ChatBridge-Tenant-Key' => $tenant_key,
+        ],
+        'body' => wp_json_encode($payload),
+    ]);
+    $saved = !is_wp_error($response) && (int) wp_remote_retrieve_response_code($response) === 200;
+    wp_safe_redirect(add_query_arg('chatbridge_ai_saved', $saved ? '1' : 'failed', menu_page_url('chatbridge-widget', false)));
+    exit;
+});
+
 function chatbridge_widget_render_settings_page(): void
 {
     if (!current_user_can('manage_options')) {
@@ -183,6 +275,7 @@ function chatbridge_widget_render_settings_page(): void
     $settings = chatbridge_widget_settings();
     $meta_config = chatbridge_widget_meta_config($settings);
     $meta_status = chatbridge_widget_meta_status($settings);
+    $ai_status = chatbridge_widget_ai_settings($settings);
     $health_result = null;
 
     if (isset($_GET['chatbridge_check'])) {
@@ -283,8 +376,83 @@ function chatbridge_widget_render_settings_page(): void
                     <th scope="row"><label for="chatbridge-subtitle"><?php esc_html_e('Welcome text', 'chatbridge-widget'); ?></label></th>
                     <td><input id="chatbridge-subtitle" class="large-text" type="text" maxlength="160" name="chatbridge_widget_settings[subtitle]" value="<?php echo esc_attr($settings['subtitle']); ?>"></td>
                 </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Customer experience', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[offline_queue_enabled]" value="1" <?php checked($settings['offline_queue_enabled'], 1); ?>> <?php esc_html_e('Save unsent messages on this device and retry when the connection returns (up to 20 messages).', 'chatbridge-widget'); ?></label><br>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[typing_indicator_enabled]" value="1" <?php checked($settings['typing_indicator_enabled'], 1); ?>> <?php esc_html_e('Show an animated reply-pending indicator after a message is saved.', 'chatbridge-widget'); ?></label>
+                        <p class="description"><?php esc_html_e('Offline messages are stored in this browser’s local storage until sent or cleared. Do not enable this on shared/public kiosk devices.', 'chatbridge-widget'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-launcher"><?php esc_html_e('Launcher label', 'chatbridge-widget'); ?></label></th>
+                    <td><input id="chatbridge-launcher" type="text" maxlength="40" name="chatbridge_widget_settings[launcher_text]" value="<?php echo esc_attr($settings['launcher_text']); ?>"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-logo"><?php esc_html_e('Logo image URL', 'chatbridge-widget'); ?></label></th>
+                    <td><input id="chatbridge-logo" class="large-text" type="url" name="chatbridge_widget_settings[logo_url]" value="<?php echo esc_attr($settings['logo_url']); ?>" placeholder="https://example.com/logo.png"><p class="description"><?php esc_html_e('Optional HTTPS image. Use your media library URL.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Widget colours', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><?php esc_html_e('Primary', 'chatbridge-widget'); ?> <input type="color" name="chatbridge_widget_settings[primary_color]" value="<?php echo esc_attr($settings['primary_color']); ?>"></label>
+                        <label style="margin-left:16px"><?php esc_html_e('Accent', 'chatbridge-widget'); ?> <input type="color" name="chatbridge_widget_settings[accent_color]" value="<?php echo esc_attr($settings['accent_color']); ?>"></label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-hide-paths"><?php esc_html_e('Hide on URL paths', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-hide-paths" class="large-text code" rows="3" name="chatbridge_widget_settings[hide_paths]" placeholder="/checkout&#10;/watch/*"><?php echo esc_textarea($settings['hide_paths']); ?></textarea><p class="description"><?php esc_html_e('One path per line. Exact paths or prefix patterns ending in *.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-show-paths"><?php esc_html_e('Only show on URL paths', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-show-paths" class="large-text code" rows="3" name="chatbridge_widget_settings[show_paths]" placeholder="/shop/*&#10;/contact"><?php echo esc_textarea($settings['show_paths']); ?></textarea><p class="description"><?php esc_html_e('Leave blank to allow all paths not hidden above. If set, the widget only appears on matching paths.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-hide-selectors"><?php esc_html_e('Hide when page contains CSS selector', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-hide-selectors" class="large-text code" rows="2" name="chatbridge_widget_settings[hide_selectors]"><?php echo esc_textarea($settings['hide_selectors']); ?></textarea><p class="description"><?php esc_html_e('Optional CSS selectors, one per line. If any matching element exists, the widget is not loaded.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-compact-selectors"><?php esc_html_e('Use compact launcher when page contains selector', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-compact-selectors" class="large-text code" rows="2" name="chatbridge_widget_settings[compact_selectors]"><?php echo esc_textarea($settings['compact_selectors']); ?></textarea><p class="description"><?php esc_html_e('Optional CSS selectors, one per line. Matching pages get a smaller launcher.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Human support acknowledgement', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[handover_ack_enabled]" value="1" <?php checked($settings['handover_ack_enabled'], 1); ?>> <?php esc_html_e('Show a custom acknowledgement when a visitor requests a person or AI hands over.', 'chatbridge-widget'); ?></label>
+                        <p><textarea class="large-text" rows="2" maxlength="240" name="chatbridge_widget_settings[handover_ack_text]"><?php echo esc_textarea($settings['handover_ack_text']); ?></textarea></p>
+                    </td>
+                </tr>
             </table>
             <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
+        </form>
+
+        <hr>
+        <h2><?php esc_html_e('AI provider', 'chatbridge-widget'); ?></h2>
+        <?php if (isset($_GET['chatbridge_ai_saved'])) : ?>
+            <div class="notice <?php echo sanitize_key((string) $_GET['chatbridge_ai_saved']) === '1' ? 'notice-success' : 'notice-warning'; ?>"><p><?php
+                $ai_result = sanitize_key((string) $_GET['chatbridge_ai_saved']);
+                echo esc_html($ai_result === '1' ? __('AI provider settings saved. AI usage is controlled by the enable switch and token budget.', 'chatbridge-widget') : __('AI settings could not be saved. Check the API URL, tenant key, model and backend response.', 'chatbridge-widget'));
+            ?></p></div>
+        <?php endif; ?>
+        <?php if (is_array($ai_status)) : ?>
+            <p><?php echo !empty($ai_status['has_api_key']) ? esc_html__('An encrypted provider key is stored on the ChatBridge service.', 'chatbridge-widget') : esc_html__('No provider API key is configured.', 'chatbridge-widget'); ?>
+                <?php echo !empty($ai_status['enabled']) ? esc_html__('AI is enabled.', 'chatbridge-widget') : esc_html__('AI is disabled.', 'chatbridge-widget'); ?></p>
+        <?php else : ?>
+            <p class="description"><?php esc_html_e('Configure the service API URL and tenant API key above to manage AI settings here.', 'chatbridge-widget'); ?></p>
+        <?php endif; ?>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="chatbridge_save_ai">
+            <?php wp_nonce_field('chatbridge_save_ai'); ?>
+            <table class="form-table" role="presentation">
+                <tr><th scope="row"><?php esc_html_e('Provider connection', 'chatbridge-widget'); ?></th><td><strong><?php esc_html_e('OpenAI-compatible API', 'chatbridge-widget'); ?></strong><p class="description"><?php esc_html_e('Works with OpenAI and compatible API endpoints. OAuth login is not available in this release; use an API key.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-base"><?php esc_html_e('API endpoint', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-base" class="regular-text" type="url" name="ai_base_url" value="<?php echo esc_attr(is_array($ai_status) ? (string) ($ai_status['base_url'] ?? 'https://api.openai.com/v1') : 'https://api.openai.com/v1'); ?>" required></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-model"><?php esc_html_e('Model', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-model" class="regular-text" type="text" name="ai_model" value="<?php echo esc_attr(is_array($ai_status) ? (string) ($ai_status['model'] ?? '') : 'gpt-4o-mini'); ?>" placeholder="gpt-4o-mini" required></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-key"><?php esc_html_e('API key', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-key" class="regular-text" type="password" name="ai_api_key" value="" autocomplete="new-password"><p class="description"><?php esc_html_e('Sent directly from WordPress to your ChatBridge service over HTTPS and encrypted there. It is not saved in WordPress. Leave blank to keep the existing key.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-max"><?php esc_html_e('Maximum response tokens', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-max" type="number" min="64" max="2000" name="ai_max_output_tokens" value="<?php echo esc_attr((string) (is_array($ai_status) ? (int) ($ai_status['max_output_tokens'] ?? 500) : 500)); ?>"></td></tr>
+                <tr><th scope="row"><label for="chatbridge-ai-budget"><?php esc_html_e('Monthly token budget', 'chatbridge-widget'); ?></label></th><td><input id="chatbridge-ai-budget" type="number" min="0" max="100000000" name="ai_monthly_token_budget" value="<?php echo esc_attr((string) (is_array($ai_status) ? (int) ($ai_status['monthly_token_budget'] ?? 0) : 0)); ?>"><p class="description"><?php esc_html_e('0 means no token ceiling. Set a budget to stop AI responses and hand over to a human when it is reached.', 'chatbridge-widget'); ?></p></td></tr>
+                <tr><th scope="row"><?php esc_html_e('Enable AI', 'chatbridge-widget'); ?></th><td><label><input type="checkbox" name="ai_enabled" value="1" <?php checked(is_array($ai_status) && !empty($ai_status['enabled'])); ?>> <?php esc_html_e('Allow AI to answer using this business tenant’s approved knowledge sources.', 'chatbridge-widget'); ?></label></td></tr>
+            </table>
+            <?php submit_button(__('Save AI provider settings', 'chatbridge-widget')); ?>
         </form>
 
         <hr>
@@ -499,13 +667,25 @@ add_action('wp_enqueue_scripts', static function (): void {
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s" data-launcher-text="%7$s" data-logo-url="%8$s" data-primary-color="%9$s" data-accent-color="%10$s" data-offline-queue="%11$s" data-typing-indicator="%12$s" data-hide-paths="%13$s" data-show-paths="%14$s" data-hide-selectors="%15$s" data-compact-selectors="%16$s" data-handover-ack="%17$s" data-handover-message="%18$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
             esc_attr($settings['subtitle']),
             esc_url($commerce_api),
             esc_url($orders_api),
-            esc_attr($rest_nonce)
+            esc_attr($rest_nonce),
+            esc_attr($settings['launcher_text']),
+            esc_url($settings['logo_url']),
+            esc_attr($settings['primary_color']),
+            esc_attr($settings['accent_color']),
+            !empty($settings['offline_queue_enabled']) ? 'true' : 'false',
+            !empty($settings['typing_indicator_enabled']) ? 'true' : 'false',
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_paths']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['show_paths']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_selectors']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['compact_selectors']))),
+            !empty($settings['handover_ack_enabled']) ? 'true' : 'false',
+            esc_attr($settings['handover_ack_text'])
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;

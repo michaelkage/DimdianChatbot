@@ -39,3 +39,43 @@ test('styles are isolated and mobile layout is present', () => {
   assert.match(css, /@media\(max-width:520px\)/);
   assert.match(css, /\.wa-consent/);
 });
+
+test('offline retry is opt-in, bounded and uses local browser storage', () => {
+  assert.match(widget, /offlineQueue: script\.dataset\.offlineQueue === 'true'/);
+  assert.match(widget, /localStorage\.getItem\(queueKey/);
+  assert.match(widget, /queue\.length>=20/);
+  assert.match(widget, /window\.addEventListener\('online'/);
+});
+
+test('visitor can create and switch between multiple tab-scoped conversations', () => {
+  assert.match(widget, /conversation-select/);
+  assert.match(widget, /new-conversation/);
+  assert.match(widget, /conversations\.slice\(-10\)/);
+  assert.match(widget, /function switchConversation/);
+});
+
+test('page visibility rules can hide or compact the widget without executing configured code', () => {
+  assert.match(widget, /script\.dataset\.hidePaths/);
+  assert.match(widget, /script\.dataset\.showPaths/);
+  assert.match(widget, /document\.querySelector\(selector\)/);
+  assert.match(widget, /compact-mode/);
+  assert.doesNotMatch(widget, /eval\(/);
+});
+
+test('typing animation and human acknowledgement are independently configurable', () => {
+  assert.match(widget, /typingIndicator: script\.dataset\.typingIndicator === 'true'/);
+  assert.match(widget, /script\.dataset\.handoverMessage/);
+  assert.match(css, /@keyframes cb-type/);
+});
+
+test('widget theming uses validated CSS custom properties and optional logo URL', () => {
+  assert.match(widget, /--cb-primary/);
+  assert.match(widget, /--cb-accent/);
+  assert.match(widget, /script\.dataset\.logoUrl/);
+});
+
+test('standalone embed guide exists and never asks users to expose tenant credentials', () => {
+  const guide = readFileSync(new URL('../docs/EMBED-INTEGRATION.md', import.meta.url), 'utf8');
+  assert.match(guide, /does not require WordPress/i);
+  assert.match(guide, /never add a tenant ID, API key, WhatsApp token or AI provider key/i);
+});
