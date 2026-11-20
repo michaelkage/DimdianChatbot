@@ -64,7 +64,7 @@ CREATE TABLE conversation_handoffs (
     id CHAR(36) NOT NULL,
     tenant_id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
-    reason ENUM('visitor_requested', 'low_knowledge', 'ai_error', 'sensitive_topic', 'staff_requested') NOT NULL,
+    reason ENUM('visitor_requested', 'low_knowledge', 'ai_error', 'sensitive_topic', 'staff_requested', 'budget_exhausted') NOT NULL,
     status ENUM('open', 'assigned', 'resolved', 'cancelled') NOT NULL DEFAULT 'open',
     assigned_to VARCHAR(191) NULL,
     created_at DATETIME NOT NULL,
