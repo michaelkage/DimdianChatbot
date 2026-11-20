@@ -55,8 +55,8 @@ test('visitor can create and switch between multiple tab-scoped conversations', 
 });
 
 test('page visibility rules can hide or compact the widget without executing configured code', () => {
-  assert.match(widget, /data\.hidePaths/);
-  assert.match(widget, /data\.showPaths/);
+  assert.match(widget, /script\.dataset\.hidePaths/);
+  assert.match(widget, /script\.dataset\.showPaths/);
   assert.match(widget, /document\.querySelector\(selector\)/);
   assert.match(widget, /compact-mode/);
   assert.doesNotMatch(widget, /eval\(/);
@@ -71,7 +71,7 @@ test('typing animation and human acknowledgement are independently configurable'
 test('widget theming uses validated CSS custom properties and optional logo URL', () => {
   assert.match(widget, /--cb-primary/);
   assert.match(widget, /--cb-accent/);
-  assert.match(widget, /data\.logoUrl/);
+  assert.match(widget, /script\.dataset\.logoUrl/);
 });
 
 test('standalone embed guide exists and never asks users to expose tenant credentials', () => {
