@@ -8,7 +8,24 @@ declare(strict_types=1);
 
 function chatbridge_store_driver(): string
 {
-    return strtolower((string)(app_config('chat_store.driver') ?? 'mysql'));
+    $driver = strtolower((string)(app_config('chat_store.driver') ?? 'mysql'));
+    if (!in_array($driver, ['mysql', 'supabase'], true)) {
+        throw new RuntimeException('chat_store.driver must be mysql or supabase.');
+    }
+    return $driver;
+}
+
+final class ChatBridgeSupabaseException extends RuntimeException
+{
+    public int $supabaseStatus;
+    public string $supabaseBody;
+
+    public function __construct(int $status, string $body)
+    {
+        parent::__construct('Supabase request failed with HTTP ' . $status . '.');
+        $this->supabaseStatus = $status;
+        $this->supabaseBody = $body;
+    }
 }
 
 function chatbridge_supabase_config(): array
@@ -78,10 +95,7 @@ function chatbridge_supabase_request(string $method, string $path, ?array $paylo
     }
     if ($status < 200 || $status >= 300) {
         error_log('[ChatBridge] Supabase request failed with HTTP ' . $status . ': ' . mb_substr($response, 0, 500));
-        $error = new RuntimeException('Supabase request failed.');
-        $error->supabaseStatus = $status;
-        $error->supabaseBody = $response;
-        throw $error;
+        throw new ChatBridgeSupabaseException($status, $response);
     }
     if ($response === '') {
         return [];
@@ -139,7 +153,8 @@ function chatbridge_supabase_take_rate_limit(string $tenantId, string $bucket, i
         'p_max_requests' => max(1, $maxRequests),
         'p_window_seconds' => max(1, $windowSeconds),
     ]);
-    if (($result[0] ?? $result) === false) {
+    $allowed = is_array($result) ? ($result[0] ?? false) : $result;
+    if ($allowed !== true) {
         header('Retry-After: ' . max(1, $windowSeconds));
         json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
     }
