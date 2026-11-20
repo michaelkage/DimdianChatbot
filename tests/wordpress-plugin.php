@@ -131,7 +131,7 @@ check($response->get_status() === 200, 'valid catalogue search returns HTTP 200'
 check(($GLOBALS['chatbridge_wc_args']['status'] ?? null) === 'publish', 'WooCommerce query only requests published products');
 check(($GLOBALS['chatbridge_wc_args']['limit'] ?? null) === 8, 'WooCommerce query is capped at eight products');
 check(($GLOBALS['chatbridge_wc_queries'][0]['sku'] ?? null) === 'brake', 'exact SKU lookup runs before ordinary text search');
-check(($GLOBALS['chatbridge_wc_queries'][1]['s'] ?? null) === 'brake', 'product-name/content search runs after exact SKU lookup');
+check(($GLOBALS['chatbridge_wc_queries'][1]['name'] ?? null) === 'brake', 'product-name search runs after SKU matching');
 check(count($data['products'] ?? []) === 1, 'hidden and unpublished products are excluded');
 $product = $data['products'][0] ?? [];
 check(($product['name'] ?? '') === 'Brake Pad Set', 'product name is returned');
