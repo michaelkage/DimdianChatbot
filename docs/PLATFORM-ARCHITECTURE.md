@@ -138,3 +138,21 @@ A plugin ZIP can be installable before it is directory-ready. Do not market the 
 ## Release discipline
 
 All platform work should land through a feature branch and pull request. Do not apply schema changes to the Dimdian production database, connect the live WhatsApp number, enable AI billing, or publish the plugin without an explicit review and owner approval.
+
+
+## Tenant isolation implementation increment (branch: feat/multi-tenant-isolation)
+
+The first runtime increment is implemented on a feature branch and is not yet merged or deployed:
+
+- `database/migrations/004_multi_tenant_foundation.sql` creates tenants, verified site origins and Meta channel connection records; backfills existing records to the legacy tenant; adds tenant IDs to guests, conversations, guest sessions, messages, webhook events, outbox jobs and status events; and adds composite foreign keys for tenant-consistent guest/conversation/message relationships.
+- Public API tenant context is resolved from the verified `tenant_sites.origin` registry. The request body cannot select a tenant. Unknown origins fail closed.
+- Guest tokens are accepted only when their session, guest and conversation all belong to the origin's tenant.
+- Message reads/writes, idempotency lookup, rate-limit buckets, webhook deduplication, phone-number correlation, status callbacks and outbox worker claims/updates are tenant-scoped.
+- Meta webhook changes are resolved by the change's `metadata.phone_number_id` to a connected `channel_connections` row. The single global phone-number ID is no longer used as the tenant routing key.
+- `bin/provision-tenant.php` creates a tenant and a pending site mapping. An operator must verify domain ownership before changing the mapping to `verified`.
+
+### Remaining tenant-platform work
+
+This is not yet a complete hosted multi-tenant service. The CLI outbox worker currently requires an explicit `app.tenant_id` and a single configured transport. Per-tenant encrypted credential decryption, per-tenant worker scheduling, tenant API credentials/memberships, billing/limits, audited tenant lifecycle, site verification challenges, data export/deletion and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
+
+CI now builds the disposable test database from `database/schema.sql` plus migration 004 and includes a two-tenant guest-token isolation regression test. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.
