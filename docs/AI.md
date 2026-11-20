@@ -37,7 +37,7 @@ The AI layer is optional and disabled for every tenant until explicitly configur
 5. Schedule the tenant-scoped worker:
 
    ```sh
-   php /absolute/path/to/project/public/cron/process-ai.php
+   php /absolute/path/to/project/public/cron/process-ai.php TENANT_UUID
    ```
 
    Run one worker per tenant at a time. The token budget gate is designed for a single serialized worker per tenant; do not run concurrent workers for the same tenant until atomic budget reservation is added.
