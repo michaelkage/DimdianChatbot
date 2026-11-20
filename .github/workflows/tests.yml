@@ -85,5 +85,6 @@ jobs:
         run: |
           php tests/run.php
           php tests/integration.php
+          php tests/wordpress-plugin.php
       - name: Run widget tests
         run: node --test tests/widget.test.mjs
