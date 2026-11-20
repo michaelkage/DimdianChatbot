@@ -28,7 +28,10 @@ if ($method !== 'POST') {
     exit('Method Not Allowed');
 }
 
-$appSecret = (string)app_config('whatsapp.app_secret');
+$metaConfig = app_config('meta') ?? [];
+$appSecret = is_array($metaConfig) && !empty($metaConfig['app_secret'])
+    ? (string)$metaConfig['app_secret']
+    : (string)app_config('whatsapp.app_secret');
 $signature = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? null;
 $rawBody = file_get_contents('php://input');
 if (!is_string($rawBody) || strlen($rawBody) > 1048576) {
