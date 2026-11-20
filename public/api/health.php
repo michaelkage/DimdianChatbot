@@ -33,6 +33,9 @@ $requiredTables = [
     'conversation_handoffs',
     'ai_usage_events',
     'channel_connection_events',
+    'channel_sync_jobs',
+    'whatsapp_contacts',
+    'coexistence_history_payloads',
 ];
 
 try {
