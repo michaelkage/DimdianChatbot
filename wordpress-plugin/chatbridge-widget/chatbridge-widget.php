@@ -402,7 +402,7 @@ add_action('wp_ajax_chatbridge_meta_finish', static function (): void {
     $api_base = untrailingslashit((string) $settings['api_base']);
     $api_key = (string) ($settings['tenant_api_key'] ?? '');
     $code = isset($_POST['code']) ? sanitize_text_field(wp_unslash($_POST['code'])) : '';
-    $session_raw = isset($_POST['session_info']) ? wp_unslash($_POST['session_info']) : '';
+    $session_raw = isset($_POST['session_info']) ? sanitize_textarea_field(wp_unslash($_POST['session_info'])) : '';
     $session_info = is_string($session_raw) ? json_decode($session_raw, true) : null;
     if ($api_key === '' || $code === '' || !is_array($session_info)) {
         wp_send_json_error(['message' => __('The signup response is incomplete. Please try again.', 'chatbridge-widget')], 422);
@@ -603,7 +603,7 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
     }
 
     // Apply a modest per-IP limit. Only a keyed hash is stored, not the IP itself.
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
     $bucket = 'chatbridge_wc_' . hash_hmac('sha256', $ip, wp_salt('auth'));
     $count = (int) get_transient($bucket);
     if ($count >= 30) {
