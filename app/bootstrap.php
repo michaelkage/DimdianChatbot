@@ -233,6 +233,7 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
  */
 function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 {
+    $tenantId = resolve_request_tenant_id($pdo);
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
@@ -247,11 +248,14 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
          INNER JOIN conversations c ON c.id = gs.conversation_id
          INNER JOIN guests g ON g.id = gs.guest_id
          WHERE gs.token_hash = :token_hash
+           AND gs.tenant_id = :tenant_id
+           AND c.tenant_id = :tenant_id
+           AND g.tenant_id = :tenant_id
            AND gs.revoked_at IS NULL
            AND gs.expires_at > UTC_TIMESTAMP()
          LIMIT 1'
     );
-    $statement->execute([':token_hash' => $tokenHash]);
+    $statement->execute([':token_hash' => $tokenHash, ':tenant_id' => $tenantId]);
     $session = $statement->fetch();
 
     if (!$session) {
@@ -267,3 +271,6 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 
     return $session;
 }
+
+
+require_once __DIR__ . '/tenancy.php';
