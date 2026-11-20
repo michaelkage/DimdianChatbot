@@ -182,7 +182,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                                  last_error_code = :event_name,
                                  last_error_message = "Meta reported an account or number access change.",
                                  updated_at = UTC_TIMESTAMP()
-                             WHERE tenant_id = :tenant_id AND provider = "meta" AND business_account_id = :waba_id'
+                             WHERE tenant_id = :tenant_id AND provider = "meta" AND (business_account_id = :waba_id OR whatsapp_account_id = :waac_id)'
                         );
                         $updateConnection->execute([
                             ':status' => $revoked ? 'revoked' : 'disconnected',
@@ -190,6 +190,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                             ':event_name' => substr($eventName, 0, 100),
                             ':tenant_id' => $tenantId,
                             ':waba_id' => $expectedBusinessAccountId,
+                            ':waac_id' => $expectedBusinessAccountId,
                         ]);
                     }
                 }
@@ -198,7 +199,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     'SELECT id FROM channel_connections
                      WHERE tenant_id = :tenant_id AND provider = "meta"
                        AND ((:phone_id <> "" AND phone_number_id = :phone_id_lookup)
-                         OR (:waba_id <> "" AND business_account_id = :waba_lookup))
+                         OR (:waba_id <> "" AND (business_account_id = :waba_lookup OR whatsapp_account_id = :waac_lookup)))
                      LIMIT 1'
                 );
                 $connectionLookup->execute([
@@ -207,6 +208,7 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     ':phone_id_lookup' => $receivedPhoneNumberId,
                     ':waba_id' => $expectedBusinessAccountId,
                     ':waba_lookup' => $expectedBusinessAccountId,
+                    ':waac_lookup' => $expectedBusinessAccountId,
                 ]);
                 $connectionId = $connectionLookup->fetchColumn();
                 $audit = $pdo->prepare(
