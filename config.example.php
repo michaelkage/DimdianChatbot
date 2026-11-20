@@ -52,4 +52,14 @@ return [
         'password' => 'change-this',
         'options' => [],
     ],
+    // Choose one authoritative conversation store per deployment.
+    // Keep mysql for self-hosted MySQL/MariaDB; use supabase for the mock environment.
+    'chat_store' => [
+        'driver' => 'mysql',
+    ],
+    'supabase' => [
+        'url' => 'https://YOUR_PROJECT_REF.supabase.co',
+        // Server-only service_role key. Never expose this to the widget or WordPress.
+        'service_role_key' => '',
+    ],
 ];
