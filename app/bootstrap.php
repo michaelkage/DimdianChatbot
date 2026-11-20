@@ -284,8 +284,8 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
         json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
     }
 
-    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
-    $touch->execute([':id' => $session['session_id']]);
+    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id');
+    $touch->execute([':tenant_id' => $tenantId, ':id' => $session['session_id']]);
 
     if ($requireOpen && $session['conversation_status'] !== 'open') {
         json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);
