@@ -48,7 +48,7 @@ Yes. The plugin only injects the support widget. WooCommerce integration is opti
 
 No. It connects the browser widget to a ChatBridge service. WhatsApp credentials and message handling belong on the server, never in WordPress page source or browser JavaScript.
 
-= What WooCommerce data can the widget show? =\n\nWhen enabled, it searches published, catalogue-visible products and returns the product name, formatted price, product URL, image and coarse stock status. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.\n\n= Does installing the plugin create an AI chatbot? =
+= What WooCommerce data can the widget show? =\n\nWhen enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks exact SKU matches as well as ordinary product-name/content matches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.\n\n= Does installing the plugin create an AI chatbot? =
 
 No. The initial ChatBridge service supports customer enquiries and human support replies. Automated AI responses are not included in this release.
 
