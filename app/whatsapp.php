@@ -131,7 +131,7 @@ function webhook_event_insert(PDO $pdo, string $tenantId, string $eventId, strin
     return $insert->rowCount() === 1;
 }
 
-function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string $tenantId, string $expectedPhoneNumberId = ''): array
+function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string $tenantId, string $expectedPhoneNumberId = '', string $expectedBusinessAccountId = ''): array
 {
     $processed = 0;
     $ignored = 0;
@@ -143,14 +143,85 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
             if (!is_array($change)) continue;
             $field = (string)($change['field'] ?? '');
             $value = is_array($change['value'] ?? null) ? $change['value'] : [];
-            $receivedPhoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
-            if ($expectedPhoneNumberId !== '' && !hash_equals($expectedPhoneNumberId, $receivedPhoneNumberId)) {
+            $receivedPhoneNumberId = (string)($value['metadata']['phone_number_id'] ?? $value['phone_number_id'] ?? '');
+            if ($expectedPhoneNumberId !== '' && $receivedPhoneNumberId !== '' && !hash_equals($expectedPhoneNumberId, $receivedPhoneNumberId)) {
                 $ignored++;
                 continue;
             }
 
-            // Only Coexistence app-echo events can mirror staff replies typed in WhatsApp Business. We accept text echoes and match the echo recipient to the visitor's opted-in number; unsupported media is deliberately ignored.
-            if ($field === 'smb_message_echoes') {
+            if ($field === 'account_update') {
+                $eventName = strtoupper((string)($value['event'] ?? 'UNKNOWN'));
+                $accountEventId = 'account_update:' . hash('sha256', $eventName . ':' . $receivedPhoneNumberId . ':' . $expectedBusinessAccountId . ':' . $payloadHash);
+                if (!webhook_event_insert($pdo, $tenantId, $accountEventId, 'account_update:' . strtolower($eventName), $payloadHash)) continue;
+
+                $revoked = in_array($eventName, ['PARTNER_REMOVED', 'ACCOUNT_REMOVED', 'ACCOUNT_REVOKED'], true);
+                $disconnected = in_array($eventName, ['PHONE_NUMBER_DISCONNECTED', 'NUMBER_DISCONNECTED'], true);
+                if ($revoked || $disconnected) {
+                    if ($receivedPhoneNumberId !== '') {
+                        $updateConnection = $pdo->prepare(
+                            'UPDATE channel_connections
+                             SET connection_status = :status,
+                                 credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
+                                 last_error_code = :event_name,
+                                 last_error_message = "Meta reported an account or number access change.",
+                                 updated_at = UTC_TIMESTAMP()
+                             WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id'
+                        );
+                        $updateConnection->execute([
+                            ':status' => $revoked ? 'revoked' : 'disconnected',
+                            ':clear_token' => $revoked ? 1 : 0,
+                            ':event_name' => substr($eventName, 0, 100),
+                            ':tenant_id' => $tenantId,
+                            ':phone_id' => $receivedPhoneNumberId,
+                        ]);
+                    } elseif ($expectedBusinessAccountId !== '') {
+                        $updateConnection = $pdo->prepare(
+                            'UPDATE channel_connections
+                             SET connection_status = :status,
+                                 credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
+                                 last_error_code = :event_name,
+                                 last_error_message = "Meta reported an account or number access change.",
+                                 updated_at = UTC_TIMESTAMP()
+                             WHERE tenant_id = :tenant_id AND provider = "meta" AND business_account_id = :waba_id'
+                        );
+                        $updateConnection->execute([
+                            ':status' => $revoked ? 'revoked' : 'disconnected',
+                            ':clear_token' => $revoked ? 1 : 0,
+                            ':event_name' => substr($eventName, 0, 100),
+                            ':tenant_id' => $tenantId,
+                            ':waba_id' => $expectedBusinessAccountId,
+                        ]);
+                    }
+                }
+
+                $connectionLookup = $pdo->prepare(
+                    'SELECT id FROM channel_connections
+                     WHERE tenant_id = :tenant_id AND provider = "meta"
+                       AND ((:phone_id <> "" AND phone_number_id = :phone_id_lookup)
+                         OR (:waba_id <> "" AND business_account_id = :waba_lookup))
+                     LIMIT 1'
+                );
+                $connectionLookup->execute([
+                    ':tenant_id' => $tenantId,
+                    ':phone_id' => $receivedPhoneNumberId,
+                    ':phone_id_lookup' => $receivedPhoneNumberId,
+                    ':waba_id' => $expectedBusinessAccountId,
+                    ':waba_lookup' => $expectedBusinessAccountId,
+                ]);
+                $connectionId = $connectionLookup->fetchColumn();
+                $audit = $pdo->prepare(
+                    'INSERT INTO channel_connection_events (tenant_id, channel_connection_id, event_type, event_sha256, created_at)
+                     VALUES (:tenant_id, :connection_id, :event_type, :event_hash, UTC_TIMESTAMP())'
+                );
+                $audit->execute([
+                    ':tenant_id' => $tenantId,
+                    ':connection_id' => is_string($connectionId) ? $connectionId : null,
+                    ':event_type' => 'meta_account_update:' . strtolower($eventName),
+                    ':event_hash' => hash('sha256', $tenantId . ':' . $accountEventId),
+                ]);
+                mark_webhook_event($pdo, $tenantId, $accountEventId, 'processed');
+                $processed++;
+            } elseif ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
                     if (!is_array($echo)) continue;
                     $wamid = (string)($echo['id'] ?? '');
