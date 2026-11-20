@@ -191,7 +191,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
             $phoneNumberId = (string)($phone['id'] ?? '');
             if (!preg_match('/^\d{5,40}$/', $phoneNumberId)) continue;
 
-            $phoneDetails = chatbridge_meta_graph_request('GET', $phoneNumberId, $accessToken, ['fields' => 'id,is_on_biz_app,platform_type']);
+            $phoneDetails = chatbridge_meta_graph_request('GET', $phoneNumberId, $accessToken, ['fields' => 'id,display_phone_number,is_on_biz_app,platform_type']);
             if ((string)($phoneDetails['id'] ?? '') !== $phoneNumberId) {
                 throw new RuntimeException('Meta phone-number verification returned an unexpected ID.');
             }
@@ -213,7 +213,7 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
             }
 
             $connectionId = is_array($existingRow) ? (string)$existingRow['id'] : uuid_v4();
-            $displayNumber = mb_substr_safe((string)($phone['display_phone_number'] ?? ''), 0, 64);
+            $displayNumber = mb_substr_safe((string)($phoneDetails['display_phone_number'] ?? $phone['display_phone_number'] ?? ''), 0, 64);
             $upsert = $pdo->prepare(
                 'INSERT INTO channel_connections
                     (id, tenant_id, provider, business_account_id, whatsapp_account_id, business_portfolio_id,
