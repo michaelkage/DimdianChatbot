@@ -102,7 +102,7 @@ Do these steps in order. Do not change the main WordPress site or its database.
 3. **Create a separate database.** Create a new MySQL database and database user for the chat application. Grant that user access only to this database. Do not reuse the WordPress/WooCommerce database credentials.
 4. **Deploy the repository.** Use Hostinger's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
 5. **Create the private configuration file.** Copy `config.example.php` to `config.php` in the repository root (not in `public/`). Fill in the database host/name/user/password, a strong random app key, timezone, public URL and exact website origins. Keep all WhatsApp fields empty/disabled for the first launch.
-6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. Then apply `database/migrations/004_multi_tenant_foundation.sql` followed by `database/migrations/005_tenant_ai_knowledge_handover.sql` `, `database/migrations/006_tenant_api_keys_and_channel_events.sql` and `database/migrations/007_coexistence_sync.sql`. Do not run migrations 002 or 003 on top of the fresh schema; those are only for databases created from older schema versions. The new public API requires the tenant tables and verified origin mapping created by migration 004.
+6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. Then apply `database/migrations/004_multi_tenant_foundation.sql` followed by `database/migrations/005_tenant_ai_knowledge_handover.sql`, `database/migrations/006_tenant_api_keys_and_channel_events.sql` and `database/migrations/007_coexistence_sync.sql`. Do not run migrations 002 or 003 on top of the fresh schema; those are only for databases created from older schema versions. The new public API requires the tenant tables and verified origin mapping created by migration 004.
 7. **Test the API before WordPress integration.** Open `https://chat.dimdian.com/api/session.php` in a browser. A method error is expected for a GET request; it confirms PHP is responding. A 503 `not_configured` response means the application cannot find its private `config.php`. A 500 response should be investigated in the hosting PHP error log. Do not expose database credentials in screenshots or support tickets.
 8. **Add the widget to WordPress** using the snippet below, after the API host is working.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
@@ -266,8 +266,8 @@ archive/                   Retired marketplace-support implementation
 
 ### Fresh database vs existing database
 
-- **Fresh installation:** import `database/schema.sql`, then apply migrations 004 and 005 in order.
-- **Older installation:** apply only missing migrations in order. Migrations 002 and 003 upgrade older message sequencing and WhatsApp outbox/status tables; migrations 004 and 005 add tenant isolation, AI knowledge and handover tables.
+- **Fresh installation:** import `database/schema.sql`, then apply migrations 004, 005, 006 and 007 in order.
+- **Older installation:** apply only missing migrations in order. Migrations 002 and 003 upgrade older message sequencing and WhatsApp outbox/status tables; migrations 004–007 add tenant isolation, AI knowledge, tenant API authentication, Meta audit and Coexistence synchronization tables.
 - Do not import the fresh schema and then replay those migrations over it.
 
 ### Run checks locally
