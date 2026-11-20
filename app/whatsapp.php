@@ -161,16 +161,19 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     if ($receivedPhoneNumberId !== '') {
                         $updateConnection = $pdo->prepare(
                             'UPDATE channel_connections
-                             SET connection_status = CASE WHEN :reconnected = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected = 1 THEN "needs_action" ELSE :status END,
+                             SET connection_status = CASE WHEN :reconnected_status = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected_fallback = 1 THEN "needs_action" ELSE :status END,
                                  credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
-                                 last_error_code = CASE WHEN :reconnected = 1 THEN NULL ELSE :event_name END,
-                                 last_error_message = CASE WHEN :reconnected = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
+                                 last_error_code = CASE WHEN :reconnected_code = 1 THEN NULL ELSE :event_name END,
+                                 last_error_message = CASE WHEN :reconnected_message = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
                                  updated_at = UTC_TIMESTAMP()
                              WHERE tenant_id = :tenant_id AND provider = "meta" AND phone_number_id = :phone_id'
                         );
                         $updateConnection->execute([
                             ':status' => $revoked ? 'revoked' : 'disconnected',
-                            ':reconnected' => $reconnected ? 1 : 0,
+                            ':reconnected_status' => $reconnected ? 1 : 0,
+                            ':reconnected_fallback' => $reconnected ? 1 : 0,
+                            ':reconnected_code' => $reconnected ? 1 : 0,
+                            ':reconnected_message' => $reconnected ? 1 : 0,
                             ':clear_token' => $revoked ? 1 : 0,
                             ':event_name' => substr($eventName, 0, 100),
                             ':tenant_id' => $tenantId,
@@ -179,16 +182,19 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     } elseif ($expectedBusinessAccountId !== '') {
                         $updateConnection = $pdo->prepare(
                             'UPDATE channel_connections
-                             SET connection_status = CASE WHEN :reconnected = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected = 1 THEN "needs_action" ELSE :status END,
+                             SET connection_status = CASE WHEN :reconnected_status = 1 AND credential_ciphertext IS NOT NULL THEN "connected" WHEN :reconnected_fallback = 1 THEN "needs_action" ELSE :status END,
                                  credential_ciphertext = CASE WHEN :clear_token = 1 THEN NULL ELSE credential_ciphertext END,
-                                 last_error_code = CASE WHEN :reconnected = 1 THEN NULL ELSE :event_name END,
-                                 last_error_message = CASE WHEN :reconnected = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
+                                 last_error_code = CASE WHEN :reconnected_code = 1 THEN NULL ELSE :event_name END,
+                                 last_error_message = CASE WHEN :reconnected_message = 1 THEN NULL ELSE "Meta reported an account or number access change." END,
                                  updated_at = UTC_TIMESTAMP()
                              WHERE tenant_id = :tenant_id AND provider = "meta" AND (business_account_id = :waba_id OR whatsapp_account_id = :waac_id)'
                         );
                         $updateConnection->execute([
                             ':status' => $revoked ? 'revoked' : 'disconnected',
-                            ':reconnected' => $reconnected ? 1 : 0,
+                            ':reconnected_status' => $reconnected ? 1 : 0,
+                            ':reconnected_fallback' => $reconnected ? 1 : 0,
+                            ':reconnected_code' => $reconnected ? 1 : 0,
+                            ':reconnected_message' => $reconnected ? 1 : 0,
                             ':clear_token' => $revoked ? 1 : 0,
                             ':event_name' => substr($eventName, 0, 100),
                             ':tenant_id' => $tenantId,
