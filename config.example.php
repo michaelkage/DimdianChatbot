@@ -28,6 +28,16 @@ return [
             'window_seconds' => 900,
         ],
     ],
+    'meta' => [
+        // Keep false until Meta has approved the app and the Tech Provider /
+        // Solution Partner prerequisites are complete.
+        'enabled' => false,
+        'app_id' => '',
+        'app_secret' => '',
+        'configuration_id' => '',
+        'solution_id' => '',
+        'graph_api_version' => 'v27.0',
+    ],
     'whatsapp' => [
         // Keep disabled until the business number and Coexistence behavior are verified.
         'outbound_enabled' => false,
