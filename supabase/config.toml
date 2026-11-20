@@ -6,3 +6,7 @@ verify_jwt = false
 # The owner-only monitor uses its own access key and strict Origin allowlist.
 [functions.meta-events]
 verify_jwt = false
+
+# Public static mock site uses its own verified-origin and guest-token auth.
+[functions.chatbridge-mock-api]
+verify_jwt = false
