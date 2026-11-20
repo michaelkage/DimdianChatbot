@@ -40,6 +40,8 @@ try {
             json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
         }
         $messageId = uuid_v4();
+        // Save the visitor message first. If WhatsApp is eligible, queue its send in the same DB transaction so a message cannot be saved without its matching outbox job (or vice versa).
+        // A successful HTTP response confirms database persistence, not delivery to WhatsApp.
         $transportState = 'not_configured';
         $whatsappConfig = app_config('whatsapp') ?? [];
         $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
