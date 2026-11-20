@@ -69,15 +69,13 @@ CREATE TABLE conversation_handoffs (
     assigned_to VARCHAR(191) NULL,
     created_at DATETIME NOT NULL,
     resolved_at DATETIME NULL,
-    active_conversation_id CHAR(36) GENERATED ALWAYS AS (CASE WHEN status IN ('open', 'assigned') THEN conversation_id ELSE NULL END) STORED,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_handoffs_one_active (tenant_id, active_conversation_id),
     KEY idx_handoffs_tenant_status (tenant_id, status, created_at),
     KEY idx_handoffs_tenant_conversation (tenant_id, conversation_id, status),
     CONSTRAINT fk_handoffs_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_handoffs_tenant_conversation FOREIGN KEY (tenant_id, conversation_id)
-        REFERENCES conversations (tenant_id, id) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT fk_handoffs_conversation FOREIGN KEY (conversation_id)
+        REFERENCES conversations (id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE ai_usage_events (
