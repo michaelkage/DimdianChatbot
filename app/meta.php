@@ -20,13 +20,12 @@ function chatbridge_meta_graph_request(string $method, string $path, string $acc
     }
 
     $url = 'https://graph.facebook.com/' . $version . '/' . trim($path, '/');
-    $headers = "Accept: application/json\r\n";
+    $headers = "Accept: application/json\r\nAuthorization: Bearer " . $accessToken . "\r\n";
     $content = '';
     if (strtoupper($method) === 'GET') {
-        $parameters['access_token'] = $accessToken;
         $url .= '?' . http_build_query($parameters);
     } else {
-        $headers .= "Content-Type: application/x-www-form-urlencoded\r\nAuthorization: Bearer " . $accessToken . "\r\n";
+        $headers .= "Content-Type: application/x-www-form-urlencoded\r\n";
         $content = http_build_query($parameters);
     }
 
