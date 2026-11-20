@@ -40,6 +40,8 @@ The script creates an isolated Shadow DOM widget and loads its stylesheet from t
 | `data-primary-color`, `data-accent-color` | Six-digit hex colours |
 | `data-offline-queue` | Set to `true` to save up to 20 unsent messages in this browser and retry when online |
 | `data-typing-indicator` | Set to `true` to show the animated reply-pending indicator |
+| `data-attachments` | Set to `true` to show screenshot capture, image selection and optional private diagnostics controls |
+| `data-minimal-contact` | Set to `true` to hide name/phone and WhatsApp opt-in fields for a minimal support experience |
 | `data-handover-ack` | Set to `true` to show the configured handover acknowledgement |
 | `data-handover-message` | Custom handover acknowledgement text |
 | `data-hide-paths` | Comma-separated exact paths or prefix patterns ending in `*` |
@@ -55,4 +57,4 @@ The offline queue is opt-in. It stores message text and client-generated IDs in 
 
 ## Current boundaries
 
-This release adds page targeting, appearance controls, optional local retry, visitor-side conversation switching and optional custom human-handover acknowledgement. It does not yet provide screenshot uploads, private diagnostic bundles, a hosted agent dashboard, third-party dashboard webhooks, provider OAuth login, or a full agent inbox. Those require server-side attachment access controls, consent/retention controls and an authenticated staff interface; the public widget must not send browser logs, cookies, tokens or arbitrary page contents to the service.
+Screenshot capture is initiated only by a visitor click and requires the browser screen-sharing permission. The captured frame is previewed before upload. Visitors can also choose an existing image. The optional diagnostic report requires a separate confirmation and contains only the page origin/path, viewport, browser user-agent, language and timezone; it deliberately excludes query strings, page text, form values, cookies, local/session storage and chat tokens. Diagnostic reports are stored as `staff_only` and are never returned by the visitor attachment-list API. A staff-only retrieval interface, retention cleanup worker, third-party dashboard webhooks, provider OAuth login and a full agent inbox remain future work.
