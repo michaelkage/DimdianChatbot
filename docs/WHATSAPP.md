@@ -111,3 +111,21 @@ Meta's partner overview identifies Tech Providers as a partner type and document
 The runtime now triggers Coexistence history/contact synchronization (`history` and `smb_app_state_sync`) in contacts-first order within Meta's 24-hour window, tracks request IDs/statuses, and stores tenant-scoped contact records plus raw history payloads. It does not yet normalize historical messages into live conversations, provide a history browser, enforce archive retention/purge, refresh tokens, manage templates, send outbound messages with per-tenant channel credentials, or provide a full channel reconnect UI. The existing outbox worker remains configured for a single tenant's legacy transport; it must be migrated to decrypt and use each tenant's channel credential before any multi-tenant outbound messaging. The separate Supabase receiver remains a diagnostic tool for the mock-site experiment; it is not the production tenant or conversation store.
 
 Meta partner eligibility, the actual app review/advanced access, the stable v5 configuration ID, the correct partner solution ID and a dedicated staging WordPress site must be confirmed before testing. Do not configure `meta.enabled` or initiate signup on the live Dimdian website. The mock GitHub Pages site cannot host the WordPress admin connector or PHP callback, so a separate staging WordPress installation is required for an end-to-end test.
+
+
+## Coexistence sync operations
+
+Successful Embedded Signup creates two one-shot sync jobs for each verified Coexistence phone number. The onboarding endpoint attempts them immediately, in this order:
+
+1. `smb_app_state_sync` — contacts
+2. `history` — chat-history chunks
+
+The requests are sent to the phone-number resource's `smb_app_data` edge with `messaging_product=whatsapp` and the corresponding `sync_type`. Meta request IDs and job state are retained in `channel_sync_jobs`. Incoming contacts are upserted into `whatsapp_contacts`; incoming history chunks are stored in `coexistence_history_payloads`.
+
+To process still-pending jobs after a temporary service interruption, run the tenant worker before the 24-hour window expires:
+
+```sh
+php public/cron/process-meta-sync.php TENANT_UUID
+```
+
+A job marked `failed` is not automatically retried. Verify whether Meta accepted the one-shot request before attempting any manual recovery. The history archive is not yet rendered as normal conversation history and currently has no automated retention purge.
