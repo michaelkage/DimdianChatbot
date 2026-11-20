@@ -349,7 +349,21 @@ final class TenantMetaCloudApiTransport implements WhatsAppTextTransport
         $whatsappConfig['access_token'] = $accessToken;
         $whatsappConfig['graph_api_version'] = (string)($metaConfig['graph_api_version'] ?? $whatsappConfig['graph_api_version'] ?? 'v27.0');
 
-        return (new MetaCloudApiTransport($whatsappConfig))->sendTemplate($recipient, $bodyParameter);
+        try {
+            return (new MetaCloudApiTransport($whatsappConfig))->sendTemplate($recipient, $bodyParameter);
+        } catch (WhatsAppTransportException $error) {
+            if ($error->providerCode === 190) {
+                $mark = $this->pdo->prepare(
+                    'UPDATE channel_connections
+                     SET connection_status = "needs_action", last_error_code = "META_TOKEN_REJECTED",
+                         last_error_message = "Meta rejected the business access token. Reconnect this WhatsApp account.",
+                         updated_at = UTC_TIMESTAMP()
+                     WHERE tenant_id = :tenant_id AND id = :id'
+                );
+                $mark->execute([':tenant_id' => $this->tenantId, ':id' => $channel['id']]);
+            }
+            throw $error;
+        }
     }
 }
 
