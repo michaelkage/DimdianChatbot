@@ -19,8 +19,8 @@ CREATE TABLE channel_sync_jobs (
     KEY idx_channel_sync_due (tenant_id, status, created_at),
     CONSTRAINT fk_channel_sync_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_channel_sync_connection FOREIGN KEY (channel_connection_id)
-        REFERENCES channel_connections (id) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT fk_channel_sync_tenant_connection FOREIGN KEY (tenant_id, channel_connection_id)
+        REFERENCES channel_connections (tenant_id, id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE whatsapp_contacts (
@@ -39,8 +39,8 @@ CREATE TABLE whatsapp_contacts (
     KEY idx_whatsapp_contacts_tenant_name (tenant_id, display_name),
     CONSTRAINT fk_whatsapp_contacts_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_whatsapp_contacts_connection FOREIGN KEY (channel_connection_id)
-        REFERENCES channel_connections (id) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT fk_whatsapp_contacts_tenant_connection FOREIGN KEY (tenant_id, channel_connection_id)
+        REFERENCES channel_connections (tenant_id, id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE coexistence_history_payloads (
@@ -55,6 +55,6 @@ CREATE TABLE coexistence_history_payloads (
     KEY idx_coex_history_tenant_time (tenant_id, received_at),
     CONSTRAINT fk_coex_history_tenant FOREIGN KEY (tenant_id)
         REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_coex_history_connection FOREIGN KEY (channel_connection_id)
-        REFERENCES channel_connections (id) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT fk_coex_history_tenant_connection FOREIGN KEY (tenant_id, channel_connection_id)
+        REFERENCES channel_connections (tenant_id, id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
