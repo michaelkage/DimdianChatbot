@@ -217,6 +217,7 @@ try {
  if(!conversations.length&&legacy&&/^[a-f0-9]{64}$/.test(legacy.token)){
   conversations=[{sessionId:'legacy',conversationId:'legacy',token:legacy.token,expiresAt:legacy.expiresAt||null,title:'Previous conversation'}];
   saveConversations();
+  sessionStorage.removeItem(key);
  }
  const activeId=sessionStorage.getItem(activeConversationKey)||'';
  session=conversations.find(item=>item.sessionId===activeId)||conversations[conversations.length-1]||null;
@@ -275,7 +276,7 @@ async function startSession(){
 }
 function expired(){
  if(session){conversations=conversations.filter(item=>item.sessionId!==session.sessionId);saveConversations();}
- session=null;cursor=0;try{sessionStorage.removeItem(activeConversationKey);}catch(_){}
+ session=null;cursor=0;try{sessionStorage.removeItem(activeConversationKey);sessionStorage.removeItem(key);}catch(_){}
  refreshConversationPicker();
  $('.name').disabled=false;$('.phone').disabled=false;$('.wa-opt-in').disabled=false;clear();
  notice('Your previous chat session expired. Send a new message to start again.');
@@ -299,7 +300,7 @@ async function poll(){
   while(more&&opened){
    const result=await request('/messages.php?after='+encodeURIComponent(String(cursor))+'&limit=50');
    (Array.isArray(result.data)?result.data:[]).forEach(render);
-   const meta=result.meta||{};applyDeliveryUpdates(meta.delivery_updates);if(meta.handoff&&['open','assigned'].includes(meta.handoff.status)){status('A team member has been requested. Automated replies are paused.','warning');}if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
+   const meta=result.meta||{};applyDeliveryUpdates(meta.delivery_updates);if(meta.handoff&&['open','assigned'].includes(meta.handoff.status)){hideTyping();status('A team member has been requested. Automated replies are paused.','warning');}if(Number.isSafeInteger(Number(meta.next_cursor))){cursor=Math.max(cursor,Number(meta.next_cursor));persist();}
    more=Boolean(meta.has_more);
   }
   delay=3000;
