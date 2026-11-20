@@ -37,7 +37,9 @@ If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does
 - Admin settings require `manage_options` and use the WordPress Settings API nonce.
 - The health-check action uses a WordPress nonce, an 8-second timeout and TLS certificate verification.
 - The frontend uses `wp_enqueue_script`; no theme file edits are needed.
-- WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. Exact SKU matches are checked before ordinary product-name/content matches. It does not expose customer/order data or exact inventory counts.\n- Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.\n- WCFM, Paystack and Mobex APIs are not called.
+- WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. SKU matching is checked before product-name matching. It does not expose customer/order data or exact inventory counts.
+- Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.
+- WCFM, Paystack and Mobex APIs are not called.
 - The plugin does not create a chat backend or make the service public automatically.
 
 ## Before public distribution
@@ -57,7 +59,7 @@ This code is an initial internal connector. Before submitting it to the WordPres
 2. Open **Settings → ChatBridge Widget**.
 3. Enable **WooCommerce product search** and save.
 4. Enable the chat widget and open the public site.
-5. Select **Find a part**, search for a product name or keyword, and inspect the result.
+5. Select **Find a product**, search for a product name or keyword, and inspect the result.
 6. Select **Ask about this** to place a product-specific question in the chat composer, or **View product** to open the product page.
 
 The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/products?search=...`. It returns a maximum of eight published products and excludes products with catalogue visibility set to hidden. The endpoint is disabled unless the administrator enables the integration, even if someone calls the REST URL directly. Search results are cached briefly and the endpoint applies a modest per-IP request limit. Only public catalogue information is returned.
