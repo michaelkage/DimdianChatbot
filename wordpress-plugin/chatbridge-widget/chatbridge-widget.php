@@ -44,6 +44,16 @@ function chatbridge_widget_defaults(): array
         'api_base' => '',
         'title' => 'Chat with us',
         'subtitle' => 'Send us a message. Our team will reply as soon as we can.',
+        'launcher_text' => 'Message us',
+        'logo_url' => '',
+        'primary_color' => '#171717',
+        'accent_color' => '#d7eee6',
+        'offline_queue_enabled' => 0,
+        'typing_indicator_enabled' => 0,
+        'hide_paths' => '',
+        'show_paths' => '',
+        'hide_selectors' => '',
+        'compact_selectors' => '',
     ];
 }
 
@@ -73,6 +83,16 @@ function chatbridge_widget_sanitize_settings($input): array
         'api_base' => $api_base,
         'title' => isset($input['title']) ? sanitize_text_field($input['title']) : $defaults['title'],
         'subtitle' => isset($input['subtitle']) ? sanitize_text_field($input['subtitle']) : $defaults['subtitle'],
+        'launcher_text' => isset($input['launcher_text']) ? sanitize_text_field($input['launcher_text']) : $defaults['launcher_text'],
+        'logo_url' => isset($input['logo_url']) ? esc_url_raw($input['logo_url'], ['https']) : '',
+        'primary_color' => isset($input['primary_color']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $input['primary_color']) ? strtoupper((string) $input['primary_color']) : $defaults['primary_color'],
+        'accent_color' => isset($input['accent_color']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $input['accent_color']) ? strtoupper((string) $input['accent_color']) : $defaults['accent_color'],
+        'offline_queue_enabled' => !empty($input['offline_queue_enabled']) ? 1 : 0,
+        'typing_indicator_enabled' => !empty($input['typing_indicator_enabled']) ? 1 : 0,
+        'hide_paths' => isset($input['hide_paths']) ? sanitize_textarea_field($input['hide_paths']) : '',
+        'show_paths' => isset($input['show_paths']) ? sanitize_textarea_field($input['show_paths']) : '',
+        'hide_selectors' => isset($input['hide_selectors']) ? sanitize_textarea_field($input['hide_selectors']) : '',
+        'compact_selectors' => isset($input['compact_selectors']) ? sanitize_textarea_field($input['compact_selectors']) : '',
     ];
 }
 
@@ -282,6 +302,45 @@ function chatbridge_widget_render_settings_page(): void
                 <tr>
                     <th scope="row"><label for="chatbridge-subtitle"><?php esc_html_e('Welcome text', 'chatbridge-widget'); ?></label></th>
                     <td><input id="chatbridge-subtitle" class="large-text" type="text" maxlength="160" name="chatbridge_widget_settings[subtitle]" value="<?php echo esc_attr($settings['subtitle']); ?>"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Customer experience', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[offline_queue_enabled]" value="1" <?php checked($settings['offline_queue_enabled'], 1); ?>> <?php esc_html_e('Save unsent messages on this device and retry when the connection returns (up to 20 messages).', 'chatbridge-widget'); ?></label><br>
+                        <label><input type="checkbox" name="chatbridge_widget_settings[typing_indicator_enabled]" value="1" <?php checked($settings['typing_indicator_enabled'], 1); ?>> <?php esc_html_e('Show an animated reply-pending indicator after a message is saved.', 'chatbridge-widget'); ?></label>
+                        <p class="description"><?php esc_html_e('Offline messages are stored in this browser’s local storage until sent or cleared. Do not enable this on shared/public kiosk devices.', 'chatbridge-widget'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-launcher"><?php esc_html_e('Launcher label', 'chatbridge-widget'); ?></label></th>
+                    <td><input id="chatbridge-launcher" type="text" maxlength="40" name="chatbridge_widget_settings[launcher_text]" value="<?php echo esc_attr($settings['launcher_text']); ?>"></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-logo"><?php esc_html_e('Logo image URL', 'chatbridge-widget'); ?></label></th>
+                    <td><input id="chatbridge-logo" class="large-text" type="url" name="chatbridge_widget_settings[logo_url]" value="<?php echo esc_attr($settings['logo_url']); ?>" placeholder="https://example.com/logo.png"><p class="description"><?php esc_html_e('Optional HTTPS image. Use your media library URL.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Widget colours', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label><?php esc_html_e('Primary', 'chatbridge-widget'); ?> <input type="color" name="chatbridge_widget_settings[primary_color]" value="<?php echo esc_attr($settings['primary_color']); ?>"></label>
+                        <label style="margin-left:16px"><?php esc_html_e('Accent', 'chatbridge-widget'); ?> <input type="color" name="chatbridge_widget_settings[accent_color]" value="<?php echo esc_attr($settings['accent_color']); ?>"></label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-hide-paths"><?php esc_html_e('Hide on URL paths', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-hide-paths" class="large-text code" rows="3" name="chatbridge_widget_settings[hide_paths]" placeholder="/checkout&#10;/watch/*"><?php echo esc_textarea($settings['hide_paths']); ?></textarea><p class="description"><?php esc_html_e('One path per line. Exact paths or prefix patterns ending in *.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-show-paths"><?php esc_html_e('Only show on URL paths', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-show-paths" class="large-text code" rows="3" name="chatbridge_widget_settings[show_paths]" placeholder="/shop/*&#10;/contact"><?php echo esc_textarea($settings['show_paths']); ?></textarea><p class="description"><?php esc_html_e('Leave blank to allow all paths not hidden above. If set, the widget only appears on matching paths.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-hide-selectors"><?php esc_html_e('Hide when page contains CSS selector', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-hide-selectors" class="large-text code" rows="2" name="chatbridge_widget_settings[hide_selectors]"><?php echo esc_textarea($settings['hide_selectors']); ?></textarea><p class="description"><?php esc_html_e('Optional CSS selectors, one per line. If any matching element exists, the widget is not loaded.', 'chatbridge-widget'); ?></p></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-compact-selectors"><?php esc_html_e('Use compact launcher when page contains selector', 'chatbridge-widget'); ?></label></th>
+                    <td><textarea id="chatbridge-compact-selectors" class="large-text code" rows="2" name="chatbridge_widget_settings[compact_selectors]"><?php echo esc_textarea($settings['compact_selectors']); ?></textarea><p class="description"><?php esc_html_e('Optional CSS selectors, one per line. Matching pages get a smaller launcher.', 'chatbridge-widget'); ?></p></td>
                 </tr>
             </table>
             <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
@@ -499,13 +558,23 @@ add_action('wp_enqueue_scripts', static function (): void {
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s" data-launcher-text="%7$s" data-logo-url="%8$s" data-primary-color="%9$s" data-accent-color="%10$s" data-offline-queue="%11$s" data-typing-indicator="%12$s" data-hide-paths="%13$s" data-show-paths="%14$s" data-hide-selectors="%15$s" data-compact-selectors="%16$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
             esc_attr($settings['subtitle']),
             esc_url($commerce_api),
             esc_url($orders_api),
-            esc_attr($rest_nonce)
+            esc_attr($rest_nonce),
+            esc_attr($settings['launcher_text']),
+            esc_url($settings['logo_url']),
+            esc_attr($settings['primary_color']),
+            esc_attr($settings['accent_color']),
+            !empty($settings['offline_queue_enabled']) ? 'true' : 'false',
+            !empty($settings['typing_indicator_enabled']) ? 'true' : 'false',
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_paths']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['show_paths']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['hide_selectors']))),
+            esc_attr(implode(',', preg_split('/\\r?\\n/', (string) $settings['compact_selectors'])))
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;
