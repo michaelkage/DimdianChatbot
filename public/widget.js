@@ -25,6 +25,7 @@ if (matchesSelector(hideSelectors)) return;
 const compactMode = matchesSelector(compactSelectors);
 const key = 'dimdian-chat:' + api + ':' + location.origin;
 const queueKey = key + ':offline-outbox';
+const draftKey = key + ':draft';
 const root = document.createElement('div');
 root.id = 'dimdian-chat-widget';
 const shadow = root.attachShadow({mode:'open'});
@@ -93,7 +94,7 @@ function queueMessage(text,id){
  if(queue.length>=20){status('Your offline queue is full. Reconnect and send the saved messages first.','warning');return;}
  const item={id,text,sessionId:session&&session.sessionId?session.sessionId:null,createdAt:new Date().toISOString()};
  queue.push(item);writeQueue(queue);showQueued(item);
- input.value='';$('.count').textContent='0 / 4000';
+ input.value='';$('.count').textContent='0 / 4000';try{localStorage.removeItem(draftKey);}catch(_){}
  status(navigator.onLine?'Message saved locally. It will retry shortly.':'Offline — message saved on this device.','warning');
 }
 function removeQueued(id){
@@ -343,7 +344,8 @@ async function send(text){
   const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,client_message_id:pendingSubmission.id})});
   if(result.data)render(result.data);
   pendingSubmission=null;
-  input.value='';$('.count').textContent='0 / 4000';status('Message saved. Waiting for a reply.');
+  input.value='';$('.count').textContent='0 / 4000';try{localStorage.removeItem(draftKey);}catch(_){}
+  status('Message saved. Waiting for a reply.');
   showTyping();
   delay=1000;await poll();schedule();
  }catch(e){
@@ -359,12 +361,12 @@ $('.new-conversation').addEventListener('click',startNewConversation);
 $('.conversation-select').addEventListener('change',event=>{if(event.target.value)switchConversation(event.target.value);});
 panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}});
 form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim();if(text)send(text);});
-input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
+input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';if(features.offlineQueue){try{if(input.value)localStorage.setItem(draftKey,input.value.slice(0,4000));else localStorage.removeItem(draftKey);}catch(_){}}});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
 window.addEventListener('online',()=>{if(features.offlineQueue)flushQueue();if(opened&&session)poll().finally(schedule);});
 window.addEventListener('offline',()=>{if(features.offlineQueue)status('You are offline. New messages can be saved on this device.','warning');});
-if(features.offlineQueue)readQueue().forEach(showQueued);
+if(features.offlineQueue){readQueue().forEach(showQueued);try{const draft=localStorage.getItem(draftKey);if(draft&&!input.value){input.value=draft.slice(0,4000);$('.count').textContent=input.value.length+' / 4000;}}catch(_){}} 
 if(demo)status('Preview only — messages are simulated and not saved.');
 else if(session)status('Your conversation is ready.');
 if(features.offlineQueue&&navigator.onLine&&readQueue().length)flushQueue();
