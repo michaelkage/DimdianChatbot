@@ -39,5 +39,5 @@ jobs:
       - name: Run targeted WordPress security sniffs
         run: >-
           vendor/bin/phpcs --standard=WordPress
-          --sniffs=WordPress.Security.EscapeOutput,WordPress.Security.NonceVerification,WordPress.Security.ValidatedSanitizedInput,WordPress.DB.PreparedSQL.NotPrepared
+          --sniffs=WordPress.Security.EscapeOutput,WordPress.Security.NonceVerification,WordPress.Security.ValidatedSanitizedInput,WordPress.DB.PreparedSQL
           --extensions=php wordpress-plugin/chatbridge-widget
