@@ -52,7 +52,7 @@ function renderOrder(order){
  if(order.date_created){const date=document.createElement('p');date.textContent='Placed: '+new Date(order.date_created).toLocaleDateString();result.append(date);}
  if(order.total){const total=document.createElement('p');total.textContent='Total: '+String(order.total);result.append(total);}
  const list=document.createElement('ul');
- (Array.isArray(order.items)?order.items:[]).forEach(item=>{const li=document.createElement('li');li.textContent=String(item.name||'Item')+' × '+String(item.quantity||1);list.append(li);});
+ (Array.isArray(order.items)?order.items:[]).forEach(item=>{const li=document.createElement('li');li.textContent=String(item.name||'Item')+' × '+String(item.quantity||1)+(item.vendor?' · Sold by '+String(item.vendor):'');list.append(li);});
  result.append(list);
 }
 $('.orders-back').addEventListener('click',()=>{$('.orders').hidden=true;$('.welcome').hidden=false;input.focus();});
@@ -78,6 +78,7 @@ function renderProducts(products){
   if(product.image){const img=document.createElement('img');img.src=product.image;img.alt='';img.loading='lazy';card.append(img);}
   const details=document.createElement('div');details.className='product-details';
   const name=document.createElement('strong');name.textContent=String(product.name||'Product');details.append(name);
+  if(product.vendor){const vendor=document.createElement('span');vendor.className='product-sku';vendor.textContent='Sold by '+String(product.vendor);details.append(vendor);}
   if(product.sku){const sku=document.createElement('span');sku.className='product-sku';sku.textContent='SKU: '+String(product.sku);details.append(sku);}
   if(product.price){const price=document.createElement('span');price.className='product-price';price.textContent=String(product.price);details.append(price);}
   const stock=document.createElement('span');stock.className='product-stock';stock.textContent=product.stock_status==='instock'?'In stock':product.stock_status==='onbackorder'?'Available on backorder':'Check availability';details.append(stock);
