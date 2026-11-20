@@ -8,9 +8,9 @@ This README is also the handover guide for the Dimdian business owner and the pe
 
 ## WordPress plugin (early connector)
 
-An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, and optional read-only product search. Product search returns published catalogue-visible products and supports SKU matching as well as partial product-name search. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
+An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, and optional read-only product search. When WCFM Marketplace is active, product search and customer order summaries include vendor attribution using WCFM's in-process vendor lookup functions. This does not grant vendor users access to customer orders or expose WCFM credentials. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
 
-This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification.
+This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin includes a gated Meta Embedded Signup v5 launcher when the service has been configured with an eligible Meta app and tenant API key. It never exposes Meta app secrets or business access tokens to the browser. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification. The tenant AI runtime is a separate backend feature and is disabled until configured.
 
 ## 1. What this system does
 
@@ -24,7 +24,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, staff accounts, a shared inbox, agent assignment, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only.
+This is a focused enquiry channel, not a full customer-management system. It does not provide a staffed shared inbox, staff accounts, agent assignment/resolution UI, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. An optional tenant-scoped AI queue and knowledge retrieval runtime exists on the feature branch; it is disabled by default and has no staff inbox UI. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only.
 
 ## 2. How a conversation works
 
@@ -102,11 +102,24 @@ Do these steps in order. Do not change the main WordPress site or its database.
 3. **Create a separate database.** Create a new MySQL database and database user for the chat application. Grant that user access only to this database. Do not reuse the WordPress/WooCommerce database credentials.
 4. **Deploy the repository.** Use Hostinger's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
 5. **Create the private configuration file.** Copy `config.example.php` to `config.php` in the repository root (not in `public/`). Fill in the database host/name/user/password, a strong random app key, timezone, public URL and exact website origins. Keep all WhatsApp fields empty/disabled for the first launch.
-6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. This is the complete current schema. Do not run migrations 002 or 003 on top of this fresh schema; those migrations are only for databases created from older schema versions.
+6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. Then apply `database/migrations/004_multi_tenant_foundation.sql` followed by `database/migrations/005_tenant_ai_knowledge_handover.sql`, `database/migrations/006_tenant_api_keys_and_channel_events.sql` and `database/migrations/007_coexistence_sync.sql`. Do not run migrations 002 or 003 on top of the fresh schema; those are only for databases created from older schema versions. The new public API requires the tenant tables and verified origin mapping created by migration 004.
 7. **Test the API before WordPress integration.** Open `https://chat.dimdian.com/api/session.php` in a browser. A method error is expected for a GET request; it confirms PHP is responding. A 503 `not_configured` response means the application cannot find its private `config.php`. A 500 response should be investigated in the hosting PHP error log. Do not expose database credentials in screenshots or support tickets.
 8. **Add the widget to WordPress** using the snippet below, after the API host is working.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
 10. **Set up backups and monitoring.** Back up the chat database regularly and keep a copy of the private configuration file in a secure password manager or other restricted backup location. Never commit it to Git.
+
+### Tenant bootstrap and WordPress connector
+
+After migrations 004–007 have been applied:
+
+1. For the existing single-site install, register the exact WordPress origin against the legacy tenant ID `00000000-0000-4000-8000-000000000001`. First insert it as `pending`, verify control of the domain through an agreed DNS/HTTP or WordPress-admin check, then mark that exact row `verified`. A browser-supplied tenant ID is never accepted.
+2. For a new business, run `php bin/provision-tenant.php "Business name" business-slug https://shop.example.com`. It creates a tenant and a pending site mapping; it does not automatically trust the domain.
+3. Create a tenant admin key with `php bin/create-tenant-api-key.php TENANT_UUID "WordPress connector" owner`. Record the printed key ID, copy the one-time 64-character secret and enter it in **Settings → ChatBridge Widget**. The database stores only its SHA-256 hash. To rotate a key, create and install the replacement first, then revoke the old key with `php bin/revoke-tenant-api-key.php TENANT_UUID API_KEY_UUID`.
+4. Keep the tenant API key server-side in WordPress. It is used for admin-only Meta onboarding calls and is never added to the public widget.
+5. Configure Meta app details in private `config.php` and set `meta.enabled` to true only after the Tech Provider/Solution Partner, app review and stable Embedded Signup v5 configuration requirements are met. Test on a separate staging WordPress site and test Meta account; do not use the live Dimdian site or live business number for the first test.
+6. Tenant AI is separately opt-in. See [docs/AI.md](docs/AI.md) for provider credential encryption, knowledge import and the tenant worker.
+
+The outbox worker now resolves each tenant's connected Meta phone number and decrypts that tenant's channel credential. Run one worker per tenant with `php public/cron/process-outbox.php TENANT_UUID`. The global `whatsapp.outbound_enabled` flag remains the kill switch, and each business must have the configured approved message template. Expired tokens move the channel to `needs_action`; the administrator must reconnect the account.
 
 ### Private configuration
 
@@ -117,12 +130,13 @@ Start from `config.example.php`. The important application values are:
 | `app.app_key` | A cryptographically random secret of at least 32 characters. Generate one on a trusted machine, for example with `openssl rand -hex 32`. |
 | `app.timezone` | `Africa/Lagos` |
 | `app.public_base_url` | `https://chat.dimdian.com` |
-| `app.allowed_origins` | Exact origins of the live website, e.g. `https://dimdian.com` and `https://www.dimdian.com`. Add only hostnames that actually serve the site. No paths or trailing slash. |
+| `app.tenant_id` | Default tenant UUID for CLI workers when no explicit tenant argument is supplied. Public API requests resolve the tenant from the verified `tenant_sites` registry, not from a browser-supplied tenant ID. |
+| `app.encryption_key` | Persistent 32-byte key (64 hex characters) used to encrypt tenant provider credentials. Back it up securely; losing it makes stored credentials unreadable. |
 | `database.dsn` | Hostinger database DSN in the form `mysql:host=DB_HOST;dbname=DB_NAME;charset=utf8mb4`. Use the exact database host/name shown in hPanel. |
 | `database.username` / `database.password` | Dedicated chat database credentials. |
 | `whatsapp.outbound_enabled` | Keep `false` until the WhatsApp launch gate below is passed. |
 
-The application stores timestamps in UTC. The configured timezone is used for PHP runtime behavior; it does not change the database's UTC timestamp convention.
+The application stores timestamps in UTC. The configured timezone is used for PHP runtime behavior; it does not change the database's UTC timestamp convention. See [Tenant AI setup](docs/AI.md) for the optional provider, knowledge import and worker flow.
 
 ## 5. Add the widget to the real Dimdian WordPress website
 
@@ -140,7 +154,7 @@ Once the backend is deployed and tested, add this script tag to the site's globa
 
 Use the WordPress theme's footer/custom-code facility or a trusted header/footer code plugin. Add it once only; do not paste it into every page if the chosen method already injects site-wide. Avoid editing WordPress core files or the theme's generated files directly because updates can overwrite changes.
 
-The API's `app.allowed_origins` list must contain the exact origin(s) used by the public WordPress site. For example, `https://dimdian.com` and `https://www.dimdian.com` are different origins. If the site redirects one to the other, allow the final canonical origin and any actual alternate origin from which pages are served.
+The public API resolves each request's Origin against a verified `tenant_sites` row. For an existing single-tenant deployment, register the exact canonical origin against the legacy tenant UUID `00000000-0000-4000-8000-000000000001`. For a new tenant, use `bin/provision-tenant.php`; it creates a pending mapping. Verify domain ownership before setting the mapping status to `verified`. Do not accept tenant IDs from browser requests.
 
 Widget options:
 
@@ -190,11 +204,14 @@ Never put any of these secrets in WordPress, the widget JavaScript, GitHub Pages
 
 The WhatsApp outbox worker is a command-line PHP script, not a public URL. It must be run by Hostinger's cron scheduler using the actual absolute path to the project and the PHP CLI binary provided by the hosting account.
 
-Script:
+Scripts:
 
 ```text
 /path/to/project/public/cron/process-outbox.php
+/path/to/project/public/cron/process-ai.php
 ```
+
+The AI worker is optional and only needed after tenant AI has been configured and published knowledge has been imported. Each worker requires an explicit `app.tenant_id`; run one worker per tenant at a time.
 
 Suggested schedule after WhatsApp has been enabled: once per minute. In hPanel's Cron Jobs section, use the PHP command format Hostinger provides, with the absolute script path. The exact PHP executable path and project path must be copied from the hosting environment; do not guess them.
 
@@ -212,7 +229,7 @@ For the business owner:
 - Agree an internal process for who monitors and replies to enquiries in the WhatsApp Business app and during what hours.
 - Decide how long chat records should be retained and who is responsible for handling deletion/privacy requests. Automated retention/deletion tooling is not currently included.
 
-Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, exact-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
+Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, verified tenant-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
 
 ## 9. Troubleshooting
 
@@ -220,7 +237,7 @@ Technical safeguards already in the code include hashed guest session tokens, pr
 |---|---|
 | Widget does not appear | Confirm the script tag is present once, `widget.js` loads over HTTPS, and the browser console has no JavaScript errors. |
 | Widget appears but cannot start a chat | Check that `chat.dimdian.com` is live, PHP 8.2+ and PDO MySQL are enabled, `config.php` is in the expected private location, and the database/schema are correct. |
-| Browser reports a CORS error | Add the exact website origin to `app.allowed_origins`; scheme and hostname must match. |
+| Browser reports a CORS error | Verify the exact website origin has a `tenant_sites` row with status `verified`; scheme, hostname and port must match. |
 | API responds with 503 `not_configured` | The bootstrap cannot find the private root `config.php`, or the file does not return a valid configuration array. |
 | API responds with 500 | Check Hostinger PHP/server error logs and database credentials/schema. Do not display raw server errors to visitors. |
 | Visitor message says “Website only” | This is expected while WhatsApp is disabled, or when the visitor did not provide a valid number and explicit opt-in. |
@@ -249,8 +266,8 @@ archive/                   Retired marketplace-support implementation
 
 ### Fresh database vs existing database
 
-- **Fresh installation:** import `database/schema.sql` once.
-- **Older installation:** apply only the migrations that are missing, in order. Migration 002 adds the stable message sequence cursor; migration 003 adds the WhatsApp outbox/status-event tables.
+- **Fresh installation:** import `database/schema.sql`, then apply migrations 004, 005, 006 and 007 in order.
+- **Older installation:** apply only missing migrations in order. Migrations 002 and 003 upgrade older message sequencing and WhatsApp outbox/status tables; migrations 004–007 add tenant isolation, AI knowledge, tenant API authentication, Meta audit and Coexistence synchronization tables.
 - Do not import the fresh schema and then replay those migrations over it.
 
 ### Run checks locally
@@ -260,7 +277,7 @@ php tests/run.php
 node --test tests/widget.test.mjs
 php tests/integration.php
 node --test tests/browser.mjs
-find app public tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+find app bin public tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
 The database-backed integration suite requires a configured MySQL/MariaDB test database. The browser suite requires its Playwright/Chromium test dependencies. GitHub Actions runs the automated checks and deploys the public demo from `docs/`; it does not deploy the PHP backend to Hostinger.
@@ -270,17 +287,22 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 | Component | Status |
 |---|---|
 | Public mock website and demo widget | Deployed on GitHub Pages |
-| PHP API and MySQL backend | Implemented in the repository; not yet installed on Hostinger |
+| PHP API and MySQL backend | Implemented in repository; not yet installed on Hostinger |
 | Production WordPress embed | Not yet configured |
 | Production database and private config | Not yet created |
+| Multi-tenant runtime | Initial tenant-scoped API/webhook increment is in open PR #2; migration has not been applied to production |
+| Meta Embedded Signup v5 onboarding | Gated WordPress admin launcher, backend exchange/provisioning, PMA/WAAC mapping and Coexistence sync requests implemented on open PR #2; not yet configured or tested with a real Meta app |
+| Tenant AI provider/knowledge/handover | Provider abstraction, encrypted key storage, tenant-scoped retrieval, async queue and handover runtime in open PR #2; disabled by default; no staffed inbox UI |
+| WCFM vendor-aware catalogue/order summaries | Read-only vendor attribution in open PR #2; no vendor-authorized order access |
+| WordPress.org readiness | Not ready; plugin distribution/release gates remain open |
 | WhatsApp credentials/template | Not configured |
 | Supabase webhook event table | Deployed; RLS enabled and browser roles have no access |
 | Supabase Edge Functions (`meta-webhook`, `meta-events`) | Deployed and active; required application secrets still need configuring |
 | Coexistence for the actual +234 Dimdian number | Not verified |
 | Live WhatsApp message/reply round trip | Not tested |
 
-**Recommended rollout:** deploy the PHP backend and test the website chat first with WhatsApp disabled. Embed the widget on the real website only after the API is healthy. Treat WhatsApp as a separate second phase, and do not switch it on until the Coexistence test checklist has passed.
+**Recommended rollout:** deploy the PHP backend to a staging environment and test website chat first with WhatsApp disabled. Test the WordPress admin Meta connector on a separate staging WordPress site with a test Meta business account. Do not enable Meta on the live Dimdian site until the full signup, webhook, contact/history sync and recovery checks pass. Keep outbound WhatsApp disabled until the per-tenant sender has passed a staging send/receipt test and the required template is approved on each business account.
 
 ---
 
-For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).
+For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md), [docs/AI.md](docs/AI.md), [docs/PLATFORM-ARCHITECTURE.md](docs/PLATFORM-ARCHITECTURE.md), [docs/WORDPRESS-ORG-RELEASE.md](docs/WORDPRESS-ORG-RELEASE.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).

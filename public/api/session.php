@@ -38,11 +38,12 @@ if ($whatsappOptIn && $normalizedPhone === null) {
 
 try {
     $pdo = database();
+    $tenantId = resolve_request_tenant_id($pdo);
 
     $rateConfig = app_config('app.session_rate_limit') ?? [];
     $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 10));
     $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 900));
-    enforce_rate_limit($pdo, 'session:' . client_fingerprint(), $maxRequests, $windowSeconds);
+    enforce_rate_limit($pdo, 'session:' . $tenantId . ':' . client_fingerprint(), $maxRequests, $windowSeconds);
 
     $sessionId = uuid_v4();
     $conversationId = uuid_v4();
@@ -58,23 +59,24 @@ try {
     $pdo->beginTransaction();
 
     $guest = $pdo->prepare(
-        'INSERT INTO guests (id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
-         VALUES (:id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+        'INSERT INTO guests (id, tenant_id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
+         VALUES (:id, :tenant_id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
-    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $normalizedPhone, ':whatsapp_opt_in_at' => $whatsappOptIn ? $createdAt->format('Y-m-d H:i:s') : null]);
+    $guest->execute([':id' => $guestId, ':tenant_id' => $tenantId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $normalizedPhone, ':whatsapp_opt_in_at' => $whatsappOptIn ? $createdAt->format('Y-m-d H:i:s') : null]);
 
     $conversation = $pdo->prepare(
-        'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
-         VALUES (:id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+        'INSERT INTO conversations (id, tenant_id, guest_id, status, created_at, updated_at)
+         VALUES (:id, :tenant_id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
-    $conversation->execute([':id' => $conversationId, ':guest_id' => $guestId]);
+    $conversation->execute([':id' => $conversationId, ':tenant_id' => $tenantId, ':guest_id' => $guestId]);
 
     $session = $pdo->prepare(
-        'INSERT INTO guest_sessions (id, guest_id, conversation_id, token_hash, created_at, expires_at)
-         VALUES (:id, :guest_id, :conversation_id, :token_hash, UTC_TIMESTAMP(), :expires_at)'
+        'INSERT INTO guest_sessions (id, tenant_id, guest_id, conversation_id, token_hash, created_at, expires_at)
+         VALUES (:id, :tenant_id, :guest_id, :conversation_id, :token_hash, UTC_TIMESTAMP(), :expires_at)'
     );
     $session->execute([
         ':id' => $sessionId,
+        ':tenant_id' => $tenantId,
         ':guest_id' => $guestId,
         ':conversation_id' => $conversationId,
         ':token_hash' => $tokenHash,

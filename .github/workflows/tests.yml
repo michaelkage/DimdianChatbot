@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/multi-tenant-isolation]
   pull_request:
-    branches: [main]
+    branches: [main, feat/platform-foundation, feat/multi-tenant-isolation]
 
 permissions:
   contents: read
@@ -45,18 +45,30 @@ jobs:
           node-version: '22'
       - name: Lint active PHP source
         run: |
-          find app public tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          find app bin public tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
       - name: Prepare disposable database and app config
         run: |
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/schema.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/004_multi_tenant_foundation.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/005_tenant_ai_knowledge_handover.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/006_tenant_api_keys_and_channel_events.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/007_coexistence_sync.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test <<'SQL'
+          INSERT INTO tenant_sites (tenant_id, origin, status, created_at, updated_at)
+          VALUES ('00000000-0000-4000-8000-000000000001', 'https://website.example.test', 'verified', UTC_TIMESTAMP(), UTC_TIMESTAMP());
+          INSERT INTO channel_connections (id, tenant_id, provider, business_account_id, phone_number_id, connection_status, credential_ciphertext, created_at, updated_at)
+          VALUES ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'meta', 'test-waba', 'test-phone-id', 'connected', 'test-encrypted-credential', UTC_TIMESTAMP(), UTC_TIMESTAMP());
+          SQL
           cat > config.php <<'PHP'
           <?php
           return [
               'app' => [
                   'app_key' => str_repeat('a', 32),
                   'timezone' => 'UTC',
+                  'tenant_id' => '00000000-0000-4000-8000-000000000001',
+                  'encryption_key' => str_repeat('b', 64),
                   'allowed_origins' => ['https://website.example.test'],
                   'guest_session_ttl_hours' => 168,
                   'session_rate_limit' => ['max_requests' => 100, 'window_seconds' => 900],
@@ -84,6 +96,8 @@ jobs:
       - name: Run PHP helper and HTTP/database integration tests
         run: |
           php tests/run.php
+          php tests/ai.php
+          php tests/meta.php
           php tests/integration.php
           php tests/wordpress-plugin.php
       - name: Check widget JavaScript syntax

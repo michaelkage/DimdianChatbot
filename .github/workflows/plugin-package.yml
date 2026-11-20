@@ -1,0 +1,36 @@
+name: WordPress plugin package
+
+on:
+  push:
+    tags:
+      - 'chatbridge-widget-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate plugin PHP
+        run: |
+          find wordpress-plugin/chatbridge-widget -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Validate admin JavaScript
+        run: node --check wordpress-plugin/chatbridge-widget/assets/meta-onboarding.js
+
+      - name: Build installable ZIP
+        run: |
+          mkdir -p dist
+          cd wordpress-plugin
+          zip -r ../dist/chatbridge-widget.zip chatbridge-widget
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatbridge-widget-${{ github.ref_name }}
+          path: dist/chatbridge-widget.zip
+          if-no-files-found: error
+          retention-days: 30

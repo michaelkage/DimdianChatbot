@@ -138,3 +138,21 @@ A plugin ZIP can be installable before it is directory-ready. Do not market the 
 ## Release discipline
 
 All platform work should land through a feature branch and pull request. Do not apply schema changes to the Dimdian production database, connect the live WhatsApp number, enable AI billing, or publish the plugin without an explicit review and owner approval.
+
+
+## Tenant isolation implementation increment (branch: feat/multi-tenant-isolation)
+
+The first runtime increment is implemented on a feature branch and is not yet merged or deployed:
+
+- Migrations 004–007 create tenants, verified site origins, Meta channel connections, tenant API keys, AI/knowledge/handover records and Coexistence sync/contact/history tables; backfill existing records to the legacy tenant; add tenant IDs to guests, conversations, guest sessions, messages, webhook events, outbox jobs and status events; and add composite foreign keys for tenant-consistent records.
+- Public API tenant context is resolved from the verified `tenant_sites.origin` registry. The request body cannot select a tenant. Unknown origins fail closed.
+- Guest tokens are accepted only when their session, guest and conversation all belong to the origin's tenant.
+- Message reads/writes, idempotency lookup, rate-limit buckets, webhook deduplication, phone-number correlation, status callbacks and outbox worker claims/updates are tenant-scoped.
+- Meta webhook changes are resolved by phone-number ID or Messaging Account/WAAC ID to a tenant-owned `channel_connections` row. Account updates handle offboarding/reconnection; Coexistence contact/history requests are queued and triggered within the 24-hour window, with contacts stored and history payloads archived tenant-locally.
+- `bin/provision-tenant.php` creates a tenant and a pending site mapping. An operator must verify domain ownership before changing the mapping to `verified`.
+
+### Remaining tenant-platform work
+
+This is not yet a complete hosted multi-tenant service. The CLI outbox worker now selects a tenant-owned Meta channel and decrypts its credential; it accepts the tenant UUID as its first argument. Per-tenant AI credentials are encrypted, but tenant memberships, billing/limits, automated site verification challenges, data export/deletion, history normalization/retention and operational admin UI remain to be implemented. Do not onboard a second live business or run the migration against production until those pieces and the migration rehearsal are reviewed.
+
+CI now builds the disposable test database from `database/schema.sql` plus migrations 004–007 and includes two-tenant guest-token isolation, AI knowledge/handover, Meta contract, Coexistence contact/history webhook, and WooCommerce/WCFM regression tests. The initial integration run exposed duplicate PDO named-parameter use; the affected queries have been corrected and must pass a fresh run before this increment is considered validated.

@@ -12,20 +12,32 @@ return [
         'app_key' => 'replace-with-at-least-32-random-bytes',
         'timezone' => 'Africa/Lagos',
         'public_base_url' => 'https://chat.example.com',
-        'allowed_origins' => [
-            'https://www.example.com',
-            'https://example.com',
-        ],
+        // For a migrated single-tenant deployment, use its tenant UUID. Hosted
+        // multi-tenant API requests resolve tenant ownership from tenant_sites.
+        'tenant_id' => '00000000-0000-4000-8000-000000000001',
+        // Generate once with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+        // Keep this key outside the database and back it up securely.
+        'encryption_key' => 'REPLACE_WITH_64_HEX_CHARACTERS',
         'guest_session_ttl_hours' => 168,
         'session_rate_limit' => [
             'max_requests' => 10,
             'window_seconds' => 900,
         ],
     ],
+    'meta' => [
+        // Keep false until Meta has approved the app and the Tech Provider /
+        // Solution Partner prerequisites are complete.
+        'enabled' => false,
+        'app_id' => '',
+        'app_secret' => '',
+        'configuration_id' => '',
+        'solution_id' => '',
+        'graph_api_version' => 'v27.0',
+    ],
     'whatsapp' => [
         // Keep disabled until the business number and Coexistence behavior are verified.
         'outbound_enabled' => false,
-        'graph_api_version' => 'vXX.X',
+        'graph_api_version' => 'v27.0',
         'phone_number_id' => '',
         'access_token' => '',
         'app_secret' => '',

@@ -58,23 +58,40 @@ function request_origin(): ?string
 function enforce_allowed_origin(): void
 {
     $origin = request_origin();
-    $allowed = app_config('app.allowed_origins') ?? [];
-    if (!is_array($allowed)) {
-        $allowed = [];
+    if ($origin === null) {
+        return;
     }
 
-    $normalized = array_map(static fn($value): string => rtrim((string)$value, '/'), $allowed);
-    if ($origin !== null && !in_array($origin, $normalized, true)) {
-        json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not allowed to use this chat service.']], 403);
+    // The verified tenant_sites registry is the authoritative CORS allowlist.
+    // Do not trust an Origin merely because it appears in a client payload or
+    // in a static global allowlist shared by every tenant.
+    $normalizedOrigin = normalize_request_origin($origin);
+    if ($normalizedOrigin === null) {
+        json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website origin is invalid.']], 403);
     }
 
-    if ($origin !== null) {
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Vary: Origin');
-        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN');
-        header('Access-Control-Max-Age: 600');
+    try {
+        $pdo = database();
+        $check = $pdo->prepare(
+            'SELECT 1 FROM tenant_sites s
+             INNER JOIN tenants t ON t.id = s.tenant_id
+             WHERE s.origin = :origin AND s.status = "verified" AND t.status = "active"
+             LIMIT 1'
+        );
+        $check->execute([':origin' => $normalizedOrigin]);
+        if (!$check->fetchColumn()) {
+            json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not registered with the chat service.']], 403);
+        }
+    } catch (Throwable $error) {
+        error_log('[ChatBridge] Origin validation failed: ' . $error->getMessage());
+        json_response(['error' => ['code' => 'service_unavailable', 'message' => 'The chat service is temporarily unavailable.']], 503);
     }
+
+    header('Access-Control-Allow-Origin: ' . $normalizedOrigin);
+    header('Vary: Origin');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN');
+    header('Access-Control-Max-Age: 600');
 }
 
 function handle_preflight(): void
@@ -233,6 +250,7 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
  */
 function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 {
+    $tenantId = resolve_request_tenant_id($pdo);
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
@@ -240,26 +258,34 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 
     $tokenHash = hash('sha256', $token);
     $statement = $pdo->prepare(
-        'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
+        'SELECT gs.id AS session_id, gs.tenant_id, gs.guest_id, gs.conversation_id,
                 g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
                 c.status AS conversation_status
          FROM guest_sessions gs
          INNER JOIN conversations c ON c.id = gs.conversation_id
          INNER JOIN guests g ON g.id = gs.guest_id
          WHERE gs.token_hash = :token_hash
+           AND gs.tenant_id = :tenant_id_session
+           AND c.tenant_id = :tenant_id_conversation
+           AND g.tenant_id = :tenant_id_guest
            AND gs.revoked_at IS NULL
            AND gs.expires_at > UTC_TIMESTAMP()
          LIMIT 1'
     );
-    $statement->execute([':token_hash' => $tokenHash]);
+    $statement->execute([
+        ':token_hash' => $tokenHash,
+        ':tenant_id_session' => $tenantId,
+        ':tenant_id_conversation' => $tenantId,
+        ':tenant_id_guest' => $tenantId,
+    ]);
     $session = $statement->fetch();
 
     if (!$session) {
         json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
     }
 
-    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
-    $touch->execute([':id' => $session['session_id']]);
+    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id');
+    $touch->execute([':tenant_id' => $tenantId, ':id' => $session['session_id']]);
 
     if ($requireOpen && $session['conversation_status'] !== 'open') {
         json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);
@@ -267,3 +293,6 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 
     return $session;
 }
+
+
+require_once __DIR__ . '/tenancy.php';

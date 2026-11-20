@@ -21,8 +21,8 @@ Copy the relevant values into the private `config.php` file:
 |---|---|
 | `whatsapp.outbound_enabled` | Must remain false until the integration is verified |
 | `whatsapp.graph_api_version` | Supported Graph API version, e.g. `vXX.X` |
-| `whatsapp.phone_number_id` | Meta phone-number ID for the business sender |
-| `whatsapp.access_token` | Access token with WhatsApp messaging permission |
+| `whatsapp.phone_number_id` | Legacy single-tenant phone-number ID for the CLI sender |
+| `whatsapp.access_token` | Legacy single-tenant access token with WhatsApp messaging permission |
 | `whatsapp.app_secret` | Meta App Secret used to validate webhook POST signatures |
 | `whatsapp.verify_token` | Private random string used only for the GET subscription handshake |
 | `whatsapp.template_name` | Approved template name with one BODY text parameter |
@@ -54,11 +54,13 @@ https://YOUR-API-HOST/api/webhook.php
 
 The GET subscription handshake checks `hub.mode=subscribe` and `hub.verify_token`, then returns `hub.challenge` as plain text.
 
-Every POST is checked against `X-Hub-Signature-256` using HMAC-SHA256 over the exact raw request body and the Meta App Secret. Invalid signatures are rejected before JSON parsing or database access. When `whatsapp.phone_number_id` is configured, webhook changes for any other phone-number ID are ignored.
+Every POST is checked against `X-Hub-Signature-256` using HMAC-SHA256 over the exact raw request body and the Meta App Secret. Invalid signatures are rejected before JSON parsing or database access. After the tenant migration, each webhook change is resolved by its `metadata.phone_number_id` against a connected `channel_connections` row. Unknown or disconnected numbers are ignored; a global configured phone-number ID is no longer the tenant resolver.
 
-Subscribe to the WhatsApp webhook fields needed for:
+Subscribe to the WhatsApp webhook fields required by the current Embedded Signup/Coexistence configuration:
+- `account_update`: account connection, partner removal and disconnection lifecycle events.
 - `messages`: inbound visitor messages and sent/delivered/read/failed statuses.
 - `smb_message_echoes`: messages sent from the WhatsApp Business app on supported Coexistence integrations.
+- `history` and `smb_app_state_sync`: Coexistence history/contact synchronization events. The PHP runtime requests contact sync first and history second, records each Meta request ID/status, stores contact changes in a tenant-scoped contact table and stores raw history chunks in a tenant-scoped archive.
 
 Inbound text messages are matched to an open website conversation using the normalized visitor phone number. Business-app text echoes are matched using the echo's `to` number. The matching visitor must have supplied the same international phone number. Unsupported message types and unmatched phone numbers are safely ignored; media is not implemented.
 
@@ -74,27 +76,69 @@ Text messages only. No media download, attachments, voice notes, group chats, te
 
 ## Embedded Signup and Coexistence onboarding
 
-Meta's supplied implementation notes say Embedded Signup v2 and v3 were deprecated on 15 October 2026. The accompanying default-flow notes describe v4 but explicitly identify v5 as the latest version. New implementation work must therefore target the currently supported v5 flow after checking Meta's live version/migration guide. Do not copy an old v2/v3 integration or freeze the v4 sample below into production.
+### Supported Embedded Signup version
 
-The supplied v4 implementation guide lists these prerequisites for the integrating platform:
+As of 20 November 2026, implement against **Embedded Signup v5**, released on 20 October 2026. Meta deprecated v2 and v3 on 15 October 2026. v5 changes the session-info contract and Coexistence defaults; it is not just a cosmetic version bump. The v5 session event can provide `messaging_account_ids`, `primary_waac_ids` and `is_on_biz_app`; code must not assume the old `waba_id` property is always present. Meta's 2026 account-model evolution separates the Messaging Account (PMA; legacy WABA ID) from the WhatsApp Account (WAAC; phone-number asset). Persist both IDs: use `primary_waac_ids` to discover phone numbers where available, and the Messaging Account ID for templates/billing and WABA app subscription. The old `sessionInfoVersion` parameter is no longer used by v5. WhatsApp Business app onboarding is on by default in v5, with an opt-out. The separate `v5-public-preview` version is not selected by this integration; use stable `v5` for production unless Meta's live configuration explicitly requires otherwise.
 
-- The platform must already be a Meta Solution Partner or Tech Provider.
-- A Facebook Login for Business configuration must be created for WhatsApp Embedded Signup.
-- The HTTPS domain hosting signup must be added to the allowed domains and valid redirect URI settings.
-- The app must subscribe to the account_update webhook.
-- The browser must relay the short-lived authorization code to the server; the server must exchange it before the code expires.
-- The server must store credentials securely and associate the returned business portfolio, WhatsApp account and phone-number IDs with the correct tenant.
+Sources: [Meta Developers — WhatsApp Account Model Evolution](https://developers.meta.com/resources/videos/whatsapp-account-model-evolution/), [Meta Graph API — WABA phone-number edge](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/phone_numbers/), [Meta Graph API — subscribed apps](https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/subscribed_apps/), [Meta Embedded Signup v5 update summary](https://easytawasul.com/en/meta-whatsapp-updates), and [current version comparison and migration notes](https://360dialog.com/blog/embedded-signup-versions-migration/). Meta's developer pages were intermittently rate-limited during this review; re-check the live versions page before release.
 
-Meta's partner overview identifies Tech Providers as third-party developers building solutions on WhatsApp Business Platform and lists Embedded Signup as a Tech Provider capability. See [Meta's partner overview](https://whatsappbusiness.com/partners/become-a-partner/).
+### Platform prerequisites
 
-Coexistence flow requirements from the supplied Meta default-flow notes:
+- The integrating platform must be an eligible Meta Tech Provider or Solution Partner and complete the required Meta app review/advanced access.
+- Create a Facebook Login for Business configuration for WhatsApp Embedded Signup. Select the WhatsApp products, assets and permissions in that configuration; do not paste the old v2/v3 permission list into launch JavaScript.
+- Register the exact HTTPS onboarding origin and redirect URI with Meta.
+- Subscribe the app to the required webhook fields, including `account_update`, `messages`, `history`, `smb_app_state_sync` and `smb_message_echoes`.
+- The browser relays the short-lived authorization code and v5 session-info object to the backend through a WordPress admin AJAX relay. The WordPress server authenticates to ChatBridge with a tenant API key. The backend exchanges the code server-to-server using the app secret; never expose the app secret, tenant API key or resulting business token to browser JavaScript.
+- Resolve all returned messaging-account and phone-number IDs to the initiating tenant before persisting any connection.
+- Encrypt credentials at rest and keep them out of WordPress public options, logs, Git and API responses.
 
-- Entering a phone number already active in the WhatsApp Business app should route the customer into the Coexistence flow when Coexistence is enabled for the integration.
-- The business owner reviews the WhatsApp Business profile and chooses the Meta business portfolio.
-- The owner scans the QR code from inside the WhatsApp Business app when Meta presents it.
-- The owner confirms the business information and accepts the applicable terms.
-- After completion, capture the returned WABA ID and business phone-number ID and finish the server-side onboarding calls.
+Meta's partner overview identifies Tech Providers as a partner type and documents Embedded Signup as a Tech Provider capability: [Meta partner overview](https://whatsappbusiness.com/partners/become-a-partner/). Meta's official developer documentation is linked at [Embedded Signup overview](https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/overview).
 
-The v4 code sample in the source material uses Facebook Login for Business and returns an exchangeable authorization code. Since v5 is now identified as latest, the exact launch parameters and onboarding API calls must be checked against the current v5 guide before implementation. We intentionally do not ship a stale launch snippet here.
+### Coexistence lifecycle
 
-**Current state:** the Supabase webhook receiver and owner-only event monitor are deployed to the separate Dimdian diagnostic project. The Embedded Signup launcher, account_update subscription workflow, server-side authorization-code exchange, tenant provisioning and credential storage are not implemented. They require the actual Meta app/partner configuration and Tech Provider or Solution Partner status. Do not start onboarding the live Dimdian number until the owner explicitly approves the exact flow and the platform has passed the prerequisites.
+- In v5, WhatsApp Business app onboarding is enabled by default. Coexistence eligibility is determined during the Meta-hosted flow; do not hard-code the old v4 `featureType` plus `sessionInfoVersion` snippet into v5 launch code.
+- Keep the business owner's existing WhatsApp Business app available during setup. Meta may present an in-app QR confirmation; the owner must complete the step inside the app.
+- Treat the SDK's completion event and the authorization-code callback as separate signals. A completion event alone is not proof that the server has exchanged credentials and completed provisioning.
+- Use the v5 session-info fields. Treat `messaging_account_ids` as Messaging Account/PMA IDs and `primary_waac_ids` as WhatsApp Account/WAAC IDs. Discover phone numbers through the WAAC edge first, with the legacy Messaging Account/WABA phone-number edge as a compatibility fallback. If the session event includes a phone-number ID, still verify it through Graph API. Verify `is_on_biz_app` and `platform_type` on the phone-number resource before recording the connection mode.
+- The backend subscribes the app to each selected WABA and verifies the phone-number resource. Test inbound messages, app-originated echoes, delivery statuses, account disconnection/revocation, and history/contact sync.
+- Coexistence contact and history sync are one-shot requests that must be initiated within 24 hours. The backend creates per-channel jobs and requests contacts first, then history. It records request IDs and receives contact changes into a tenant-scoped contacts table. History chunks are retained as raw tenant-scoped JSON payloads; they are not yet normalized into the live conversation/message tables.
+- Sync request failures are marked for manual review rather than automatically retried, because the Meta requests are one-shot and a network timeout can leave acceptance ambiguous. A separate worker can process pending jobs while the 24-hour window remains open.
+- The raw history archive currently has no automated retention purge or customer-facing history browser. Define retention, export and deletion behavior before production use.
+- Do not enable outbound sends until number identity, approved templates, recipient opt-in and the webhook round-trip have been tested.
+
+**Current implementation state (feature branch only):** the WordPress admin connector now contains a gated Embedded Signup v5 launcher. It captures the v5 finish event and authorization code, relays both server-to-server, exchanges the code, resolves Messaging Account/PMA and WhatsApp Account/WAAC IDs, discovers and verifies phone numbers, checks `is_on_biz_app` / `platform_type`, subscribes the Messaging Account, encrypts the token with AES-256-GCM and stores phone-number connections under the authenticated tenant. Tenant API keys are stored hashed. The webhook routes account-level updates by Messaging Account/WAAC and handles partner removal, offboarding, disconnection and reconnection state changes. The onboarding endpoint triggers one-shot Coexistence contact and history sync requests immediately after successful connection. This code is not merged, deployed or tested against a real Meta app yet.
+
+The runtime now triggers Coexistence history/contact synchronization (`history` and `smb_app_state_sync`) in contacts-first order within Meta's 24-hour window, tracks request IDs/statuses, and stores tenant-scoped contact records plus raw history payloads. It does not yet normalize historical messages into live conversations, provide a history browser, enforce archive retention/purge, refresh tokens, manage templates, send outbound messages with per-tenant channel credentials, or provide a full channel reconnect UI. The outbox worker now resolves the tenant's connected Meta phone number and decrypts that channel's credential. Run one CLI worker per tenant. The global outbound kill switch remains in private configuration, and the configured message template must be approved by each tenant's WhatsApp business account. The separate Supabase receiver remains a diagnostic tool for the mock-site experiment; it is not the production tenant or conversation store.
+
+Meta partner eligibility, the actual app review/advanced access, the stable v5 configuration ID, the correct partner solution ID and a dedicated staging WordPress site must be confirmed before testing. Do not configure `meta.enabled` or initiate signup on the live Dimdian website. The mock GitHub Pages site cannot host the WordPress admin connector or PHP callback, so a separate staging WordPress installation is required for an end-to-end test.
+
+
+## Coexistence sync operations
+
+Successful Embedded Signup creates two one-shot sync jobs for each verified Coexistence phone number. The onboarding endpoint attempts them immediately, in this order:
+
+1. `smb_app_state_sync` — contacts
+2. `history` — chat-history chunks
+
+The requests are sent to the phone-number resource's `smb_app_data` edge with `messaging_product=whatsapp` and the corresponding `sync_type`. Meta request IDs and job state are retained in `channel_sync_jobs`. Incoming contacts are upserted into `whatsapp_contacts`; incoming history chunks are stored in `coexistence_history_payloads`.
+
+To process still-pending jobs after a temporary service interruption, run the tenant worker before the 24-hour window expires:
+
+```sh
+php public/cron/process-meta-sync.php TENANT_UUID
+```
+
+A job marked `failed` is not automatically retried. Verify whether Meta accepted the one-shot request before attempting any manual recovery. The history archive is not yet rendered as normal conversation history and currently has no automated retention purge.
+
+
+## Tenant-scoped outbound delivery
+
+Outbound WhatsApp is still protected by the global `whatsapp.outbound_enabled` kill switch. Before a visitor message is queued, the API requires explicit WhatsApp opt-in, a connected Meta channel for that same tenant, a usable token and a configured template name. The worker resolves the tenant's own encrypted channel credential and phone-number ID; it does not use another tenant's token.
+
+Run one worker per tenant:
+
+```sh
+php public/cron/process-outbox.php TENANT_UUID
+```
+
+If a token is expired or within five minutes of expiry, the connection is moved to `needs_action` and the message is not sent. Automatic token refresh is not implemented; an administrator must reconnect through Embedded Signup. If a tenant has multiple connected numbers, the worker currently selects the earliest connected number; an explicit primary-number selector remains future work. The template name/language are currently shared service configuration and must be approved on each tenant's WhatsApp account.
