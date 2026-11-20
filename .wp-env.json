@@ -1,0 +1,11 @@
+{
+  "core": "WordPress/WordPress#7.1.4",
+  "phpVersion": "8.2",
+  "plugins": [
+    "./wordpress-plugin/chatbridge-widget",
+    "https://downloads.wordpress.org/plugin/woocommerce.11.3.0.zip"
+  ],
+  "config": {
+    "WP_DEBUG": true
+  }
+}
