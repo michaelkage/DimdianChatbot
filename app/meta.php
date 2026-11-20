@@ -136,6 +136,14 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
             if (!is_array($phone)) continue;
             $phoneNumberId = (string)($phone['id'] ?? '');
             if (!preg_match('/^\d{5,40}$/', $phoneNumberId)) continue;
+            $phoneDetails = chatbridge_meta_graph_request('GET', $phoneNumberId, $accessToken, ['fields' => 'id,is_on_biz_app,platform_type']);
+            if ((string)($phoneDetails['id'] ?? '') !== $phoneNumberId) {
+                throw new RuntimeException('Meta phone-number verification returned an unexpected ID.');
+            }
+            $phoneIsOnBizApp = array_key_exists('is_on_biz_app', $phoneDetails)
+                ? !empty($phoneDetails['is_on_biz_app'])
+                : $isOnBizApp;
+            $phoneConnectionMode = $phoneIsOnBizApp ? 'coexistence' : 'standard';
 
             $existing = $pdo->prepare('SELECT tenant_id, id FROM channel_connections WHERE provider = "meta" AND phone_number_id = :phone_id LIMIT 1');
             $existing->execute([':phone_id' => $phoneNumberId]);
@@ -175,8 +183,8 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
                 ':business_account_id' => $businessAccountId,
                 ':phone_number_id' => $phoneNumberId,
                 ':display_phone_number' => $displayNumber,
-                ':connection_mode' => $connectionMode,
-                ':is_on_biz_app' => $isOnBizApp ? 1 : 0,
+                ':connection_mode' => $phoneConnectionMode,
+                ':is_on_biz_app' => $phoneIsOnBizApp ? 1 : 0,
                 ':credential' => $encryptedToken,
                 ':expires_at' => $expiresAt,
             ]);
@@ -194,13 +202,14 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
                 'phone_number_id' => $phoneNumberId,
                 'display_phone_number' => $displayNumber,
                 'business_account_id' => $businessAccountId,
-                'connection_mode' => $connectionMode,
+                'connection_mode' => $phoneConnectionMode,
             ];
         }
     }
 
     if ($connected === []) throw new RuntimeException('Meta signup completed but no usable phone number was provisioned.');
-    return ['connections' => $connected, 'connection_mode' => $connectionMode];
+    $modes = array_values(array_unique(array_column($connected, 'connection_mode')));
+    return ['connections' => $connected, 'connection_mode' => count($modes) === 1 ? $modes[0] : 'mixed'];
 }
 
 function resolve_meta_tenant_by_waba(PDO $pdo, string $businessAccountId): ?string
