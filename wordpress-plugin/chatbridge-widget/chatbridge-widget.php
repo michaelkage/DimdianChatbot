@@ -4,7 +4,7 @@
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
  * Version: 0.2.0
  * Requires at least: 6.3
- * Requires PHP: 8.2
+ * Requires PHP: 7.4
  * Author: ChatBridge
  * License: GPL-2.0-or-later
  * Text Domain: chatbridge-widget
