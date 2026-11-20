@@ -10,6 +10,15 @@ This is a **connector**, not a self-hosted WhatsApp chatbot product. It loads th
 
 The connected service currently provides guest website chat and optional WhatsApp continuation after explicit opt-in and server-side Meta configuration. Staff replies remain human replies. There is no AI auto-responder in this release. When enabled, the optional WooCommerce adapter searches published, catalogue-visible products directly on the same WordPress site.
 
+## Requirements
+
+- WordPress 6.3 or newer.
+- PHP 7.4 or newer for the WordPress plugin itself.
+- WooCommerce is optional; enable its product search only when WooCommerce is active.
+- The separately hosted ChatBridge PHP service still requires PHP 8.2 or newer.
+
+The WordPress plugin and remote chat service run in different PHP environments. The plugin's lower PHP requirement does not change the remote service's PHP requirement.
+
 ## Install
 
 1. Zip the `wordpress-plugin/chatbridge-widget/` directory so the ZIP contains `chatbridge-widget/chatbridge-widget.php` at its root.
