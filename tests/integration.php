@@ -81,6 +81,50 @@ expect(
     'read-only health endpoint confirms database and required schema'
 );
 
+$tenantApiKey = bin2hex(random_bytes(32));
+$tenantIdForSettings = '00000000-0000-4000-8000-000000000001';
+$pdo->prepare(
+    'INSERT INTO tenant_api_keys (id, tenant_id, label, key_sha256, role, status, created_at)
+     VALUES (:id, :tenant_id, "AI settings integration", :key_hash, "owner", "active", UTC_TIMESTAMP())'
+)->execute([':id' => uuid_v4(), ':tenant_id' => $tenantIdForSettings, ':key_hash' => hash('sha256', $tenantApiKey)]);
+$tenantHeaders = ['X-ChatBridge-Tenant-Key: ' . $tenantApiKey];
+[$aiUnauthStatus] = request_api('GET', '/api/ai/settings.php');
+expect($aiUnauthStatus === 401, 'AI settings endpoint requires a tenant owner/admin API key');
+[$aiInitialStatus, $aiInitial] = request_api('GET', '/api/ai/settings.php', null, $tenantHeaders);
+expect($aiInitialStatus === 200 && ($aiInitial['enabled'] ?? true) === false && ($aiInitial['has_api_key'] ?? true) === false, 'AI settings are disabled by default and do not expose a provider key');
+[$aiSaveStatus, $aiSaved] = request_api('POST', '/api/ai/settings.php', [
+    'provider' => 'openai_compatible',
+    'base_url' => 'https://api.openai.com/v1',
+    'model' => 'gpt-4o-mini',
+    'api_key' => 'test-provider-key-never-sent-to-provider',
+    'enabled' => true,
+    'max_output_tokens' => 400,
+    'monthly_token_budget' => 25000,
+], $tenantHeaders);
+expect($aiSaveStatus === 200 && ($aiSaved['has_api_key'] ?? false) === true, 'tenant admin can configure an AI API key without a provider request');
+[$aiReadStatus, $aiRead] = request_api('GET', '/api/ai/settings.php', null, $tenantHeaders);
+$aiCipherQuery = $pdo->prepare('SELECT api_key_ciphertext FROM tenant_ai_settings WHERE tenant_id = :tenant_id');
+$aiCipherQuery->execute([':tenant_id' => $tenantIdForSettings]);
+$aiCiphertext = (string)$aiCipherQuery->fetchColumn();
+expect($aiReadStatus === 200 && ($aiRead['enabled'] ?? false) === true && ($aiRead['model'] ?? '') === 'gpt-4o-mini' && !array_key_exists('api_key', $aiRead), 'AI settings readback exposes configuration but never returns the key');
+expect($aiCiphertext !== '' && strpos($aiCiphertext, 'test-provider-key-never-sent-to-provider') === false && chatbridge_decrypt_secret($aiCiphertext) === 'test-provider-key-never-sent-to-provider', 'AI provider key is encrypted in the tenant database');
+[$aiDisableStatus] = request_api('POST', '/api/ai/settings.php', [
+    'provider' => 'openai_compatible',
+    'base_url' => 'https://api.openai.com/v1',
+    'model' => 'gpt-4o-mini',
+    'enabled' => false,
+    'max_output_tokens' => 400,
+    'monthly_token_budget' => 25000,
+], $tenantHeaders);
+$aiCipherQuery->execute([':tenant_id' => $tenantIdForSettings]);
+expect($aiDisableStatus === 200 && (string)$aiCipherQuery->fetchColumn() === $aiCiphertext, 'disabling AI or updating settings without a new key preserves the encrypted credential');
+[$aiBadUrlStatus] = request_api('POST', '/api/ai/settings.php', [
+    'provider' => 'openai_compatible', 'base_url' => 'http://insecure.example.test',
+    'model' => 'test-model', 'enabled' => false, 'max_output_tokens' => 400, 'monthly_token_budget' => 0,
+], $tenantHeaders);
+expect($aiBadUrlStatus === 422, 'AI settings reject non-HTTPS provider endpoints');
+
+
 final class IntegrationSuccessTransport implements WhatsAppTextTransport
 {
     public function sendTemplate(string $recipient, string $bodyParameter): array
