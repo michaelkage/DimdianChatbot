@@ -52,7 +52,9 @@ try {
         $tenantChannel = get_tenant_meta_channel($pdo, (string)$session['tenant_id']);
         $tokenExpiry = is_array($tenantChannel) ? (string)($tenantChannel['token_expires_at'] ?? '') : '';
         $tokenUsable = $tokenExpiry === '' || (strtotime($tokenExpiry . ' UTC') !== false && strtotime($tokenExpiry . ' UTC') > time() + 300);
-        $outboundConfigured = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']);
+        $outboundConfigured = is_array($whatsappConfig)
+            && !empty($whatsappConfig['outbound_enabled'])
+            && trim((string)($whatsappConfig['template_name'] ?? '')) !== '';
         $outboundEnabled = $outboundConfigured && $visitorOptedIn && is_array($tenantChannel) && $tokenUsable;
         if (!$visitorOptedIn) {
             $transportState = 'website_chat_only';
@@ -61,7 +63,7 @@ try {
         } elseif (!$tokenUsable) {
             $transportState = 'whatsapp_reconnect_required';
         } elseif (!$outboundConfigured) {
-            $transportState = 'outbound_disabled';
+            $transportState = 'outbound_disabled_or_template_missing';
         }
         $pdo->beginTransaction();
         try {
