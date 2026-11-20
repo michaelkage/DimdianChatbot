@@ -336,3 +336,193 @@ function chatbridge_supabase_messages_api(string $method): never
         ],
     ]);
 }
+
+
+/** Upload bytes to the private bucket using the server credential only. */
+function chatbridge_supabase_storage_request(string $method, string $path, ?string $binary = null, string $contentType = 'application/octet-stream'): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('The PHP cURL extension is required for Supabase Storage.');
+    }
+    $config = chatbridge_supabase_config();
+    if ($path === '' || $path[0] !== '/' || str_contains($path, '://')) {
+        throw new InvalidArgumentException('Invalid Supabase Storage path.');
+    }
+    $headers = [
+        'apikey: ' . $config['key'],
+        'Authorization: Bearer ' . $config['key'],
+        'Accept: application/json',
+    ];
+    if ($binary !== null) {
+        $headers[] = 'Content-Type: ' . $contentType;
+        $headers[] = 'x-upsert: false';
+    }
+    $handle = curl_init($config['url'] . $path);
+    curl_setopt_array($handle, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => strtoupper($method),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    if ($binary !== null) {
+        curl_setopt($handle, CURLOPT_POSTFIELDS, $binary);
+    }
+    $response = curl_exec($handle);
+    $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+    $curlError = curl_error($handle);
+    curl_close($handle);
+    if (!is_string($response)) {
+        throw new RuntimeException('Supabase Storage request failed: ' . ($curlError !== '' ? $curlError : 'unknown transport error'));
+    }
+    if ($status < 200 || $status >= 300) {
+        error_log('[ChatBridge] Supabase Storage request failed with HTTP ' . $status . ': ' . mb_substr($response, 0, 500));
+        throw new ChatBridgeSupabaseException($status, $response);
+    }
+    if ($response === '') {
+        return [];
+    }
+    $decoded = json_decode($response, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+/** Create a private attachment and expose only short-lived links to visitor-visible files. */
+function chatbridge_supabase_attachments_api(string $method): never
+{
+    if (chatbridge_store_driver() !== 'supabase') {
+        json_response(['error' => ['code' => 'attachments_not_supported', 'message' => 'Attachments are not enabled for this database adapter yet.']], 501);
+    }
+    $tenantId = chatbridge_supabase_request_tenant_id();
+    if ($method === 'POST') {
+        $session = chatbridge_supabase_authenticate_guest($tenantId, true);
+        $rateConfig = app_config('app.attachment_rate_limit') ?? [];
+        chatbridge_supabase_take_rate_limit(
+            $tenantId,
+            'attachment:' . $tenantId . ':' . $session['session_id'],
+            max(1, (int)($rateConfig['max_requests'] ?? 5)),
+            max(60, (int)($rateConfig['window_seconds'] ?? 300))
+        );
+
+        $file = $_FILES['attachment'] ?? null;
+        if (!is_array($file) || !isset($file['tmp_name'], $file['error'], $file['size'], $file['name'])) {
+            json_response(['error' => ['code' => 'attachment_required', 'message' => 'Choose a file to attach.']], 422);
+        }
+        if ((int)$file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string)$file['tmp_name'])) {
+            json_response(['error' => ['code' => 'upload_failed', 'message' => 'The attachment could not be uploaded. Please try again.']], 400);
+        }
+        $size = (int)$file['size'];
+        if ($size < 1 || $size > 10485760) {
+            json_response(['error' => ['code' => 'attachment_size_invalid', 'message' => 'Attachments must be 10 MiB or smaller.']], 413);
+        }
+        if (!class_exists('finfo')) {
+            json_response(['error' => ['code' => 'file_validation_unavailable', 'message' => 'The server cannot validate uploaded files.']], 503);
+        }
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = (string)$finfo->file((string)$file['tmp_name']);
+        $extensions = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'application/pdf' => 'pdf',
+            'text/plain' => 'txt',
+            'application/json' => 'json',
+        ];
+        if (!isset($extensions[$mime])) {
+            json_response(['error' => ['code' => 'attachment_type_not_allowed', 'message' => 'Use a JPEG, PNG, WebP, PDF, text or JSON attachment.']], 415);
+        }
+        $debugBundle = ($_POST['attachment_kind'] ?? '') === 'debug_bundle';
+        if ($debugBundle && (($_POST['diagnostic_consent'] ?? '') !== '1' || !in_array($mime, ['application/json', 'text/plain'], true))) {
+            json_response(['error' => ['code' => 'diagnostic_consent_required', 'message' => 'A diagnostic bundle requires explicit consent and must be JSON or plain text.']], 422);
+        }
+        $binary = file_get_contents((string)$file['tmp_name']);
+        if (!is_string($binary) || strlen($binary) !== $size) {
+            json_response(['error' => ['code' => 'upload_failed', 'message' => 'The attachment could not be read. Please try again.']], 400);
+        }
+
+        $attachmentId = uuid_v4();
+        $conversationId = (string)$session['conversation_id'];
+        $storagePath = $tenantId . '/' . $conversationId . '/' . $attachmentId . '.' . $extensions[$mime];
+        $encodedPath = implode('/', array_map('rawurlencode', explode('/', $storagePath)));
+        $filename = basename(str_replace('\\', '/', (string)$file['name']));
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', $filename) ?? 'attachment';
+        $filename = substr($filename, 0, 180);
+        $visibility = $debugBundle ? 'staff_only' : 'customer_visible';
+        $uploaded = false;
+        try {
+            chatbridge_supabase_storage_request('POST', '/storage/v1/object/chatbridge-private/' . $encodedPath, $binary, $mime);
+            $uploaded = true;
+            chatbridge_supabase_request('POST', '/rest/v1/chatbridge_attachments', [
+                'id' => $attachmentId,
+                'tenant_id' => $tenantId,
+                'conversation_id' => $conversationId,
+                'storage_bucket' => 'chatbridge-private',
+                'storage_path' => $storagePath,
+                'original_filename' => $filename,
+                'mime_type' => $mime,
+                'byte_size' => $size,
+                'sha256' => hash('sha256', $binary),
+                'visibility' => $visibility,
+                'uploader_type' => 'visitor',
+                'metadata' => ['attachment_kind' => $debugBundle ? 'debug_bundle' : 'file'],
+            ], ['Prefer: return=minimal']);
+        } catch (Throwable $error) {
+            if ($uploaded) {
+                try {
+                    chatbridge_supabase_storage_request('DELETE', '/storage/v1/object/chatbridge-private/' . $encodedPath);
+                } catch (Throwable $cleanupError) {
+                    error_log('[ChatBridge] Supabase orphan attachment cleanup failed: ' . $cleanupError->getMessage());
+                }
+            }
+            throw $error;
+        }
+
+        json_response([
+            'data' => [
+                'id' => $attachmentId,
+                'conversation_id' => $conversationId,
+                'filename' => $filename,
+                'mime_type' => $mime,
+                'byte_size' => $size,
+                'visibility' => $visibility,
+                'created_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
+            ],
+        ], 201);
+    }
+
+    if ($method !== 'GET') {
+        header('Allow: GET, POST, OPTIONS');
+        json_response(['error' => ['code' => 'method_not_allowed', 'message' => 'Use GET to list attachments or POST to upload one.']], 405);
+    }
+    $session = chatbridge_supabase_authenticate_guest($tenantId, false);
+    $query = http_build_query([
+        'select' => 'id,conversation_id,storage_path,original_filename,mime_type,byte_size,created_at',
+        'tenant_id' => 'eq.' . $tenantId,
+        'conversation_id' => 'eq.' . $session['conversation_id'],
+        'visibility' => 'eq.customer_visible',
+        'deleted_at' => 'is.null',
+        'order' => 'created_at.asc',
+    ], '', '&', PHP_QUERY_RFC3986);
+    $rows = chatbridge_supabase_request('GET', '/rest/v1/chatbridge_attachments?' . $query);
+    $items = [];
+    foreach ($rows as $row) {
+        $encodedPath = implode('/', array_map('rawurlencode', explode('/', (string)$row['storage_path'])));
+        $signed = chatbridge_supabase_request(
+            'POST',
+            '/storage/v1/object/sign/chatbridge-private/' . $encodedPath,
+            ['expiresIn' => 60]
+        );
+        $items[] = [
+            'id' => $row['id'],
+            'filename' => $row['original_filename'],
+            'mime_type' => $row['mime_type'],
+            'byte_size' => (int)$row['byte_size'],
+            'created_at' => $row['created_at'],
+            'signed_url' => $signed['signedURL'] ?? null,
+            'url_expires_in' => 60,
+        ];
+    }
+    json_response(['data' => $items]);
+}
