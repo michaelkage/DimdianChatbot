@@ -289,6 +289,64 @@ function complete_meta_embedded_signup(PDO $pdo, string $tenantId, string $code,
     return ['connections' => $connected, 'connection_mode' => count($modes) === 1 ? $modes[0] : 'mixed'];
 }
 
+function get_tenant_meta_channel(PDO $pdo, string $tenantId): ?array
+{
+    $query = $pdo->prepare(
+        'SELECT id, phone_number_id, credential_ciphertext, token_expires_at, connection_status
+         FROM channel_connections
+         WHERE tenant_id = :tenant_id AND provider = "meta"
+           AND connection_status = "connected" AND credential_ciphertext IS NOT NULL
+         ORDER BY connected_at ASC, created_at ASC, id ASC
+         LIMIT 1'
+    );
+    $query->execute([':tenant_id' => $tenantId]);
+    $channel = $query->fetch();
+    return is_array($channel) ? $channel : null;
+}
+
+final class TenantMetaCloudApiTransport implements WhatsAppTextTransport
+{
+    public function __construct(private readonly PDO $pdo, private readonly string $tenantId) {}
+
+    public function sendTemplate(string $recipient, string $bodyParameter): array
+    {
+        $channel = get_tenant_meta_channel($this->pdo, $this->tenantId);
+        if (!is_array($channel)) {
+            throw new WhatsAppTransportException('This tenant has no connected WhatsApp phone number.', false);
+        }
+
+        $expiresAt = (string)($channel['token_expires_at'] ?? '');
+        if ($expiresAt !== '' && strtotime($expiresAt . ' UTC') <= time() + 300) {
+            $mark = $this->pdo->prepare(
+                'UPDATE channel_connections
+                 SET connection_status = "needs_action", last_error_code = "TOKEN_EXPIRING",
+                     last_error_message = "Reconnect WhatsApp to renew the business access token.",
+                     updated_at = UTC_TIMESTAMP()
+                 WHERE tenant_id = :tenant_id AND id = :id AND connection_status = "connected"'
+            );
+            $mark->execute([':tenant_id' => $this->tenantId, ':id' => $channel['id']]);
+            throw new WhatsAppTransportException('WhatsApp access token is expired or expiring; reconnect this business account.', false);
+        }
+
+        try {
+            $accessToken = chatbridge_decrypt_secret((string)$channel['credential_ciphertext']);
+        } catch (Throwable $error) {
+            error_log('[ChatBridge Meta transport] Tenant credential decryption failed: ' . $error->getMessage());
+            throw new WhatsAppTransportException('WhatsApp credentials could not be decrypted; reconnect this business account.', false);
+        }
+
+        $whatsappConfig = app_config('whatsapp') ?? [];
+        $metaConfig = app_config('meta') ?? [];
+        if (!is_array($whatsappConfig)) $whatsappConfig = [];
+        if (!is_array($metaConfig)) $metaConfig = [];
+        $whatsappConfig['phone_number_id'] = (string)$channel['phone_number_id'];
+        $whatsappConfig['access_token'] = $accessToken;
+        $whatsappConfig['graph_api_version'] = (string)($metaConfig['graph_api_version'] ?? $whatsappConfig['graph_api_version'] ?? 'v27.0');
+
+        return (new MetaCloudApiTransport($whatsappConfig))->sendTemplate($recipient, $bodyParameter);
+    }
+}
+
 function process_meta_coexistence_sync_jobs(PDO $pdo, string $tenantId, int $batchSize = 10): array
 {
     $summary = ['requested' => 0, 'failed' => 0, 'expired' => 0];
