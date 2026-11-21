@@ -3,7 +3,7 @@
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 GRANT USAGE ON SCHEMA cron TO postgres;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
-CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 -- A value of 0 means keep indefinitely. Defaults are 14 days for every category.
 
 CREATE TABLE IF NOT EXISTS public.chatbridge_retention_settings (
