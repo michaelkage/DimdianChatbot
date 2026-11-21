@@ -206,8 +206,10 @@ staff_expect(
 
 staff_expect($repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign'), 'active assignment can be ended');
 staff_expect(!$repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign-again'), 'unassigning an unassigned conversation is idempotent');
+$repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-reassign-for-self-unassign');
 staff_expect($agentService->unassignConversation($agentServer, $conversationId, 'staff-agent-own-unassign'), 'agent can unassign their own active conversation');
 staff_expect($repository->getActiveAssignee($conversationId) === null, 'agent self-unassignment ends only their active assignment');
+$repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-restore-agent-assignment');
 
 $secondGuestId = uuid_v4();
 $secondConversationId = uuid_v4();
