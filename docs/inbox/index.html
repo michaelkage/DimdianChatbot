@@ -39,6 +39,20 @@
 <div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="primary" id="emailChangeButton" type="submit">Request email change</button><button class="ghost" id="closeAccountSettings" type="button">Cancel</button></div>
 <div class="error" id="emailChangeStatus" role="status"></div>
 </form>
+<div style="border-top:1px solid var(--line);margin:20px 0;padding-top:18px">
+<div class="eyebrow">Data lifecycle</div><h2 style="font-size:17px;margin:4px 0">Automatic data retention</h2>
+<p class="muted" style="font-size:12px;margin:4px 0 12px">Choose how long each data category is kept. Cleanup runs daily at approximately 04:15 Lagos time. Use 0 to keep a category indefinitely. Changes apply to existing records as well as new records.</p>
+<form id="retentionForm" style="max-width:720px">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px">
+<div><label for="retentionConversations">Conversations and messages (days)</label><input id="retentionConversations" type="number" min="0" max="3650" step="1" required></div>
+<div><label for="retentionAttachments">Customer uploads (days)</label><input id="retentionAttachments" type="number" min="0" max="3650" step="1" required></div>
+<div><label for="retentionDiagnostics">Diagnostic bundles (days)</label><input id="retentionDiagnostics" type="number" min="0" max="3650" step="1" required></div>
+<div><label for="retentionAudit">Staff activity history (days)</label><input id="retentionAudit" type="number" min="0" max="3650" step="1" required></div>
+</div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="primary" id="saveRetention" type="submit">Save retention settings</button><button class="ghost" id="runRetention" type="button">Run cleanup now</button></div>
+<div class="error" id="retentionStatus" role="status"></div><p class="notice" id="retentionLastRun"></p>
+</form>
+</div>
 </section>
 <div class="inbox">
 <aside class="list"><div class="list-head"><strong style="font-size:12px">Inbox</strong><select id="filter" aria-label="Filter conversations"><option value="open">Open</option><option value="closed">Closed</option><option value="all">All</option></select><button class="ghost" id="refresh" style="padding:7px 9px">↻</button></div><div class="list-body" id="conversationList"><div class="empty">Loading conversations…</div></div></aside>
@@ -66,12 +80,47 @@ function showWorkspace(){ $('#login').classList.add('hidden');$('#workspace').cl
 function persist(){sessionStorage.setItem('dimdian_staff_session',JSON.stringify(session));}
 function clearSession(){session=null;sessionStorage.removeItem('dimdian_staff_session');selected=null;conversations=[];if(pollHandle)clearInterval(pollHandle);showLogin();}
 async function authRequest(path,body){const response=await fetch(PROJECT_URL+'/auth/v1/'+path,{method:'POST',headers:headers(),body:JSON.stringify(body)});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.msg||payload.message||payload.error_description||'Sign-in failed.');return payload;}
-async function login(email,password){const data=await authRequest('token?grant_type=password',{email,password});session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Date.now()+Number(data.expires_in||3600)*1000,user:data.user};persist();showWorkspace();await loadConversations();startPolling();}
+async function login(email,password){const data=await authRequest('token?grant_type=password',{email,password});session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Date.now()+Number(data.expires_in||3600)*1000,user:data.user};persist();showWorkspace();await Promise.all([loadConversations(),loadRetentionSettings()]);startPolling();}
 async function refreshSession(){if(!session?.refresh_token)throw new Error('Please sign in again.');const data=await authRequest('token?grant_type=refresh_token',{refresh_token:session.refresh_token});session={access_token:data.access_token,refresh_token:data.refresh_token,expires_at:Date.now()+Number(data.expires_in||3600)*1000,user:data.user};persist();}
 async function ensureFresh(){if(session&&Date.now()>session.expires_at-60000)await refreshSession();}
 async function api(path,options={}){await ensureFresh();const response=await fetch(API+path,{...options,headers:{...headers(),'Authorization':'Bearer '+session.access_token,...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error('Your staff session expired. Please sign in again.');}if(!response.ok)throw new Error(payload.error?.message||'The request failed.');return payload;}
 function safeDate(value){if(!value)return '';const date=new Date(value);return Number.isNaN(date.getTime())?'':date.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 function el(tag,cls,text){const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;}
+async function loadRetentionSettings(){
+ const payload=await api('/staff/retention');
+ const values=payload.data||{};
+ const fields={conversation_days:'#retentionConversations',attachment_days:'#retentionAttachments',diagnostic_days:'#retentionDiagnostics',audit_days:'#retentionAudit'};
+ for(const [key,selector] of Object.entries(fields))$(selector).value=String(values[key]??14);
+ const canManage=Boolean(payload.can_manage);
+ for(const selector of Object.values(fields))$(selector).disabled=!canManage;
+ $('#saveRetention').disabled=!canManage;$('#runRetention').disabled=!canManage;
+ if(!canManage)$('#retentionStatus').textContent='Only tenant owners and admins can change or run retention.';
+ else $('#retentionStatus').textContent='';
+ const last=payload.last_run;
+ $('#retentionLastRun').textContent=last?'Last cleanup: '+safeDate(last.created_at)+' · '+last.conversations_deleted+' conversations · '+last.attachments_deleted+' files · '+last.audit_events_deleted+' audit events · '+last.failures+' failures':'No cleanup run has been recorded yet.';
+}
+async function saveRetentionSettings(event){
+ event.preventDefault();
+ const button=$('#saveRetention');button.disabled=true;$('#retentionStatus').textContent='Saving settings…';
+ try{
+  const data={conversation_days:Number($('#retentionConversations').value),attachment_days:Number($('#retentionAttachments').value),diagnostic_days:Number($('#retentionDiagnostics').value),audit_days:Number($('#retentionAudit').value)};
+  const payload=await api('/staff/retention',{method:'PATCH',body:JSON.stringify(data)});
+  if(!payload.data)throw new Error('The settings were not saved.');
+  $('#retentionStatus').textContent='Retention settings saved. The next scheduled cleanup will apply them.';
+  showToast('Data retention settings saved.');
+ }catch(error){$('#retentionStatus').textContent=error.message;}
+ finally{button.disabled=false;}
+}
+async function runRetentionNow(){
+ const button=$('#runRetention');button.disabled=true;$('#retentionStatus').textContent='Running retention cleanup…';
+ try{
+  const payload=await api('/staff/retention/run',{method:'POST',body:'{}'});
+  const result=(payload.data?.results||[])[0]||{};
+  $('#retentionStatus').textContent='Cleanup finished: '+(result.conversations_deleted||0)+' conversations, '+(result.attachments_deleted||0)+' files and '+(result.audit_events_deleted||0)+' audit events deleted; '+(result.failures||0)+' failures.';
+  await loadRetentionSettings();showToast('Retention cleanup finished.');
+ }catch(error){$('#retentionStatus').textContent=error.message;}
+ finally{button.disabled=false;}
+}
 async function loadConversations(){const filter=$('#filter').value;const payload=await api('/staff/conversations?status='+encodeURIComponent(filter)+'&limit=100');conversations=payload.data||[];renderList();if(selected){const found=conversations.find(c=>c.id===selected);if(!found){selected=null;renderDetailEmpty();}else await loadMessages(false);}}
 function renderList(){const list=$('#conversationList');list.replaceChildren();if(!conversations.length){list.append(el('div','empty','No '+$('#filter').value+' conversations.'));return;}for(const c of conversations){const button=el('button','item'+(c.id===selected?' active':''));button.type='button';button.addEventListener('click',()=>selectConversation(c.id));const top=el('div','item-top');top.append(el('strong','',c.guest_name||'Website visitor'),el('time','',safeDate(c.last_message_at||c.created_at)));button.append(top);button.append(el('div','preview',c.last_message?.message||'No messages yet'));const foot=el('div','item-foot');foot.append(el('span','pill'+(c.status==='closed'?' closed':''),c.status));if(Number(c.attachment_count)>0)foot.append(el('span','',c.attachment_count+' attachment(s)'));if(c.assigned_to)foot.append(el('span','',c.assigned_to===session.user.id?'Assigned to you':'Assigned'));button.append(foot);list.append(button);}}
 function renderDetailEmpty(){const node=$('#detail');node.replaceChildren();const empty=el('div','empty');empty.append(el('strong','','Select a conversation'),el('p','','Choose a visitor message from the inbox.'));node.append(empty);}
@@ -110,11 +159,13 @@ function startPolling(){if(pollHandle)clearInterval(pollHandle);pollHandle=setIn
 $('#loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('#loginButton');button.disabled=true;$('#loginError').textContent='';try{await login($('#email').value.trim(),$('#password').value);}catch(error){$('#loginError').textContent=error.message;}finally{button.disabled=false;}});
 $('#accountSettings').addEventListener('click',()=>{const panel=$('#accountPanel');panel.classList.toggle('hidden');$('#accountEmail').textContent=session?.user?.email||'';$('#newEmail').value='';$('#emailChangeStatus').textContent='';});
 $('#closeAccountSettings').addEventListener('click',()=>$('#accountPanel').classList.add('hidden'));
+$('#retentionForm').addEventListener('submit',saveRetentionSettings);
+$('#runRetention').addEventListener('click',runRetentionNow);
 $('#emailChangeForm').addEventListener('submit',async event=>{event.preventDefault();const nextEmail=$('#newEmail').value.trim();if(!nextEmail||nextEmail.toLowerCase()===String(session?.user?.email||'').toLowerCase())return;const button=$('#emailChangeButton');button.disabled=true;$('#emailChangeStatus').textContent='Sending confirmation request…';try{const response=await fetch(PROJECT_URL+'/auth/v1/user',{method:'PATCH',headers:{...headers(),'Authorization':'Bearer '+session.access_token},body:JSON.stringify({email:nextEmail})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.msg||payload.message||payload.error_description||'Could not request the email change.');$('#emailChangeStatus').textContent='Confirmation requested. Check the new email address and follow Supabase’s confirmation instructions. The account may continue showing the current address until verification is complete.';showToast('Email change confirmation requested.');}catch(error){$('#emailChangeStatus').textContent=error.message;}finally{button.disabled=false;}});
 $('#logout').addEventListener('click',async()=>{try{if(session?.access_token)await fetch(PROJECT_URL+'/auth/v1/logout',{method:'POST',headers:{...headers(),'Authorization':'Bearer '+session.access_token}});}catch(_){}clearSession();});
 $('#filter').addEventListener('change',()=>loadConversations().catch(e=>showToast(e.message)));
 $('#refresh').addEventListener('click',()=>loadConversations().then(()=>{if(selected)loadAttachments();}).catch(e=>showToast(e.message)));
-try{const stored=sessionStorage.getItem('dimdian_staff_session');if(stored){session=JSON.parse(stored);if(session.access_token&&session.refresh_token&&session.user){showWorkspace();loadConversations().then(startPolling).catch(error=>showLogin(error.message));}else clearSession();}}catch(_){clearSession();}
+try{const stored=sessionStorage.getItem('dimdian_staff_session');if(stored){session=JSON.parse(stored);if(session.access_token&&session.refresh_token&&session.user){showWorkspace();Promise.all([loadConversations(),loadRetentionSettings()]).then(startPolling).catch(error=>showLogin(error.message));}else clearSession();}}catch(_){clearSession();}
 })();
 </script>
 </body>
