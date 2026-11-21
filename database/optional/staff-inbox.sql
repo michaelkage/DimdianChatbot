@@ -49,12 +49,14 @@ CREATE TABLE IF NOT EXISTS staff_conversation_assignments (
 -- Notes are a separate private resource. They are never inserted into messages
 -- and therefore cannot be returned by the visitor message-polling endpoint.
 CREATE TABLE IF NOT EXISTS staff_internal_notes (
+    sequence_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
     author_staff_id CHAR(36) NOT NULL,
     body TEXT NOT NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_staff_note_sequence (sequence_id),
     KEY idx_staff_notes_conversation (conversation_id, created_at, id),
     CONSTRAINT fk_staff_note_conversation
         FOREIGN KEY (conversation_id) REFERENCES conversations (id)
