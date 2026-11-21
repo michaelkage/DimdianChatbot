@@ -306,6 +306,7 @@ $pdo->prepare(
     'INSERT INTO messages (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :conversation_id, "visitor", "template success", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $successMessageId, ':conversation_id' => $conversationId]);
+expect(chat_repository($pdo)->hasWhatsAppConsent($successMessageId), 'outbox worker can read the opted-in guest consent for a queued message');
 enqueue_whatsapp_notification($pdo, $successMessageId, '2348031234567', 'Template body parameter');
 $success = process_whatsapp_outbox($pdo, new IntegrationSuccessTransport(), 1, 3);
 expect($success['sent'] === 1, 'outbox worker sends and acknowledges a successful job');
@@ -357,7 +358,7 @@ expect($staleSummary['failed'] === 1 && $staleMessageStatus === 'failed', 'exhau
  * consent checks and atomic message/outbox state transitions.
  */
 $outboxRepository = chat_repository($pdo);
-$leaseMessageId = 'e0000000-0000-4000-8000-000000000006';
+$leaseMessageId = 'e0000000-0000-4000-8000-000000000007';
 $leaseOutboxId = 'f0000000-0000-4000-8000-000000000006';
 $pdo->prepare(
     'INSERT INTO messages (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
