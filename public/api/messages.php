@@ -15,7 +15,8 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 
 try {
     $pdo = database();
-    $session = authenticate_guest_session($pdo, $method === 'POST');
+    $repository = chat_repository($pdo);
+    $session = authenticate_guest_session($repository, $method === 'POST');
 
     if ($method === 'POST') {
         $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
@@ -40,37 +41,33 @@ try {
             json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
         }
         $messageId = uuid_v4();
-        // Save the visitor message first. If WhatsApp is eligible, queue its send in the same DB transaction so a message cannot be saved without its matching outbox job (or vice versa).
-        // A successful HTTP response confirms database persistence, not delivery to WhatsApp.
-        $transportState = 'not_configured';
+        // The repository owns the transaction that persists the message,
+        // advances conversation activity and inserts an optional outbox job.
         $whatsappConfig = app_config('whatsapp') ?? [];
         $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
         $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
-        $pdo->beginTransaction();
-        try {
-            $insert = $pdo->prepare(
-                'INSERT IGNORE INTO messages
-                    (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
-                 VALUES
-                    (:id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-            );
-            $insert->execute([
-                ':id' => $messageId,
-                ':conversation_id' => $session['conversation_id'],
-                ':client_message_id' => $clientMessageId,
-                ':body' => $messageText,
-                ':delivery_status' => $outboundEnabled ? 'queued' : 'web_only',
-            ]);
 
-            $wasInserted = $insert->rowCount() === 1;
-            $sequenceQuery = $pdo->prepare('SELECT id, sequence_id, sent_at, delivery_status, body FROM messages WHERE conversation_id = :conversation_id AND client_message_id = :client_message_id LIMIT 1');
-            $sequenceQuery->execute([':conversation_id' => $session['conversation_id'], ':client_message_id' => $clientMessageId]);
-            $saved = $sequenceQuery->fetch();
-            if (!$saved) throw new RuntimeException('Message idempotency lookup failed.');
-            if (!hash_equals((string)$saved['body'], $messageText)) {
-                $pdo->rollBack();
-                json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
+        try {
+            $result = $repository->createVisitorMessage([
+                'id' => $messageId,
+                'conversation_id' => (string) $session['conversation_id'],
+                'client_message_id' => $clientMessageId,
+                'body' => $messageText,
+                'outbound_enabled' => $outboundEnabled,
+                'outbox_id' => uuid_v4(),
+                'recipient' => $visitorWhatsApp,
+                'outbox_payload' => mb_substr_safe($messageText, 0, 1000),
+            ]);
+        } catch (ChatStorageConflict $error) {
+            json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
+        }
+
+        $saved = $result['message'];
+        $wasInserted = $result['inserted'];
+        $transportState = $result['transport'];
+
+        json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
             }
             $messageId = (string)$saved['id'];
 
@@ -125,43 +122,11 @@ try {
     }
     $limit = max(1, min(100, (int)$limitRaw));
 
-    $query = $pdo->prepare(
-        'SELECT sequence_id, id, sender_type, body, delivery_status, sent_at
-         FROM messages
-         WHERE conversation_id = :conversation_id AND sequence_id > :after
-         ORDER BY sequence_id ASC
-         LIMIT ' . ($limit + 1)
-    );
-    $query->bindValue(':conversation_id', $session['conversation_id']);
-    $query->bindValue(':after', $after, PDO::PARAM_INT);
-    $query->execute();
-
-    $rows = $query->fetchAll();
-    $hasMore = count($rows) > $limit;
-    if ($hasMore) {
-        $rows = array_slice($rows, 0, $limit);
-    }
-    $items = array_map(static function (array $row): array {
-        return [
-            'id' => $row['id'],
-            'sequence_id' => (int)$row['sequence_id'],
-            'sender' => $row['sender_type'],
-            'message' => $row['body'],
-            'delivery_status' => $row['delivery_status'],
-            'created_at' => (new DateTimeImmutable($row['sent_at'], new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
-        ];
-    }, $rows);
-
-    $nextCursor = $items === [] ? $after : $items[array_key_last($items)]['sequence_id'];
-    $statusQuery = $pdo->prepare(
-        'SELECT id, delivery_status FROM messages
-         WHERE conversation_id = :conversation_id AND sender_type = "visitor"
-         ORDER BY sequence_id DESC LIMIT 50'
-    );
-    $statusQuery->execute([':conversation_id' => $session['conversation_id']]);
-    $deliveryUpdates = array_map(static fn(array $row): array => [
-        'id' => $row['id'], 'delivery_status' => $row['delivery_status'],
-    ], $statusQuery->fetchAll());
+    $page = $repository->listConversationMessages((string) $session['conversation_id'], $after, $limit);
+    $items = $page['items'];
+    $hasMore = $page['has_more'];
+    $nextCursor = $page['next_cursor'];
+    $deliveryUpdates = $repository->listVisitorDeliveryUpdates((string) $session['conversation_id'], 50);
 
     json_response([
         'data' => $items,
