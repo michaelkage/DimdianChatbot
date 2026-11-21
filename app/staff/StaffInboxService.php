@@ -1,0 +1,178 @@
+<?php
+declare(strict_types=1);
+
+final class StaffInboxAuthenticationException extends RuntimeException
+{
+}
+
+final class StaffInboxAuthorizationException extends RuntimeException
+{
+}
+
+/**
+ * Application policy boundary for staff operations.
+ *
+ * Roles are read from local staff_identities storage. Roles or permissions
+ * returned by an external identity provider are deliberately ignored.
+ */
+final class StaffInboxService
+{
+    public function __construct(
+        private StaffIdentityProvider $identityProvider,
+        private StaffInboxRepository $repository
+    ) {
+    }
+
+    /** @return array<string,mixed> */
+    public function authenticate(array $server): array
+    {
+        try {
+            $principal = $this->identityProvider->authenticate($server);
+        } catch (Throwable) {
+            throw new StaffInboxAuthenticationException('Staff authentication failed.');
+        }
+        if (!is_array($principal)) {
+            throw new StaffInboxAuthenticationException('A valid staff identity is required.');
+        }
+
+        $provider = strtolower(trim((string)($principal['auth_provider'] ?? '')));
+        $subject = (string)($principal['external_subject'] ?? '');
+        $name = trim((string)($principal['display_name'] ?? ''));
+        $email = isset($principal['email']) ? (string)$principal['email'] : null;
+        if (!preg_match('/^[a-z0-9._-]{1,40}$/', $provider)
+            || $subject === '' || strlen($subject) > 191 || $name === '' || strlen($name) > 100) {
+            throw new StaffInboxAuthenticationException('The verified staff identity is incomplete.');
+        }
+
+        try {
+            $id = $this->repository->upsertStaffIdentity([
+                'id' => self::uuidV4(),
+                'auth_provider' => $provider,
+                'external_subject' => $subject,
+                'display_name' => $name,
+                'email' => $email,
+            ]);
+            $identity = $this->repository->findStaffIdentityById($id);
+        } catch (Throwable) {
+            throw new StaffInboxAuthenticationException('Staff identity could not be resolved.');
+        }
+
+        if (!is_array($identity) || ($identity['status'] ?? '') !== 'active') {
+            throw new StaffInboxAuthenticationException('This staff account is not active.');
+        }
+        return $identity;
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function listConversations(array $server, string $status, int $afterSequence, int $limit): array
+    {
+        $actor = $this->authenticate($server);
+        $assignedTo = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        return $this->repository->listConversations($status, $assignedTo, $afterSequence, $limit);
+    }
+
+    public function assignConversation(
+        array $server,
+        string $conversationId,
+        string $targetStaffId,
+        ?string $requestId = null
+    ): void {
+        $actor = $this->authenticate($server);
+        if (!self::isAdministrator($actor)) {
+            if ($targetStaffId !== (string)$actor['id']) {
+                throw new StaffInboxAuthorizationException('Agents may only assign conversations to themselves.');
+            }
+            $currentAssignee = $this->repository->getActiveAssignee($conversationId);
+            if ($currentAssignee !== null && $currentAssignee !== (string)$actor['id']) {
+                throw new StaffInboxAuthorizationException('This conversation is already assigned to another agent.');
+            }
+            if ($currentAssignee === (string)$actor['id']) return;
+        }
+        $this->repository->assignConversation($conversationId, $targetStaffId, (string)$actor['id'], $requestId);
+    }
+
+    public function unassignConversation(
+        array $server,
+        string $conversationId,
+        ?string $requestId = null
+    ): bool {
+        $actor = $this->authenticate($server);
+        if (!self::isAdministrator($actor)
+            && $this->repository->getActiveAssignee($conversationId) !== (string)$actor['id']) {
+            throw new StaffInboxAuthorizationException('Agents may only unassign their own conversations.');
+        }
+        return $this->repository->unassignConversation($conversationId, (string)$actor['id'], $requestId);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function listAssignmentHistory(array $server, string $conversationId, int $afterId, int $limit): array
+    {
+        $actor = $this->authenticate($server);
+        $this->requireConversationAccess($actor, $conversationId);
+        return $this->repository->listAssignmentHistory($conversationId, $afterId, $limit);
+    }
+
+    public function addInternalNote(
+        array $server,
+        string $id,
+        string $conversationId,
+        string $body,
+        ?string $requestId = null
+    ): void {
+        $actor = $this->authenticate($server);
+        $this->requireConversationAccess($actor, $conversationId);
+        $this->repository->addInternalNote($id, $conversationId, (string)$actor['id'], $body, $requestId);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function listInternalNotes(array $server, string $conversationId, int $afterId, int $limit): array
+    {
+        $actor = $this->authenticate($server);
+        $this->requireConversationAccess($actor, $conversationId);
+        return $this->repository->listInternalNotes($conversationId, $afterId, $limit);
+    }
+
+    public function createStaffReply(
+        array $server,
+        array $message,
+        ?string $requestId = null
+    ): array {
+        $actor = $this->authenticate($server);
+        $conversationId = (string)($message['conversation_id'] ?? '');
+        $this->requireConversationAccess($actor, $conversationId);
+        return $this->repository->createStaffReply($message, (string)$actor['id'], $requestId);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function listAuditEvents(array $server, string $conversationId, int $afterId, int $limit): array
+    {
+        $actor = $this->authenticate($server);
+        $this->requireConversationAccess($actor, $conversationId);
+        if (!self::isAdministrator($actor)) {
+            throw new StaffInboxAuthorizationException('Only administrators can inspect the audit trail.');
+        }
+        return $this->repository->listAuditEvents($conversationId, $afterId, $limit);
+    }
+
+    private function requireConversationAccess(array $actor, string $conversationId): void
+    {
+        if (self::isAdministrator($actor)) return;
+        if ($this->repository->getActiveAssignee($conversationId) !== (string)$actor['id']) {
+            throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
+        }
+    }
+
+    private static function isAdministrator(array $actor): bool
+    {
+        return in_array((string)($actor['role'] ?? ''), ['owner', 'admin'], true);
+    }
+
+    private static function uuidV4(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+        $hex = bin2hex($bytes);
+        return sprintf('%s-%s-%s-%s-%s', substr($hex, 0, 8), substr($hex, 8, 4), substr($hex, 12, 4), substr($hex, 16, 4), substr($hex, 20));
+    }
+}
