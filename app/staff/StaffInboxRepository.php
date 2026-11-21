@@ -36,7 +36,8 @@ interface StaffInboxRepository
         string $status,
         ?string $assignedStaffId,
         int $afterSequence,
-        int $limit
+        int $limit,
+        bool $includeUnassigned = false
     ): array;
 
     /** Assign an open conversation, replacing its prior active assignment atomically. */
