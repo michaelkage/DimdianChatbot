@@ -53,7 +53,7 @@ See API.md for the detailed request/response and error contract.
 - The v1 aliases must pass the same integration tests as the legacy routes.
 - Behaviour changes that break existing clients require a new API version or an explicitly documented compatibility window.
 - Additional backend implementations must implement this contract independently and pass the shared API acceptance suite.
-- Session/message handlers, consent transitions, rate-limit buckets, and webhook-inbox enqueue/lease/completion/retry persistence now use `ChatRepository` backed by the MySQL/MariaDB `PdoChatRepository`. Meta event interpretation and event-to-message writes, staff operations, retention, and the WhatsApp outbox worker remain PDO-coupled; this is not yet a complete storage adapter.
+- Session/message handlers, consent transitions, rate-limit buckets, and webhook-inbox enqueue/lease/completion/retry persistence now use `ChatRepository` backed by the MySQL/MariaDB `PdoChatRepository`. Meta payload interpretation and active connection lookup remain application-service concerns. Provider-event deduplication, inbound/echo message writes, status-event storage and delivery-state reconciliation now use the repository. Staff operations, retention and most WhatsApp outbox-worker persistence remain PDO-coupled; this is not yet a complete storage adapter.
 - Do not advertise PostgreSQL, SQLite, another runtime, or a provider as supported merely because these aliases or the repository interface exist. The current adapter still uses MySQL/MariaDB-oriented SQL.
 
 ## Next API milestone
