@@ -189,6 +189,8 @@ try {
     $agentCannotReadUnassigned = true;
 }
 staff_expect($agentCannotReadUnassigned, 'agent cannot add notes to an unassigned conversation');
+$agentService->assignConversation($agentServer, $secondConversationId, $resolvedB, 'staff-agent-self-assign');
+staff_expect($repository->getActiveAssignee($secondConversationId) === $resolvedB, 'agent can self-assign an unassigned conversation');
 
 $ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
 staff_expect(count($ownerList) >= 2, 'owner can list all conversations across the installation');
