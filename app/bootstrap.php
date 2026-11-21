@@ -134,7 +134,11 @@ function request_json(int $maxBytes = 8192): array
     }
 
     $raw = file_get_contents('php://input');
-    if ($raw === false || trim($raw) === '') {
+    if ($raw === false) $raw = '';
+    // Preserve the exact bytes so the optional staff HMAC adapter can verify
+    // the body after the JSON decoder has consumed php://input.
+    $_SERVER['CHATBRIDGE_RAW_BODY'] = $raw;
+    if (trim($raw) === '') {
         return [];
     }
     if (strlen($raw) > $maxBytes) {
