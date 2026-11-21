@@ -185,6 +185,17 @@ check(($GLOBALS['chatbridge_options']['chatbridge_meta_admin_api_key'] ?? '') ==
 check(($GLOBALS['chatbridge_option_autoload']['chatbridge_meta_admin_api_key'] ?? null) === false, 'Meta admin key is saved with autoload disabled');
 check(!array_key_exists('meta_admin_api_key', $secretSettings), 'Meta admin key is excluded from the general widget settings array');
 check(($secretSettings['meta_partner_solution_id'] ?? '') === 'partner-solution-123', 'Partner Solution ID is saved in the admin settings');
+$staffSettings = chatbridge_widget_sanitize_settings([
+    'api_base' => 'https://chat.example.test/api',
+    'staff_inbox_enabled' => '1',
+    'staff_assertion_secret' => str_repeat('staff-secret-', 4),
+]);
+check(($staffSettings['staff_inbox_enabled'] ?? 0) === 1, 'optional staff inbox setting is persisted as an explicit flag');
+check(($GLOBALS['chatbridge_options']['chatbridge_staff_assertion_secret'] ?? '') === str_repeat('staff-secret-', 4), 'staff assertion secret is stored in a separate private option');
+check(($GLOBALS['chatbridge_option_autoload']['chatbridge_staff_assertion_secret'] ?? null) === false, 'staff assertion secret is saved with autoload disabled');
+check(!array_key_exists('staff_assertion_secret', $staffSettings), 'staff assertion secret is excluded from general widget settings');
+check(chatbridge_staff_inbox_is_configured(), 'staff inbox becomes configured only with enabled flag, HTTPS API and private secret');
+
 
 $disabled = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 check($disabled->get_status() === 403, 'public endpoint respects the administrator product-search toggle');
