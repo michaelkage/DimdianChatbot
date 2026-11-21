@@ -76,7 +76,7 @@ function process_webhook_inbox(PDO $pdo, ChatRepository $repository, int $limit 
             $phone = function_exists('meta_active_phone_number_id')
                 ? meta_active_phone_number_id($pdo)
                 : (string) app_config('whatsapp.phone_number_id');
-            $result = process_meta_webhook($pdo, $payload, $raw, $phone);
+            $result = process_meta_webhook($repository, $payload, $raw, $phone);
             $repository->completeWebhookInbox((int) $job['id'], $token);
             $pdo->commit();
             $summary['processed'] += (int) ($result['processed'] ?? 0);
