@@ -64,6 +64,10 @@ staff_expect($resolvedA === $resolvedAgain, 'external staff identity maps to a s
 
 $repository->assignConversation($conversationId, $resolvedA, $resolvedA, 'staff-test-assign-1');
 $repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-assign-2');
+$allConversations = $repository->listConversations('open', null, 0, 20);
+$assignedConversations = $repository->listConversations('open', $resolvedB, 0, 20);
+staff_expect(count(array_filter($allConversations, static fn(array $row): bool => $row['id'] === $conversationId)) === 1, 'inbox list includes an open conversation');
+staff_expect(count(array_filter($assignedConversations, static fn(array $row): bool => $row['id'] === $conversationId)) === 1, 'agent inbox filter returns only conversations assigned to that agent');
 $assignmentCounts = $pdo->prepare(
     'SELECT COUNT(*) AS total, SUM(ended_at IS NULL) AS active
      FROM staff_conversation_assignments WHERE conversation_id = :conversation'
