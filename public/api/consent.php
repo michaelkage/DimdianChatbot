@@ -13,7 +13,8 @@ if (strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]))
 
 try {
     $pdo = database();
-    $session = authenticate_guest_session($pdo, false);
+    $repository = chat_repository($pdo);
+    $session = authenticate_guest_session($repository, false);
     $body = request_json(4096);
     $optIn = $body['whatsapp_opt_in'] ?? null;
     if (!is_bool($optIn)) {
