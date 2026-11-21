@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
+require_once dirname(__DIR__) . '/app/staff/HmacStaffIdentityProvider.php';
 
 $pdo = new PDO(
     getenv('DIMDIAN_TEST_DSN') ?: 'mysql:host=127.0.0.1;dbname=dimdian_test;charset=utf8mb4',
@@ -27,6 +28,19 @@ final class StaffTestIdentityProvider implements StaffIdentityProvider
     }
 }
 
+
+
+function staff_base64url(string $value): string
+{
+    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+
+function staff_sign_assertion(array $payload, string $secret): string
+{
+    $encoded = staff_base64url(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    $signature = staff_base64url(hash_hmac('sha256', $encoded, $secret, true));
+    return $encoded . '.' . $signature;
+}
 
 function staff_expect(bool $condition, string $label): void
 {
@@ -74,6 +88,38 @@ $resolvedAgain = $repository->upsertStaffIdentity([
     'email' => 'agent-a@example.test',
 ]);
 staff_expect($resolvedA === $resolvedAgain, 'external staff identity maps to a stable local ID');
+
+$assertionSecret = str_repeat('s', 64);
+$hmacProvider = new HmacStaffIdentityProvider($assertionSecret, $repository);
+$assertionPayload = [
+    'auth_provider' => 'signed-app',
+    'external_subject' => 'hmac-staff-01',
+    'display_name' => 'Signed Staff',
+    'email' => 'signed@example.test',
+    'iat' => time(),
+    'nonce' => staff_base64url(random_bytes(32)),
+    'method' => 'GET',
+    'path' => '/api/v1/staff/inbox.php',
+];
+$assertionServer = [
+    'HTTP_X_CHATBRIDGE_STAFF_ASSERTION' => staff_sign_assertion($assertionPayload, $assertionSecret),
+    'REQUEST_METHOD' => 'GET',
+    'REQUEST_URI' => '/api/v1/staff/inbox.php?status=open',
+];
+$verifiedAssertion = $hmacProvider->authenticate($assertionServer);
+staff_expect(is_array($verifiedAssertion) && $verifiedAssertion['external_subject'] === 'hmac-staff-01', 'valid server-signed staff assertion is accepted');
+staff_expect($hmacProvider->authenticate($assertionServer) === null, 'signed staff assertion nonce cannot be replayed');
+
+$wrongPathPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'path' => '/api/v1/staff/notes.php']);
+$wrongPathServer = $assertionServer;
+$wrongPathServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongPathPayload, $assertionSecret);
+staff_expect($hmacProvider->authenticate($wrongPathServer) === null, 'signed staff assertion cannot be replayed against another API path');
+
+$expiredPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'iat' => time() - 300]);
+$expiredServer = $assertionServer;
+$expiredServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($expiredPayload, $assertionSecret);
+staff_expect($hmacProvider->authenticate($expiredServer) === null, 'expired staff assertion is rejected');
+
 
 $repository->assignConversation($conversationId, $resolvedA, $resolvedA, 'staff-test-assign-1');
 $repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-assign-2');
