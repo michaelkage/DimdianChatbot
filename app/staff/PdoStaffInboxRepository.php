@@ -55,6 +55,28 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $localId;
     }
 
+    public function findStaffIdentityById(string $staffIdentityId): ?array
+    {
+        $query = $this->pdo->prepare(
+            'SELECT id, auth_provider, external_subject, display_name, email, role, status
+             FROM staff_identities WHERE id = :id LIMIT 1'
+        );
+        $query->execute([':id' => $staffIdentityId]);
+        $identity = $query->fetch();
+        return is_array($identity) ? $identity : null;
+    }
+
+    public function getActiveAssignee(string $conversationId): ?string
+    {
+        $query = $this->pdo->prepare(
+            'SELECT staff_identity_id FROM staff_conversation_assignments
+             WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1'
+        );
+        $query->execute([':conversation' => $conversationId]);
+        $staffId = $query->fetchColumn();
+        return is_string($staffId) ? $staffId : null;
+    }
+
     public function listConversations(
         string $status,
         ?string $assignedStaffId,
