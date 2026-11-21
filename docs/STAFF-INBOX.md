@@ -43,6 +43,7 @@ The first owner account is intended to use the email address selected during set
 - Closes and reopens conversations.
 - Lists customer-visible uploads and `staff_only` diagnostic bundles. Signed URLs expire after 120 seconds.
 - Shows a per-conversation activity history for staff replies, status changes and assignment changes. Event details exclude message bodies and attachment contents.
+- Provides owner/admin retention settings for conversations/messages, customer uploads, diagnostic bundles and staff audit events. Each category defaults to 14 days; set a category to 0 to retain it indefinitely. A daily cleanup runs at approximately 04:15 Lagos time, and owners/admins can run it manually from Account settings.
 - Refreshes the inbox every six seconds. This is polling, not Supabase Realtime.
 
 ## Security model
@@ -57,4 +58,4 @@ The first owner account is intended to use the email address selected during set
 
 ## Limitations
 
-This is a first functional support inbox, not yet a production-grade team console. It has no teammate directory, team assignment, internal notes, canned replies, file upload by agents or presence/Realtime. The audit history currently records staff replies, status changes and assignment changes only; it is not a database-wide audit trail. No retention cleanup job or attachment deletion control is configured. Signed attachment links are short-lived, but the browser can access a link until it expires. Add an authenticated staff audit log and retention/deletion workflow before using it for sensitive production support.
+This is a first functional support inbox, not yet a production-grade team console. It has no teammate directory, team assignment, internal notes, canned replies, file upload by agents or presence/Realtime. The audit history currently records staff replies, status changes and assignment changes only; it is not a database-wide audit trail. The retention worker deletes expired objects through the Supabase Storage API before removing their metadata. Cleanup is bounded per run; failures are counted and retried by later scheduled runs. Signed attachment links are short-lived, but a link remains usable until it expires. This retention implementation applies to the Supabase mock tenant; self-hosted PHP/MySQL/MariaDB deployments must configure their own retention policy.
