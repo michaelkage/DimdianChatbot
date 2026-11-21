@@ -2,7 +2,7 @@
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
-CREATE TABLE guest_consent_events (
+CREATE TABLE IF NOT EXISTS guest_consent_events (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, guest_id CHAR(36) NOT NULL,
  channel VARCHAR(24) NOT NULL, action ENUM('opt_in','opt_out') NOT NULL,
  source VARCHAR(40) NOT NULL, policy_version VARCHAR(32) NOT NULL DEFAULT '2026-11',
@@ -11,7 +11,7 @@ CREATE TABLE guest_consent_events (
  CONSTRAINT fk_consent_guest FOREIGN KEY(guest_id) REFERENCES guests(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE whatsapp_identity_links (
+CREATE TABLE IF NOT EXISTS whatsapp_identity_links (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, phone_normalized VARCHAR(32) NOT NULL,
  guest_id CHAR(36) NOT NULL, conversation_id CHAR(36) NOT NULL, is_active TINYINT(1) NOT NULL DEFAULT 1,
  active_phone VARCHAR(32) GENERATED ALWAYS AS (CASE WHEN is_active=1 THEN phone_normalized ELSE NULL END) STORED,
@@ -21,7 +21,7 @@ CREATE TABLE whatsapp_identity_links (
  CONSTRAINT fk_whatsapp_link_conversation FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE webhook_inbox (
+CREATE TABLE IF NOT EXISTS webhook_inbox (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, payload_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  payload_ciphertext LONGBLOB NOT NULL, payload_nonce VARBINARY(12) NOT NULL, payload_tag VARBINARY(16) NOT NULL,
  status ENUM('pending','processing','processed','failed') NOT NULL DEFAULT 'pending',
@@ -31,13 +31,13 @@ CREATE TABLE webhook_inbox (
  KEY idx_webhook_inbox_due(status,available_at,received_at), KEY idx_webhook_inbox_lock(status,locked_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE meta_signup_states (
+CREATE TABLE IF NOT EXISTS meta_signup_states (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, state_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  expires_at DATETIME NOT NULL, used_at DATETIME NULL, created_at DATETIME NOT NULL, PRIMARY KEY(id),
  UNIQUE KEY uq_meta_signup_state(state_sha256), KEY idx_meta_signup_expiry(expires_at,used_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE meta_connections (
+CREATE TABLE IF NOT EXISTS meta_connections (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, waba_id VARCHAR(80) NOT NULL, phone_number_id VARCHAR(80) NOT NULL,
  access_token_ciphertext LONGBLOB NOT NULL, access_token_nonce VARBINARY(12) NOT NULL, access_token_tag VARBINARY(16) NOT NULL,
  token_expires_at DATETIME NULL, status ENUM('active','revoked','expired') NOT NULL DEFAULT 'active',
@@ -47,7 +47,14 @@ CREATE TABLE meta_connections (
 
 -- Preserve the last known consent timestamp for existing opted-in guests.
 INSERT INTO guest_consent_events(guest_id,channel,action,source,policy_version,created_at)
-SELECT id,'whatsapp','opt_in','legacy_import','legacy',whatsapp_opt_in_at FROM guests WHERE whatsapp_opt_in_at IS NOT NULL;
+SELECT g.id,'whatsapp','opt_in','legacy_import','legacy',g.whatsapp_opt_in_at
+FROM guests g
+WHERE g.whatsapp_opt_in_at IS NOT NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM guest_consent_events e
+      WHERE e.guest_id = g.id AND e.channel = 'whatsapp'
+        AND e.action = 'opt_in' AND e.source = 'legacy_import'
+  );
 
 -- Backfill one deterministic active conversation per opted-in phone number.
 INSERT IGNORE INTO whatsapp_identity_links(phone_normalized,guest_id,conversation_id,is_active,created_at)
