@@ -464,5 +464,32 @@ expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository
 expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository admits requests up to the configured maximum');
 expect(!$repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository rejects requests above the configured maximum');
 
+$webhookHash = hash('sha256', 'repository-webhook:' . uuid_v4());
+$webhookEncrypted = [
+    'ciphertext' => random_bytes(48),
+    'nonce' => random_bytes(12),
+    'tag' => random_bytes(16),
+];
+$webhookQueued = $repository->enqueueWebhookInbox($webhookHash, $webhookEncrypted);
+expect($webhookQueued['inserted'] && $webhookQueued['status'] === 'pending', 'webhook repository persists a new encrypted inbox row');
+$webhookReplay = $repository->enqueueWebhookInbox($webhookHash, $webhookEncrypted);
+expect(!$webhookReplay['inserted'] && $webhookReplay['id'] === $webhookQueued['id'], 'webhook repository deduplicates an identical payload hash');
+$webhookLease = uuid_v4();
+$webhookJob = $repository->claimWebhookInbox($webhookLease, 8);
+expect(is_array($webhookJob) && (int) $webhookJob['id'] === $webhookQueued['id'] && (int) $webhookJob['attempts'] === 1, 'webhook repository atomically leases the oldest due inbox row');
+$repository->failWebhookInbox($webhookQueued['id'], $webhookLease, true, 0, 'contract retry');
+$webhookRetryState = $pdo->prepare('SELECT status, attempts FROM webhook_inbox WHERE id = :id');
+$webhookRetryState->execute([':id' => $webhookQueued['id']]);
+$webhookRetryRow = $webhookRetryState->fetch();
+expect($webhookRetryRow && $webhookRetryRow['status'] === 'pending' && (int) $webhookRetryRow['attempts'] === 1, 'webhook repository releases a failed lease for retry');
+$webhookRetryLease = uuid_v4();
+$webhookRetryJob = $repository->claimWebhookInbox($webhookRetryLease, 8);
+expect(is_array($webhookRetryJob) && (int) $webhookRetryJob['id'] === $webhookQueued['id'] && (int) $webhookRetryJob['attempts'] === 2, 'webhook repository increments attempts when reclaiming a retry');
+$repository->completeWebhookInbox($webhookQueued['id'], $webhookRetryLease);
+$webhookDoneState = $pdo->prepare('SELECT status, processed_at, lock_token FROM webhook_inbox WHERE id = :id');
+$webhookDoneState->execute([':id' => $webhookQueued['id']]);
+$webhookDoneRow = $webhookDoneState->fetch();
+expect($webhookDoneRow && $webhookDoneRow['status'] === 'processed' && $webhookDoneRow['processed_at'] !== null && $webhookDoneRow['lock_token'] === null, 'webhook repository completes only the currently leased row');
+
 fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
 exit($failed === 0 ? 0 : 1);
