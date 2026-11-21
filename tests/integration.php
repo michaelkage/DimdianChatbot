@@ -352,6 +352,37 @@ $staleMessageStatus = $pdo->query("SELECT delivery_status FROM messages WHERE id
 expect($countingTransport->calls === 0 && $staleOutboxStatus === 'failed', 'stale final-attempt job is failed without a seventh send');
 expect($staleSummary['failed'] === 1 && $staleMessageStatus === 'failed', 'exhausted stale job updates visitor delivery state');
 
+/*
+ * WhatsApp outbox repository contract: lease reclaim, token fencing,
+ * consent checks and atomic message/outbox state transitions.
+ */
+$outboxRepository = chat_repository($pdo);
+$leaseMessageId = 'e0000000-0000-4000-8000-000000000006';
+$leaseOutboxId = 'f0000000-0000-4000-8000-000000000006';
+$pdo->prepare(
+    'INSERT INTO messages (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
+     VALUES (:id, :conversation_id, "visitor", "lease fencing", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $leaseMessageId, ':conversation_id' => $conversationId]);
+$outboxRepository->enqueueWhatsAppOutbox($leaseMessageId, '2348031234567', 'Lease fencing test', $leaseOutboxId);
+expect($outboxRepository->hasWhatsAppConsent($leaseMessageId), 'outbox repository confirms current WhatsApp consent before sending');
+
+$firstLeaseToken = uuid_v4();
+$firstLease = $outboxRepository->claimWhatsAppOutbox($firstLeaseToken, 3, 300);
+expect(is_array($firstLease['job']) && (string) $firstLease['job']['id'] === $leaseOutboxId && (int) $firstLease['job']['attempts'] === 1, 'outbox repository atomically leases a due job and increments attempts');
+$pdo->prepare('UPDATE message_outbox SET locked_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) WHERE id = :id')
+    ->execute([':id' => $leaseOutboxId]);
+$secondLeaseToken = uuid_v4();
+$secondLease = $outboxRepository->claimWhatsAppOutbox($secondLeaseToken, 3, 300);
+expect(is_array($secondLease['job']) && (string) $secondLease['job']['id'] === $leaseOutboxId && (int) $secondLease['job']['attempts'] === 2, 'expired outbox lease is reclaimed with a new attempt and token');
+$staleCompletion = $outboxRepository->completeWhatsAppOutbox($leaseOutboxId, $firstLeaseToken, $leaseMessageId, 'wamid.integration.stale-owner');
+expect(!$staleCompletion, 'stale outbox lease token cannot complete a job reclaimed by another worker');
+$currentCompletion = $outboxRepository->completeWhatsAppOutbox($leaseOutboxId, $secondLeaseToken, $leaseMessageId, 'wamid.integration.lease-fenced');
+$leaseState = $pdo->prepare('SELECT o.status, o.lock_token, m.delivery_status, m.provider_message_id FROM message_outbox o INNER JOIN messages m ON m.id=o.message_id WHERE o.id=:id');
+$leaseState->execute([':id' => $leaseOutboxId]);
+$leaseRow = $leaseState->fetch();
+expect($currentCompletion && $leaseRow && $leaseRow['status'] === 'sent' && $leaseRow['lock_token'] === null, 'current outbox lease completes and releases its lock');
+expect($leaseRow && $leaseRow['delivery_status'] === 'sent' && $leaseRow['provider_message_id'] === 'wamid.integration.lease-fenced', 'outbox completion updates the correlated visitor message atomically');
+
 [$consentStatus, $consentBody] = request_api('POST', '/api/consent.php', ['whatsapp_opt_in' => false], $guestHeaders);
 expect($consentStatus === 200 && ($consentBody['data']['whatsapp_opt_in'] ?? true) === false, 'visitor can revoke WhatsApp continuation without closing website chat');
 $revoked = $pdo->prepare('SELECT g.whatsapp_opt_in_at, l.is_active FROM guests g INNER JOIN conversations c ON c.guest_id=g.id INNER JOIN whatsapp_identity_links l ON l.conversation_id=c.id WHERE c.id=:conversation');
