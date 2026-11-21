@@ -213,6 +213,43 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         });
     }
 
+    public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
+    {
+        return $this->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
+            $conversation = $this->pdo->prepare(
+                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
+            );
+            $conversation->execute([':id' => $conversationId]);
+            if ($conversation->fetchColumn() !== 'open') {
+                throw new RuntimeException('Only an existing open conversation can be self-assigned.');
+            }
+            $this->requireActiveStaff($staffIdentityId);
+
+            $current = $this->pdo->prepare(
+                'SELECT staff_identity_id FROM staff_conversation_assignments
+                 WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1 FOR UPDATE'
+            );
+            $current->execute([':conversation' => $conversationId]);
+            $assignee = $current->fetchColumn();
+            if (is_string($assignee) && $assignee !== '') {
+                return hash_equals($assignee, $staffIdentityId);
+            }
+
+            $insert = $this->pdo->prepare(
+                'INSERT INTO staff_conversation_assignments
+                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
+                 VALUES (:conversation, :staff, :actor, UTC_TIMESTAMP(), :conversation)'
+            );
+            $insert->execute([
+                ':conversation' => $conversationId,
+                ':staff' => $staffIdentityId,
+                ':actor' => $staffIdentityId,
+            ]);
+            $this->recordAudit($staffIdentityId, $conversationId, 'conversation.assigned', $staffIdentityId, ['self_assigned' => true], $requestId);
+            return true;
+        });
+    }
+
     public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
     {
         $query = $this->pdo->prepare(
@@ -253,6 +290,29 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $query->execute([':conversation' => $conversationId]);
             if ($query->rowCount() !== 1) return false;
             $this->recordAudit($actorStaffId, $conversationId, 'conversation.unassigned', null, [], $requestId);
+            return true;
+        });
+    }
+
+    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
+    {
+        return $this->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
+            $conversation = $this->pdo->prepare(
+                'SELECT id FROM conversations WHERE id = :id FOR UPDATE'
+            );
+            $conversation->execute([':id' => $conversationId]);
+            if ($conversation->fetchColumn() === false) return false;
+            $this->requireActiveStaff($staffIdentityId);
+
+            $query = $this->pdo->prepare(
+                'UPDATE staff_conversation_assignments
+                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
+                 WHERE conversation_id = :conversation
+                   AND staff_identity_id = :staff AND ended_at IS NULL'
+            );
+            $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
+            if ($query->rowCount() !== 1) return false;
+            $this->recordAudit($staffIdentityId, $conversationId, 'conversation.unassigned', null, ['self_unassigned' => true], $requestId);
             return true;
         });
     }
