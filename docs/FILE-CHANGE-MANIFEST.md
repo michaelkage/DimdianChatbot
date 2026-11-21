@@ -17,7 +17,7 @@
 
 ## Updated files
 - app/bootstrap.php — private environment-variable overrides and request-ID initialization.
-- app/whatsapp.php — exact active identity-link correlation instead of latest-open-conversation matching.
+- app/whatsapp.php — exact active identity-link correlation, immediate pre-send consent recheck and PII-minimized outbox failure events.
 - config.example.php — privacy, Meta onboarding and message-rate configuration.
 - database/schema.sql — fresh-install schema for all hardening tables.
 - public/api/health.php — checks the new tables, OpenSSL/PDO MySQL runtime, queue counts and request ID.

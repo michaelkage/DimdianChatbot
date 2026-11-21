@@ -405,6 +405,30 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
         }
 
         try {
+            // Re-check consent immediately before the external send. A withdrawal
+            // can invalidate a job after it was claimed by this worker.
+            $consentCheck = $pdo->prepare(
+                'SELECT g.whatsapp_opt_in_at
+                 FROM messages m
+                 INNER JOIN conversations c ON c.id = m.conversation_id
+                 INNER JOIN guests g ON g.id = c.guest_id
+                 WHERE m.id = :message_id LIMIT 1'
+            );
+            $consentCheck->execute([':message_id' => $job['message_id']]);
+            if (!$consentCheck->fetchColumn()) {
+                $pdo->beginTransaction();
+                $cancelJob = $pdo->prepare(
+                    'UPDATE message_outbox SET status = "failed", locked_at = NULL, lock_token = NULL,
+                     last_error = "Cancelled after WhatsApp consent withdrawal.", updated_at = UTC_TIMESTAMP()
+                     WHERE id = :id AND lock_token = :lock_token'
+                );
+                $cancelJob->execute([':id' => $job['id'], ':lock_token' => $lockToken]);
+                $cancelMessage = $pdo->prepare('UPDATE messages SET delivery_status = "web_only" WHERE id = :id AND delivery_status = "queued"');
+                $cancelMessage->execute([':id' => $job['message_id']]);
+                $pdo->commit();
+                continue;
+            }
+
             $result = $transport->sendTemplate((string)$job['recipient'], (string)$job['payload_text']);
             $pdo->beginTransaction();
             $complete = $pdo->prepare(

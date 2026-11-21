@@ -100,6 +100,6 @@ The authorization code must be exchanged server-side. Never send the Meta App Se
 
 ## Consent withdrawal and data lifecycle
 
-A visitor can withdraw WhatsApp continuation from the widget after starting a chat. The API appends an `opt_out` event, clears the current opt-in timestamp, disables the active identity link and cancels pending outbound sends for that guest. Website chat remains available. The consent history is stored in MySQL and is not sent to the demo Supabase project.
+A visitor can withdraw WhatsApp continuation from the widget after starting a chat. The API appends an `opt_out` event, clears the current opt-in timestamp, disables the active identity link and cancels queued outbound sends for that guest. The outbox worker rechecks consent immediately before sending. A request already in flight at the provider cannot be recalled. Website chat remains available. The consent history is stored in MySQL and is not sent to the demo Supabase project.
 
 Run `public/cron/process-webhook-inbox.php` every minute and `public/cron/retention.php` daily. The retention defaults remove closed conversations after 365 days, processed webhook records after 30 days, and expired sessions after 30 days. Confirm those periods against the business privacy notice before production. AES-GCM encryption keys derive from `app.app_key`; rotating that key while encrypted inbox jobs or Meta connection rows exist will make those records undecryptable. Reconnect Meta and drain the inbox before a planned key rotation.
