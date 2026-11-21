@@ -282,6 +282,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
     ): bool {
         return $this->transaction(function () use ($conversationId, $actorStaffId, $requestId): bool {
             $this->requireActiveStaff($actorStaffId);
+            $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
+            $conversation->execute([':id' => $conversationId]);
+            if ($conversation->fetchColumn() === false) return false;
             $query = $this->pdo->prepare(
                 'UPDATE staff_conversation_assignments
                  SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
