@@ -7,7 +7,7 @@ require_method('POST');
 $input = request_json(4096);
 staff_inbox_dispatch(static function () use ($input): array {
     $conversationId = staff_inbox_required_string($input, 'conversation_id', 36);
-    if (!preg_match('/^[a-f0-9-]{36}$/i', $conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
+    if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('conversation_id must be a UUID.');
     $action = (string)($input['action'] ?? 'assign');
     $service = staff_inbox_service();
     if ($action === 'unassign') {
@@ -15,7 +15,7 @@ staff_inbox_dispatch(static function () use ($input): array {
     }
     if ($action !== 'assign') throw new InvalidArgumentException('action must be assign or unassign.');
     $staffId = staff_inbox_required_string($input, 'staff_identity_id', 36);
-    if (!preg_match('/^[a-f0-9-]{36}$/i', $staffId)) throw new InvalidArgumentException('staff_identity_id must be a UUID.');
+    if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('staff_identity_id must be a UUID.');
     $service->assignConversation($_SERVER, $conversationId, $staffId, app_request_id());
     return ['assigned' => true];
 });
