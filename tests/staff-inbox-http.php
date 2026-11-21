@@ -99,6 +99,16 @@ $repository->assignConversation($conversationId, $staffId, $staffId, 'staff-http
 staff_http_expect($missingAuthStatus === 401, 'staff API rejects requests without a signed identity assertion');
 
 [$inboxStatus, $inboxBody] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open');
+[$meStatus, $meBody] = staff_http_request('GET', '/api/v1/staff/me.php');
+staff_http_expect($meStatus === 200 && ($meBody['data']['role'] ?? '') === 'owner', 'staff identity endpoint returns the local role');
+
+[$agentsStatus, $agentsBody] = staff_http_request('GET', '/api/v1/staff/agents.php');
+staff_http_expect(
+    $agentsStatus === 200
+        && count(array_filter($agentsBody['data']['items'] ?? [], static fn(array $row): bool => $row['id'] === $staffId)) === 1,
+    'administrator can list active staff identities'
+);
+
 staff_http_expect(
     $inboxStatus === 200
         && count(array_filter($inboxBody['data']['items'] ?? [], static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
@@ -130,6 +140,12 @@ staff_http_expect(
         && ($replyBody['data']['message']['delivery_status'] ?? '') === 'web_only',
     'staff reply endpoint creates a website-only business message'
 );
+
+[$messagesStatus, $messagesBody] = staff_http_request('GET', '/api/v1/staff/messages.php?conversation_id=' . $conversationId);
+staff_http_expect($messagesStatus === 200 && count($messagesBody['data']['items'] ?? []) === 1, 'staff messages endpoint returns the conversation thread');
+
+[$historyStatus, $historyBody] = staff_http_request('GET', '/api/v1/staff/history.php?conversation_id=' . $conversationId);
+staff_http_expect($historyStatus === 200 && count($historyBody['data']['items'] ?? []) === 1, 'staff history endpoint returns assignment history');
 
 [$auditStatus, $auditBody] = staff_http_request('GET', '/api/v1/staff/audit.php?conversation_id=' . $conversationId);
 staff_http_expect(
