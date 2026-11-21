@@ -105,6 +105,24 @@ final class StaffInboxService
     }
 
     /** @return list<array<string,mixed>> */
+    public function listStaffIdentities(array $server): array
+    {
+        $actor = $this->authenticate($server);
+        if (!self::isAdministrator($actor)) {
+            throw new StaffInboxAuthorizationException('Only administrators can list staff identities.');
+        }
+        return $this->repository->listStaffIdentities();
+    }
+
+    /** @return array<string,mixed> */
+    public function listConversationMessages(array $server, string $conversationId, int $afterSequence, int $limit): array
+    {
+        $actor = $this->authenticate($server);
+        $this->requireConversationAccess($actor, $conversationId);
+        return $this->repository->listConversationMessages($conversationId, $afterSequence, $limit);
+    }
+
+    /** @return list<array<string,mixed>> */
     public function listAssignmentHistory(array $server, string $conversationId, int $afterId, int $limit): array
     {
         $actor = $this->authenticate($server);
