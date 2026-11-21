@@ -126,7 +126,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $status,
         ?string $assignedStaffId,
         int $afterSequence,
-        int $limit
+        int $limit,
+        bool $includeUnassigned = false
     ): array {
         if (!in_array($status, ['open', 'closed', 'all'], true)) {
             throw new InvalidArgumentException('Unsupported conversation status filter.');
@@ -144,7 +145,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                     ON a.conversation_id = c.id AND a.ended_at IS NULL
                 LEFT JOIN staff_identities assigned ON assigned.id = a.staff_identity_id
                 WHERE (:status_all = 1 OR c.status = :status_value)
-                  AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff)
+                  AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff OR (:include_unassigned = 1 AND a.staff_identity_id IS NULL))
                 GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                          g.display_name, g.phone, a.staff_identity_id, assigned.display_name
                 HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
@@ -157,6 +158,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             ':status_value' => $status,
             ':assigned_filter' => $assignedStaffId === null ? 1 : 0,
             ':assigned_staff' => $assignedStaffId,
+            ':include_unassigned' => $includeUnassigned ? 1 : 0,
             ':after_sequence' => max(0, $afterSequence),
             ':after_sequence_empty' => max(0, $afterSequence),
         ]);
