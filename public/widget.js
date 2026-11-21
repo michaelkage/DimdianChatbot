@@ -44,7 +44,7 @@ wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false" a
 '<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
 '<section class="orders" aria-label="Order lookup" hidden><div class="commerce-head"><h3>Check an order</h3><button class="orders-back" type="button">Back to chat</button></div><form class="orders-search"><label for="chatbridge-order-number">Order number</label><input id="chatbridge-order-number" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="20" placeholder="e.g. 1042" required><button type="submit">Check order</button></form><p class="orders-status" role="status"></p><div class="order-result"></div></section>' +
 '<section class="commerce" aria-label="Product search" hidden><div class="commerce-head"><h3>Find a product</h3><button class="commerce-back" type="button">Back to chat</button></div><form class="commerce-search"><label class="sr" for="chatbridge-product-search">Search products</label><input id="chatbridge-product-search" type="search" minlength="2" maxlength="80" placeholder="Search the catalogue…" required><button type="submit">Search</button></form><p class="commerce-status" role="status"></p><div class="product-results"></div></section><div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
-'<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by ChatBridge</footer></section>';
+'<div class="composer-wrap"><div class="attachment-actions" hidden><button class="capture-screenshot" type="button">Capture screen</button><button class="choose-screenshot" type="button">Choose image</button><button class="share-diagnostics" type="button">Share diagnostics</button><input class="attachment-file" type="file" accept="image/jpeg,image/png,image/webp" hidden></div><div class="attachment-review" hidden role="group" aria-label="Review attachment"><img class="attachment-preview" alt="Screenshot preview"><p>Review this image before sending it to support.</p><div><button class="cancel-attachment" type="button">Cancel</button><button class="send-attachment" type="button">Send screenshot</button></div></div><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by ChatBridge</footer></section>';
 shadow.append(wrap); document.body.append(root);
 const $ = s => shadow.querySelector(s);
 const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome');
@@ -68,7 +68,7 @@ if (script.dataset.logoUrl) {
   } catch (_) {}
 }
 if (compactMode) root.classList.add('compact-mode');
-if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
+if(demo||script.dataset.minimalContact==='true'){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
 const orderQuickReply=shadow.querySelector('[data-action="orders"]');
 if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
 shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
@@ -265,6 +265,91 @@ async function request(path,opts){
  if(!res.ok){const e=new Error(body.error&&body.error.message||'The request could not be completed.');e.status=res.status;e.code=body.error&&body.error.code;throw e;}
  return body;
 }
+let pendingAttachment=null;
+let pendingAttachmentUrl=null;
+const attachmentControls=$('.attachment-actions');
+if(script.dataset.attachments==='true')attachmentControls.hidden=false;
+function clearAttachmentReview(){
+ if(pendingAttachmentUrl)URL.revokeObjectURL(pendingAttachmentUrl);
+ pendingAttachmentUrl=null;pendingAttachment=null;
+ $('.attachment-preview').removeAttribute('src');
+ $('.attachment-review').hidden=true;
+}
+function previewAttachment(file){
+ if(!file||file.size>10*1024*1024){status('Images must be 10 MiB or smaller.','warning');return;}
+ clearAttachmentReview();
+ pendingAttachment=file;
+ pendingAttachmentUrl=URL.createObjectURL(file);
+ $('.attachment-preview').src=pendingAttachmentUrl;
+ $('.attachment-review').hidden=false;
+ status('Review the screenshot before sending it.');
+}
+async function captureScreenshot(){
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){status('Screen capture is not supported in this browser. Choose an image instead.','warning');return;}
+ let stream=null;
+ try{
+  // This call is made directly from the user's click; the browser controls what can be shared.
+  stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
+  const video=document.createElement('video');video.muted=true;video.playsInline=true;video.srcObject=stream;
+  const ready=new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});});
+  await video.play();
+  await ready;
+  const scale=Math.min(1,1920/video.videoWidth,1080/video.videoHeight);
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  if(!blob)throw new Error('Could not capture the selected screen.');
+  previewAttachment(new File([blob],'website-screenshot.png',{type:'image/png'}));
+ }catch(error){
+  if(error&&error.name!=='NotAllowedError')status(error.message||'Screen capture failed.','warning');
+  else status('Screen capture cancelled. No image was uploaded.');
+ }finally{
+  if(stream)stream.getTracks().forEach(track=>track.stop());
+ }
+}
+async function uploadScreenshot(){
+ if(!pendingAttachment)return;
+ const file=pendingAttachment;
+ $('.send-attachment').disabled=true;
+ try{
+  if(!session)await startSession();
+  const formData=new FormData();formData.append('attachment',file,file.name||'website-screenshot.png');
+  await request('/attachments.php',{method:'POST',body:formData});
+  clearAttachmentReview();
+  notice('Screenshot uploaded securely to the private test inbox.');
+  status('Screenshot attached. No live support agent is notified.');
+ }catch(error){status(error.message||'Screenshot upload failed.','warning');}
+ finally{$('.send-attachment').disabled=false;}
+}
+async function shareDiagnostics(){
+ const bundle={
+  schema_version:1,
+  captured_at:new Date().toISOString(),
+  page:{origin:location.origin,path:location.pathname},
+  viewport:{width:window.innerWidth,height:window.innerHeight,device_pixel_ratio:window.devicePixelRatio||1},
+  browser:{user_agent:navigator.userAgent,language:navigator.language||null},
+  timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||null,
+  widget:{api_base_host:(()=>{try{return new URL(api).host;}catch(_){return null;}})()}
+ };
+ const consent=window.confirm('Share a small diagnostic report with support? It includes the page path, browser version, viewport and timezone. It does NOT include cookies, passwords, page text, form values, query strings, localStorage, sessionStorage or chat tokens.');
+ if(!consent)return;
+ try{
+  if(!session)await startSession();
+  const formData=new FormData();
+  formData.append('attachment',new File([JSON.stringify(bundle,null,2)],'chatbridge-diagnostics.json',{type:'application/json'}));
+  formData.append('attachment_kind','debug_bundle');
+  formData.append('diagnostic_consent','1');
+  await request('/attachments.php',{method:'POST',body:formData});
+  notice('Diagnostic report shared privately with support. It is not visible in your chat history.');
+  status('Private diagnostic report uploaded.');
+ }catch(error){status(error.message||'Diagnostic upload failed.','warning');}
+}
+$('.capture-screenshot').addEventListener('click',captureScreenshot);
+$('.choose-screenshot').addEventListener('click',()=>$('.attachment-file').click());
+$('.attachment-file').addEventListener('change',event=>{const file=event.target.files&&event.target.files[0];if(file)previewAttachment(file);event.target.value='';});
+$('.cancel-attachment').addEventListener('click',()=>{clearAttachmentReview();status('Screenshot discarded.');});
+$('.send-attachment').addEventListener('click',uploadScreenshot);
+$('.share-diagnostics').addEventListener('click',shareDiagnostics);
 function scroll(){const el=$('.conversation');el.scrollTop=el.scrollHeight;}
 function deliveryLabel(state){return ({queued:'Queued',sent:'Sent',delivered:'Delivered',read:'Read',failed:'Not sent',received:'Received',web_only:'Website only'})[state]||'Saved';}
 function applyDeliveryUpdates(rows){(Array.isArray(rows)?rows:[]).forEach(row=>{const node=messageNodes.get(row.id);if(!node)return;node.textContent=deliveryLabel(row.delivery_status);node.dataset.status=row.delivery_status;});}

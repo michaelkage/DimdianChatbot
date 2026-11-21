@@ -71,16 +71,23 @@ function enforce_allowed_origin(): void
     }
 
     try {
-        $pdo = database();
-        $check = $pdo->prepare(
-            'SELECT 1 FROM tenant_sites s
-             INNER JOIN tenants t ON t.id = s.tenant_id
-             WHERE s.origin = :origin AND s.status = "verified" AND t.status = "active"
-             LIMIT 1'
-        );
-        $check->execute([':origin' => $normalizedOrigin]);
-        if (!$check->fetchColumn()) {
-            json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not registered with the chat service.']], 403);
+        if (chatbridge_store_driver() === 'supabase') {
+            $tenantId = chatbridge_supabase_resolve_tenant_from_origin($normalizedOrigin);
+            if ($tenantId === null) {
+                json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not registered with the chat service.']], 403);
+            }
+        } else {
+            $pdo = database();
+            $check = $pdo->prepare(
+                'SELECT 1 FROM tenant_sites s
+                 INNER JOIN tenants t ON t.id = s.tenant_id
+                 WHERE s.origin = :origin AND s.status = "verified" AND t.status = "active"
+                 LIMIT 1'
+            );
+            $check->execute([':origin' => $normalizedOrigin]);
+            if (!$check->fetchColumn()) {
+                json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not registered with the chat service.']], 403);
+            }
         }
     } catch (Throwable $error) {
         error_log('[ChatBridge] Origin validation failed: ' . $error->getMessage());
@@ -296,3 +303,4 @@ function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
 
 
 require_once __DIR__ . '/tenancy.php';
+require_once __DIR__ . '/supabase_store.php';

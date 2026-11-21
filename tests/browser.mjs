@@ -14,7 +14,12 @@ test('real widget works on desktop and mobile in demo mode', async () => {
       const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
       const file = normalize(join(root, pathname === '/' ? 'index.html' : pathname));
       if (!file.startsWith(normalize(root))) throw new Error('Invalid path');
-      const body = await readFile(file);
+      let body = await readFile(file);
+      // Browser UI tests stay isolated from the live Supabase test project.
+      // The real docs page uses the Edge Function; this fixture exercises the local simulation.
+      if (pathname === '/' || pathname === '/index.html') {
+        body = Buffer.from(body.toString().replace('<script src="assets/widget.js"', '<script src="assets/widget.js" data-demo="true"'));
+      }
       res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream' });
       res.end(body);
     } catch {

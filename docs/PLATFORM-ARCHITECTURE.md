@@ -2,13 +2,13 @@
 
 This document records the implementation boundary for turning the current single-site widget into a multi-business WordPress support product. It deliberately distinguishes shipped code from planned platform capabilities.
 
-## Existing system: source of truth
+## Database ownership and source of truth
 
-The current live-chat design is a dependency-light PHP 8.2+ service backed by MySQL. Its guests, conversations, guest_sessions, messages, webhook_events and outbox tables are the operational source of truth for the PHP service.
+The self-hosted production/reference PHP service remains PDO-backed and supports MySQL 8+ or compatible MariaDB. Its existing guests, conversations, guest_sessions, messages, webhook_events and outbox tables remain authoritative when `chat_store.driver = mysql`.
 
-The Supabase project currently connected as **Dimdian** is a separate Meta webhook test/diagnostic project. It currently contains the private meta_webhook_events table and the meta-webhook and meta-events Edge Functions. It is not the production conversation database, does not provision tenants, and must not be treated as the source of truth for PHP chat data.
+The connected **Dimdian / hyperspace - dimdian** Supabase project now has a separate mock/reference conversation store. When `chat_store.driver = supabase`, the PHP API routes guest-session creation/authentication, website message persistence and visitor attachment metadata to the Supabase `chatbridge_*` tables and private `chatbridge-private` Storage bucket. For the static `docs/index.html` mock site, the deployed `chatbridge-mock-api` Edge Function exposes the same session/message/attachment contract and uses Supabase server secrets. Both adapters keep the service credential server-side; the browser never receives it. The project also retains the Meta webhook diagnostic tables/functions.
 
-Do not split a conversation across Supabase and MySQL. Before a production multi-tenant launch, choose and document one authoritative transactional store and a migration plan. The safest incremental path is to add tenant ownership to the existing MySQL service first, then evaluate whether a hosted control plane is justified.
+Each deployment chooses exactly one conversation store. Do not dual-write a conversation to Supabase and MySQL. The Supabase mock adapter currently covers website conversations and attachments only; WhatsApp outbox delivery and the AI/handover pipeline remain MySQL-runtime capabilities and are not silently mirrored. Tenant and verified-origin records must be provisioned in the selected store before a widget can connect.
 
 ## Tenant model (target)
 
@@ -125,7 +125,7 @@ A plugin ZIP can be installable before it is directory-ready. Do not market the 
 | Capability | Status |
 |---|---|
 | Guest chat and WhatsApp transport | Existing PHP implementation; production deployment and real Coexistence remain unverified |
-| Supabase Meta diagnostic receiver | Deployed to the separate Dimdian test project; not a multi-tenant platform |
+| Supabase mock conversation store | Tenant-scoped tables, private attachment bucket, PHP adapter and deployed Edge Function; static mock UI and authenticated staff inbox are wired; `https://michaelkage.github.io` is seeded as a verified origin |
 | WordPress connector | Internal installable plugin |
 | WooCommerce public product search | Implemented and tested with adapter tests |
 | WooCommerce customer order lookup | First increment implemented on feature branch; logged-in owner check and tests added |

@@ -77,5 +77,32 @@ test('widget theming uses validated CSS custom properties and optional logo URL'
 test('standalone embed guide exists and never asks users to expose tenant credentials', () => {
   const guide = readFileSync(new URL('../docs/EMBED-INTEGRATION.md', import.meta.url), 'utf8');
   assert.match(guide, /does not require WordPress/i);
-  assert.match(guide, /never add a tenant ID, API key, WhatsApp token or AI provider key/i);
+  assert.match(guide, /never add a tenant ID, API key, WhatsApp token, AI provider key or Supabase secret key/i);
+});
+
+test('screenshot capture is click-initiated, previewed, and uploaded only after confirmation', () => {
+  assert.match(widget, /getDisplayMedia/);
+  assert.match(widget, /previewAttachment/);
+  assert.match(widget, /send-attachment/);
+  assert.match(widget, /track\.stop\(\)/);
+  assert.match(widget, /FormData/);
+});
+
+test('private diagnostics require explicit consent and omit browser storage and page contents', () => {
+  assert.match(widget, /window\.confirm\('Share a small diagnostic report with support/);
+  assert.match(widget, /attachment_kind','debug_bundle/);
+  assert.match(widget, /diagnostic_consent','1/);
+  const bundleStart = widget.indexOf('const bundle={');
+  const bundleEnd = widget.indexOf('};', bundleStart);
+  const bundle = widget.slice(bundleStart, bundleEnd);
+  assert.match(bundle, /location\.pathname/);
+  assert.match(bundle, /navigator\.userAgent/);
+  assert.doesNotMatch(bundle, /localStorage|sessionStorage|document\.cookie|location\.search|textContent|innerHTML/);
+});
+
+test('attachment controls are opt-in and diagnostic files use a separate private path', () => {
+  assert.match(widget, /script\.dataset\.attachments==='true'/);
+  const api = readFileSync(new URL('../app/supabase_store.php', import.meta.url), 'utf8');
+  assert.match(api, /visibility = \$debugBundle \? 'staff_only' : 'customer_visible'/);
+  assert.match(api, /'visibility' => 'eq\.customer_visible'/);
 });

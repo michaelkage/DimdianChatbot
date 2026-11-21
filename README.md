@@ -4,6 +4,8 @@ A lightweight customer chat widget for the Dimdian website. Visitors can send an
 
 This README is also the handover guide for the Dimdian business owner and the person maintaining the website.
 
+> **Database options:** the mock/reference deployment can use the server-side Supabase adapter; self-hosted deployments retain MySQL/MariaDB through PDO. See [Database Adapter Guide](docs/DATABASE-ADAPTERS.md) for the security boundary and current implementation status.
+
 > **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
 ## WordPress plugin (early connector)
@@ -11,6 +13,10 @@ This README is also the handover guide for the Dimdian business owner and the pe
 An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, and optional read-only product search. When WCFM Marketplace is active, product search and customer order summaries include vendor attribution using WCFM's in-process vendor lookup functions. This does not grant vendor users access to customer orders or expose WCFM credentials. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
 
 This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin includes a gated Meta Embedded Signup v5 launcher when the service has been configured with an eligible Meta app and tenant API key. It never exposes Meta app secrets or business access tokens to the browser. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification. The tenant AI runtime is optional and disabled by default. A site administrator can now configure an OpenAI-compatible API key, model and token budget through the WordPress connector; knowledge sources remain a separate tenant-scoped import step.
+
+## Mock support inbox
+
+The Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.
 
 ## 1. What this system does
 
@@ -20,14 +26,14 @@ This is an early connector release, not yet a WordPress.org directory release. I
 - Can show an animated reply-pending indicator and lets visitors switch between up to ten chat sessions in the current browser tab.
 - Opens a chat panel without sending the visitor to another page.
 - Lets a visitor start chatting as a guest. No account, password, OTP or registration.
-- Saves website messages and replies in a MySQL database.
+- Saves website messages in the selected conversation backend: Supabase for the static mock site, or MySQL/MariaDB for self-hosted PHP deployments.
 - Shows replies in the same website chat.
 - Can optionally connect an opted-in visitor's conversation to the WhatsApp Business app, using Meta's WhatsApp Cloud API and supported Business App Coexistence.
-- Keeps the support team on the existing WhatsApp Business app. There is no separate staff dashboard.
+- Includes a basic authenticated support inbox for the Supabase mock site. It is separate from the production WhatsApp Business workflow.
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide a staffed shared inbox, staff accounts, agent assignment/resolution UI, cart/checkout actions, inventory management, payments, CRM, screenshot/file attachments, voice notes or group chats. An optional tenant-scoped AI queue and knowledge retrieval runtime exists; it is disabled by default and can be configured through the WordPress connector with an OpenAI-compatible API key. It still has no staff inbox UI. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only. Screenshot capture/upload and private diagnostic bundles are not implemented yet.
+This is not yet a full customer-management or production contact-centre system. The Supabase mock site has a basic staff inbox with authenticated access, conversation replies, open/closed state, self-assignment, staff-only diagnostic attachment retrieval, staff activity history and owner-configurable retention cleanup. The mock inbox does not yet provide team assignment, internal notes or WhatsApp delivery. The self-hosted MySQL/MariaDB backend remains available through PHP; a production-grade staff console for those deployments is still outstanding. An optional tenant-scoped AI queue and knowledge retrieval runtime exists; it is disabled by default and can be configured through the WordPress connector with an OpenAI-compatible API key. The WordPress plugin also has an optional read-only WooCommerce product catalogue adapter.
 
 ## 2. How a conversation works
 
@@ -228,9 +234,9 @@ For the business owner:
 - Only use a visitor's phone number for the WhatsApp continuation they explicitly selected.
 - Do not assume a visitor has consented to WhatsApp just because they started a website chat.
 - Keep access to Hostinger, Meta Business Manager and database backups restricted to trusted people.
-- If a visitor asks about a conversation, the current product has no staff dashboard or customer search screen; the technical maintainer may need to investigate the database securely.
+- If a visitor asks about a conversation, the current production WordPress/PHP deployment has no connected staff dashboard or customer search screen; the Supabase mock inbox is separate and does not read production MySQL data.
 - Agree an internal process for who monitors and replies to enquiries in the WhatsApp Business app and during what hours.
-- Decide how long chat records should be retained and who is responsible for handling deletion/privacy requests. Automated retention/deletion tooling is not currently included.
+- The Supabase mock inbox has configurable 14-day defaults for conversations, uploads, diagnostics and staff activity. Customer-owned production PHP/MySQL/MariaDB deployments still need their own retention/deletion controls and a privacy-request workflow.
 
 Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, verified tenant-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
 
