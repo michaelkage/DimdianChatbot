@@ -43,7 +43,7 @@ try {
     $rateConfig = app_config('app.session_rate_limit') ?? [];
     $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 10));
     $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 900));
-    enforce_rate_limit($pdo, 'session:' . client_fingerprint(), $maxRequests, $windowSeconds);
+    enforce_rate_limit($repository, 'session:' . client_fingerprint(), $maxRequests, $windowSeconds);
 
     $sessionId = uuid_v4();
     $conversationId = uuid_v4();
