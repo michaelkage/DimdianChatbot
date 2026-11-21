@@ -3,7 +3,8 @@
 ## New files
 - app/consent.php — append-only consent audit and opt-in/opt-out lifecycle.
 - app/webhook_inbox.php — encrypted durable webhook inbox, deduplication and retry worker.
-- app/meta_signup.php — admin-protected Embedded Signup state, token exchange and encrypted token storage.
+- app/meta_signup.php — admin-protected Embedded Signup state, token exchange, WABA subscription and encrypted token storage.
+- app/observability.php — request IDs and PII-minimized structured event logging.
 - public/api/consent.php — guest-authenticated consent preference endpoint.
 - public/api/meta-embedded-signup.php — admin-only Meta onboarding endpoint.
 - public/cron/process-webhook-inbox.php — CLI webhook recovery worker.
@@ -15,11 +16,13 @@
 - docs/MANUAL-SETUP-CHECKLIST.md — full Hostinger, MySQL, WordPress, Meta, cron, privacy and regression-test runbook.
 
 ## Updated files
-- app/bootstrap.php — private environment-variable overrides.
+- app/bootstrap.php — private environment-variable overrides and request-ID initialization.
 - app/whatsapp.php — exact active identity-link correlation instead of latest-open-conversation matching.
 - config.example.php — privacy, Meta onboarding and message-rate configuration.
 - database/schema.sql — fresh-install schema for all hardening tables.
-- public/api/health.php — checks the new tables, OpenSSL/PDO MySQL runtime and queue counts.
+- public/api/health.php — checks the new tables, OpenSSL/PDO MySQL runtime, queue counts and request ID.
+- public/api/session.php / public/api/messages.php — structured failure events without raw exception messages.
+- public/cron/process-outbox.php / public/cron/process-webhook-inbox.php / public/cron/retention.php — structured CLI failure events.
 - public/api/session.php — records explicit WhatsApp opt-in and creates the active identity link.
 - public/api/webhook.php — verifies, encrypts and durably queues before acknowledging Meta.
 - public/cron/process-outbox.php — uses encrypted Embedded Signup credentials when configured.
@@ -28,7 +31,7 @@
 - wordpress-plugin/chatbridge-widget/readme.txt — plugin stable version and changelog.
 - tests/wordpress-plugin.php — verifies private Meta key storage and settings sanitization.
 - .github/workflows/tests.yml — checks admin/customer widget JavaScript syntax.
-- tests/run.php / tests/integration.php — encryption and consent lifecycle regression coverage.
+- tests/run.php / tests/integration.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle and private admin-key regression coverage.
 - docs/API.md / docs/WHATSAPP.md / docs/WORDPRESS-PLUGIN.md / README.md — updated contracts and operations.
 - supabase/functions/meta-webhook/index.ts — message-body persistence disabled by default.
 - supabase/README.md — diagnostic data minimization and RLS boundary documentation.

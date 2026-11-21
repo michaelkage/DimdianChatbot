@@ -13,4 +13,4 @@ try{
     if($action==='subscribe')json_response(['data'=>['webhook_subscribed'=>meta_subscribe_active_waba($pdo)]]);
     json_response(['error'=>['code'=>'invalid_action','message'=>'Use begin or exchange.']],422);
 }catch(InvalidArgumentException $e){json_response(['error'=>['code'=>'invalid_signup_response','message'=>$e->getMessage()]],422);}
-catch(Throwable $e){error_log('[DimdianChatbot] Meta Embedded Signup failed: '.$e->getMessage());json_response(['error'=>['code'=>'meta_signup_failed','message'=>'Meta onboarding could not be completed. Check the private server log.']],502);}
+catch(Throwable $e){app_log_event('meta.embedded_signup_failed', ['endpoint' => 'meta_signup', 'exception_class' => get_class($e)]);json_response(['error'=>['code'=>'meta_signup_failed','message'=>'Meta onboarding could not be completed. Check the private server log.']],502);}

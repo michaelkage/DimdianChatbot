@@ -23,7 +23,7 @@ try {
     $summary = process_whatsapp_outbox(database(), $transport, 10, 6);
     fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_SLASHES) . PHP_EOL);
 } catch (Throwable $error) {
-    error_log('[DimdianChatbot] Outbox worker failed: ' . $error->getMessage());
+    app_log_event('outbox.worker_failed', ['endpoint' => 'outbox_worker', 'exception_class' => get_class($error)]);
     fwrite(STDERR, "Outbox worker failed. Check the server error log.\n");
     exit(1);
 }

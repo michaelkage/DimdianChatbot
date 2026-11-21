@@ -10,7 +10,7 @@ This document describes the hardening layer added to the PHP/MySQL service. It p
 - **Durable webhook intake:** `POST /api/webhook.php` verifies Meta's HMAC signature, encrypts the raw payload with AES-256-GCM, commits it to `webhook_inbox`, and only then acknowledges Meta. It attempts one inline processing pass for low latency; the CLI worker recovers pending or expired-lease jobs after a crash.
 - **Meta Embedded Signup:** `POST /api/meta-embedded-signup.php` provides admin-key-protected `begin` and `exchange` actions. It consumes a one-time, ten-minute state, exchanges the Meta code server-side, subscribes the WABA to webhook events, and encrypts the resulting access token at rest. The outbox worker prefers this stored connection over static token configuration and attempts a Meta-supported 60-day refresh during the final seven days before expiry.
 - **Retention:** `public/cron/retention.php` removes old closed conversations and related records, expired sessions, old processed webhook data and stale rate-limit buckets. Open conversations are not automatically deleted.
-- **Health:** `/api/health.php` checks the new required tables but does not disclose secrets or claim to test live Meta delivery.
+- **Health and observability:** `/api/health.php` checks required tables, OpenSSL/PDO MySQL availability and queue counts without disclosing secrets. Each request receives an opaque `X-DIMDIAN-REQUEST-ID`; structured operational logs use an allowlist that excludes message bodies, phone numbers, tokens and raw provider responses.
 
 ## Database upgrade
 
@@ -58,7 +58,7 @@ Use the actual Hostinger PHP CLI path and absolute project path. Schedule:
 - `public/cron/process-webhook-inbox.php` — every minute.
 - `public/cron/retention.php` — daily during a quiet period.
 
-All scripts are CLI-only. They return non-zero on fatal errors and write operational summaries to stdout; details remain in the private PHP error log.
+All scripts are CLI-only. They return non-zero on fatal errors and write operational summaries to stdout; structured event records remain in the private PHP error log and can be correlated using the request ID.
 
 ## Operational limits and launch gates
 

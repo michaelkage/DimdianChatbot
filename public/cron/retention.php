@@ -26,4 +26,4 @@ try{
  $q=$pdo->prepare('DELETE FROM meta_signup_states WHERE expires_at<UTC_TIMESTAMP() OR used_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 DAY)');$q->execute();$summary['signup_states']=$q->rowCount();
  $q=$pdo->prepare('DELETE FROM rate_limits WHERE window_started_at<DATE_SUB(UTC_TIMESTAMP(),INTERVAL 2 DAY)');$q->execute();$summary['rate_limits']=$q->rowCount();
  $pdo->commit();fwrite(STDOUT,json_encode($summary,JSON_UNESCAPED_SLASHES).PHP_EOL);
-}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();error_log('[DimdianChatbot] Retention job failed: '.$e->getMessage());fwrite(STDERR,"Retention job failed. Check the private server log.\n");exit(1);}
+}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();app_log_event('retention.job_failed', ['endpoint' => 'retention', 'exception_class' => get_class($e)]);fwrite(STDERR,"Retention job failed. Check the private server log.\n");exit(1);}

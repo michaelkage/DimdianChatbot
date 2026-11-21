@@ -452,7 +452,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
                 $summary['retried']++;
             }
             $pdo->commit();
-            error_log('[DimdianChatbot] WhatsApp outbox attempt failed: ' . $messageText);
+            app_log_event('outbox.attempt_failed', ['job_id' => (int) $job['id'], 'attempt' => (int) $job['attempts'] + 1, 'result' => $shouldRetry ? 'retry' : 'failed']);
         }
     }
 

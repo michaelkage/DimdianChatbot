@@ -72,7 +72,7 @@ try {
     http_response_code(400);
     exit('Invalid JSON');
 } catch (Throwable $error) {
-    error_log('[DimdianChatbot] WhatsApp webhook processing failed: ' . $error->getMessage());
+    app_log_event('webhook.request_failed', ['endpoint' => 'webhook', 'exception_class' => get_class($error)]);
     http_response_code(500);
     exit('Webhook processing failed');
 }

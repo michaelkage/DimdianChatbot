@@ -46,6 +46,9 @@ if ($outboundEnvironment !== false) {
     $config['whatsapp']['outbound_enabled'] = filter_var($outboundEnvironment, FILTER_VALIDATE_BOOL);
 }
 
+require_once __DIR__ . '/observability.php';
+app_request_id();
+
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
 function app_config(?string $key = null): mixed

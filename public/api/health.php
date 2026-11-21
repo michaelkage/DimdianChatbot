@@ -62,6 +62,7 @@ try {
 
     json_response([
         'status' => ($schemaOk && $runtimeOk) ? 'healthy' : 'degraded',
+        'request_id' => app_request_id(),
         'service' => 'Dimdian website chat',
         'checked_at' => gmdate(DateTimeInterface::ATOM),
         'checks' => [

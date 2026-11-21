@@ -103,6 +103,6 @@ try {
         $pdo->rollBack();
     }
 
-    error_log('[DimdianChatbot] Guest session creation failed: ' . $error->getMessage());
+    app_log_event('session.create_failed', ['endpoint' => 'session', 'exception_class' => get_class($error)]);
     json_response(['error' => ['code' => 'server_error', 'message' => 'A chat session could not be started. Please try again.']], 500);
 }

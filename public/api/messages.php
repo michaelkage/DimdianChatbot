@@ -174,6 +174,6 @@ try {
         ],
     ]);
 } catch (Throwable $error) {
-    error_log('[DimdianChatbot] Message API failed: ' . $error->getMessage());
+    app_log_event('message.api_failed', ['endpoint' => 'messages', 'exception_class' => get_class($error)]);
     json_response(['error' => ['code' => 'server_error', 'message' => 'The chat service could not complete that request. Please try again.']], 500);
 }

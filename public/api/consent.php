@@ -34,6 +34,6 @@ try {
     json_response(['data' => ['whatsapp_opt_in' => $optIn, 'updated_at' => gmdate(DateTimeInterface::ATOM)]]);
 } catch (Throwable $error) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) $pdo->rollBack();
-    error_log('[DimdianChatbot] Consent update failed: ' . $error->getMessage());
+    app_log_event('consent.update_failed', ['endpoint' => 'consent', 'exception_class' => get_class($error)]);
     json_response(['error' => ['code' => 'server_error', 'message' => 'Your privacy setting could not be updated. Please try again.']], 500);
 }

@@ -58,7 +58,7 @@ function process_webhook_inbox(PDO $pdo,int $limit=10,int $maxAttempts=8): array
             if($pdo->inTransaction())$pdo->rollBack();$retry=$attempt<$maxAttempts;$delay=min(3600,15*(2**min(8,max(0,$attempt-1))));
             $u=$pdo->prepare('UPDATE webhook_inbox SET status=:status,available_at=DATE_ADD(UTC_TIMESTAMP(),INTERVAL :delay SECOND),locked_at=NULL,lock_token=NULL,last_error=:error WHERE id=:id AND lock_token=:token');
             $u->execute([':status'=>$retry?'pending':'failed',':delay'=>$delay,':error'=>mb_substr_safe($e->getMessage(),0,450),':id'=>$job['id'],':token'=>$token]);
-            $summary[$retry?'retried':'failed']++;error_log('[DimdianChatbot] Webhook inbox processing failed: '.$e->getMessage());
+            $summary[$retry?'retried':'failed']++;app_log_event('webhook.inbox.processing_failed', ['job_id' => (int) $job['id'], 'attempt' => $attempt, 'exception_class' => get_class($e)]);
         }
     }
     return $summary;

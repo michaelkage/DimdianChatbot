@@ -101,3 +101,8 @@ Body: `{"whatsapp_opt_in":false}` to withdraw WhatsApp continuation. Website cha
 Requires `X-DIMDIAN-ADMIN-KEY` and a JSON body. `{"action":"begin"}` returns the Meta App ID, Embedded Signup configuration ID and a one-time state valid for ten minutes. `{"action":"exchange","state":"…","code":"…","phone_number_id":"…","waba_id":"…" }` exchanges the code server-side and stores the access token encrypted. The token is never returned. The endpoint has no public CORS policy; do not expose the admin key in browser JavaScript. A secure server-side operator proxy is required for a browser onboarding UI.
 
 The administrator-only Meta endpoint also accepts `{"action":"subscribe"}` to retry subscribing the active WABA to this app's webhooks if the automatic post-exchange subscription did not succeed. The outbox worker attempts to refresh expiring 60-day system-user tokens when they enter the seven-day renewal window; a failed refresh is logged and the still-valid token is used until expiry.
+
+
+## Request correlation and diagnostics
+
+Every API request receives an opaque `X-DIMDIAN-REQUEST-ID` response header. Operational failures are written as structured JSON records to the private PHP error log. The logger allowlists diagnostic fields and excludes phone numbers, guest tokens, message bodies, access tokens and raw provider responses. Use the response request ID when correlating an issue with server logs.
