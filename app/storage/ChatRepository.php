@@ -12,6 +12,12 @@ interface ChatRepository
     /** @param array<string,mixed> $session */
     public function createGuestSession(array $session): void;
 
+    /** Apply an auditable WhatsApp consent transition atomically. */
+    public function recordWhatsAppConsent(string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void;
+
+    /** Increment a fixed-window bucket and report whether this request is within its limit. */
+    public function consumeRateLimit(string $bucket, int $maxRequests, int $windowSeconds): bool;
+
     /** @return array<string,mixed>|null */
     public function findGuestSessionByTokenHash(string $tokenHash): ?array;
 
