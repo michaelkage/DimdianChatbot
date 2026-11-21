@@ -146,8 +146,11 @@
     }
     if (!message || message.type !== 'WA_EMBEDDED_SIGNUP') return;
     const envelope = message.data || {};
-    const eventName = envelope.event || message.event || '';
-    const details = envelope.data || envelope;
+    const nested = envelope.data && typeof envelope.data === 'object' ? envelope.data : {};
+    const eventName = envelope.event || nested.event || message.event || '';
+    const details = nested.data && typeof nested.data === 'object'
+      ? nested.data
+      : (nested.waba_id || nested.phone_number_id ? nested : envelope);
 
     if (eventName === 'CANCEL' || eventName === 'ERROR') {
       signupState = null;
