@@ -24,7 +24,16 @@ The widget's current API client appends endpoint filenames to the configured bas
 | POST | /api/v1/consent.php | /api/consent.php | Change WhatsApp consent |
 | GET | /api/v1/health.php | /api/health.php | Read-only service health |
 | GET, POST | /api/v1/webhook.php | /api/webhook.php | Meta verification and signed webhook delivery |
-| POST | /api/v1/meta-embedded-signup.php | /api/meta-embedded-signup.php | Administrator-only Meta onboarding operations |\n| GET | /api/v1/staff/inbox.php | — | Optional authenticated staff conversation list |\n| POST | /api/v1/staff/assignments.php | — | Assign or unassign a conversation |\n| GET, POST | /api/v1/staff/notes.php | — | Read or create private internal notes |\n| POST | /api/v1/staff/replies.php | — | Create a website-visible staff reply |\n| GET | /api/v1/staff/history.php | — | Read assignment history |\n| GET | /api/v1/staff/audit.php | — | Read administrator-only audit events |
+| POST | /api/v1/meta-embedded-signup.php | /api/meta-embedded-signup.php | Administrator-only Meta onboarding operations |
+| GET | /api/v1/staff/inbox.php | — | Optional authenticated staff conversation list |
+| GET | /api/v1/staff/me.php | — | Resolve the authenticated staff identity and local role |
+| GET | /api/v1/staff/agents.php | — | Administrator-only active staff directory |
+| GET | /api/v1/staff/messages.php | — | Read visitor-visible conversation messages |
+| POST | /api/v1/staff/assignments.php | — | Assign or unassign a conversation |
+| GET, POST | /api/v1/staff/notes.php | — | Read or create private internal notes |
+| POST | /api/v1/staff/replies.php | — | Create a website-visible staff reply |
+| GET | /api/v1/staff/history.php | — | Read assignment history |
+| GET | /api/v1/staff/audit.php | — | Read administrator-only audit events |
 
 ## Authentication and security
 
