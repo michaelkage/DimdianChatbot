@@ -7,7 +7,7 @@ require_method('POST');
 $input = request_json(8192);
 staff_inbox_dispatch(static function () use ($input): array {
     $conversationId = staff_inbox_required_string($input, 'conversation_id', 36);
-    if (!preg_match('/^[a-f0-9-]{36}$/i', $conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
+    if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('conversation_id must be a UUID.');
     $body = staff_inbox_required_string($input, 'message', 5000);
     $clientMessageId = staff_inbox_required_string($input, 'client_message_id', 36);
     if (!preg_match('/^[a-f0-9-]{36}$/i', $clientMessageId)) throw new InvalidArgumentException('client_message_id must be a UUID.');
