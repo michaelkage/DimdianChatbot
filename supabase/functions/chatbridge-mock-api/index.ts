@@ -483,6 +483,32 @@ async function staffConversationDetail(req: Request, tenantId: string, cors: Rec
   return json({ data }, 200, cors);
 }
 
+async function staffConversationAudit(req: Request, tenantId: string, cors: Record<string, string>, conversationId: string): Promise<Response> {
+  const url = new URL(req.url);
+  const limitRaw = url.searchParams.get("limit") ?? "50";
+  const beforeRaw = url.searchParams.get("before");
+  if (!/^\d{1,3}$/.test(limitRaw) || (beforeRaw !== null && !/^\d{1,18}$/.test(beforeRaw))) {
+    return errorResponse("invalid_cursor", "The audit cursor or limit is invalid.", 422, cors);
+  }
+  const params = new URLSearchParams({
+    select: "id,event_type,details,actor_user_id,created_at",
+    tenant_id: `eq.${tenantId}`,
+    conversation_id: `eq.${conversationId}`,
+    order: "id.desc",
+    limit: String(Math.min(100, Math.max(1, Number(limitRaw)))),
+  });
+  if (beforeRaw !== null) params.set("id", `lt.${beforeRaw}`);
+  const rows = await rest("GET", `/rest/v1/chatbridge_staff_audit_events?${params}`);
+  const data = (Array.isArray(rows) ? rows : []).map((row: any) => ({
+    id: String(row.id),
+    event_type: row.event_type,
+    details: row.details && typeof row.details === "object" ? row.details : {},
+    actor_user_id: row.actor_user_id,
+    created_at: row.created_at,
+  }));
+  return json({ data, meta: { next_cursor: data.length ? data[data.length - 1].id : null } }, 200, cors);
+}
+
 async function staffUpdateConversation(req: Request, tenantId: string, cors: Record<string, string>, staff: { userId: string; role: string }, conversationId: string): Promise<Response> {
   const raw = await req.text();
   if (raw.length > 5000) return errorResponse("payload_too_large", "The request is too large.", 413, cors);
@@ -536,6 +562,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (detailMatch[2] === "attachments" && req.method !== "GET") return errorResponse("method_not_allowed", "Attachments are read-only in the staff inbox.", 405, cors);
         return await staffConversationDetail(req, tenantId, cors, staff, detailMatch[1], detailMatch[2] as "messages" | "attachments");
       }
+      const auditMatch = route.match(/^\/staff\/conversations\/([0-9a-f-]{36})\/audit$/i);
+      if (auditMatch && req.method === "GET") return await staffConversationAudit(req, tenantId, cors, auditMatch[1]);
       const updateMatch = route.match(/^\/staff\/conversations\/([0-9a-f-]{36})$/i);
       if (updateMatch && req.method === "PATCH") return await staffUpdateConversation(req, tenantId, cors, staff, updateMatch[1]);
       return errorResponse("not_found", "The requested staff inbox route does not exist.", 404, cors);
