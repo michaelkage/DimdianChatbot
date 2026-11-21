@@ -29,6 +29,10 @@ DO UPDATE SET role = EXCLUDED.role, status = 'active', updated_at = now();
 
 Use `owner`, `admin`, or `agent` as the role. All three roles currently have the same mock inbox actions; the role distinction is reserved for later permission granularity. Remove access by setting `status = 'revoked'` or `suspended'`.
 
+## Change the support account email
+
+The first owner account is intended to use the email address selected during setup. A signed-in staff member can open **Account settings → Change sign-in email** in the inbox and request an email change. Supabase Auth handles the verification/confirmation flow; the new address is not treated as active merely because the form was submitted. The existing Auth user UUID and its `chatbridge_staff_memberships` row remain the same, so tenant access does not need to be re-provisioned. The email change is available to any signed-in staff account; it does not change another user's email or transfer ownership.
+
 ## Current inbox behaviour
 
 - Lists open, closed or all conversations for the tenant resolved from the verified GitHub Pages origin.
