@@ -490,12 +490,22 @@ function secureEquals(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
-async function removeStoredAttachment(row: any, tenantId: string): Promise<void> {
-  const bucket = String(row.storage_bucket || BUCKET);
-  const encodedPath = String(row.storage_path).split("/").map(encodeURIComponent).join("/");
-  try { await storage("DELETE", `/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`); }
-  catch (error) { if (!(error instanceof HttpError) || error.status !== 404) throw error; }
-  await rest("DELETE", `/rest/v1/chatbridge_attachments?id=eq.${encodeURIComponent(String(row.id))}&tenant_id=eq.${encodeURIComponent(tenantId)}`, undefined, { Prefer: "return=minimal" });
+async function removeStoredAttachments(rows: any[], tenantId: string): Promise<void> {
+  if (!rows.length) return;
+  const buckets = new Map<string, any[]>();
+  for (const row of rows) {
+    const bucket = String(row.storage_bucket || BUCKET);
+    const items = buckets.get(bucket) ?? [];
+    items.push(row);
+    buckets.set(bucket, items);
+  }
+  for (const [bucket, items] of buckets) {
+    await storage("DELETE", `/storage/v1/object/${encodeURIComponent(bucket)}`, {
+      prefixes: items.map(row => String(row.storage_path)),
+    });
+    const ids = items.map(row => String(row.id)).join(",");
+    await rest("DELETE", `/rest/v1/chatbridge_attachments?id=in.(${ids})&tenant_id=eq.${encodeURIComponent(tenantId)}`, undefined, { Prefer: "return=minimal" });
+  }
 }
 
 async function expiredAttachments(tenantId: string, days: number, diagnostic: boolean): Promise<{ deleted: number; failures: number }> {
@@ -504,12 +514,15 @@ async function expiredAttachments(tenantId: string, days: number, diagnostic: bo
   const params = new URLSearchParams({ select: "id,storage_bucket,storage_path", tenant_id: `eq.${tenantId}`, created_at: `lt.${cutoff}`, order: "created_at.asc", limit: "500" });
   params.set("metadata->>attachment_kind", diagnostic ? "eq.debug_bundle" : "neq.debug_bundle");
   const rows = await rest("GET", `/rest/v1/chatbridge_attachments?${params}`);
-  let deleted = 0, failures = 0;
-  for (const row of Array.isArray(rows) ? rows : []) {
-    try { await removeStoredAttachment(row, tenantId); deleted++; }
-    catch (error) { failures++; console.error("Retention attachment cleanup failed", String(row.id), error); }
+  const items = Array.isArray(rows) ? rows : [];
+  if (!items.length) return { deleted: 0, failures: 0 };
+  try {
+    await removeStoredAttachments(items, tenantId);
+    return { deleted: items.length, failures: 0 };
+  } catch (error) {
+    console.error("Retention attachment cleanup failed", error);
+    return { deleted: 0, failures: items.length };
   }
-  return { deleted, failures };
 }
 
 async function expiredConversations(tenantId: string, days: number): Promise<{ deleted: number; attachments: number; failures: number }> {
@@ -522,13 +535,15 @@ async function expiredConversations(tenantId: string, days: number): Promise<{ d
     const conversationId = String(conversation.id), guestId = String(conversation.guest_id);
     const attachmentQuery = new URLSearchParams({ select: "id,storage_bucket,storage_path", tenant_id: `eq.${tenantId}`, conversation_id: `eq.${conversationId}`, limit: "500" });
     const files = await rest("GET", `/rest/v1/chatbridge_attachments?${attachmentQuery}`);
-    let ready = true;
-    for (const file of Array.isArray(files) ? files : []) {
-      try { await removeStoredAttachment(file, tenantId); attachments++; }
-      catch (error) { ready = false; failures++; console.error("Conversation retention cleanup failed", conversationId, error); }
+    try {
+      const fileRows = Array.isArray(files) ? files : [];
+      await removeStoredAttachments(fileRows, tenantId);
+      attachments += fileRows.length;
+    } catch (error) {
+      failures++;
+      console.error("Conversation retention cleanup failed", conversationId, error);
+      continue;
     }
-    if (!ready) continue;
-    await rest("DELETE", `/rest/v1/chatbridge_attachments?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
     await rest("DELETE", `/rest/v1/chatbridge_guest_sessions?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
     await rest("DELETE", `/rest/v1/chatbridge_messages?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
     await rest("DELETE", `/rest/v1/chatbridge_conversations?tenant_id=eq.${tenantId}&id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
@@ -558,8 +573,8 @@ async function runRetentionForTenant(tenantId: string): Promise<Record<string, n
   const auditDays = Number(settings.audit_days);
   if (auditDays > 0) {
     const cutoff = new Date(Date.now() - auditDays * 86400000).toISOString();
-    const removed = await rest("DELETE", `/rest/v1/chatbridge_staff_audit_events?tenant_id=eq.${tenantId}&created_at=lt.${encodeURIComponent(cutoff)}`, undefined, { Prefer: "return=representation" });
-    auditEventsDeleted = Array.isArray(removed) ? removed.length : 0;
+    const removed = await rest("POST", "/rest/v1/rpc/chatbridge_retention_delete_audit_events", { p_tenant_id: tenantId });
+    auditEventsDeleted = Number(removed) || 0;
   }
   await rest("POST", "/rest/v1/chatbridge_retention_runs", { tenant_id: tenantId, conversations_deleted: conversations.deleted, attachments_deleted: attachmentsDeleted, audit_events_deleted: auditEventsDeleted, failures }, { Prefer: "return=minimal" });
   return { conversations_deleted: conversations.deleted, attachments_deleted: attachmentsDeleted, audit_events_deleted: auditEventsDeleted, failures };
