@@ -49,18 +49,12 @@ try {
     }
 
     $pdo = database();
+    $repository = chat_repository($pdo);
     // Persist the verified payload before acknowledging Meta. Inline processing
     // is an optimization; the CLI inbox worker recovers jobs after a process crash.
-    $pdo->beginTransaction();
-    try {
-        $queued = enqueue_meta_webhook($pdo, $rawBody);
-        $pdo->commit();
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $error;
-    }
+    $queued = enqueue_meta_webhook($repository, $rawBody);
     $summary = ['processed' => 0, 'retried' => 0, 'failed' => 0];
-    if ($queued['status'] !== 'processed') $summary = process_webhook_inbox($pdo, 1, 8);
+    if ($queued['status'] !== 'processed') $summary = process_webhook_inbox($pdo, $repository, 1, 8);
 
     http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
