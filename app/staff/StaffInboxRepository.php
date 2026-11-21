@@ -30,7 +30,7 @@ interface StaffInboxRepository
     public function listStaffIdentities(): array;
 
     /** @return list<array<string,mixed>> */
-    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit): array;
+    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array;
 
     public function listConversations(
         string $status,
@@ -49,7 +49,7 @@ interface StaffInboxRepository
     ): void;
 
     /** @return list<array<string,mixed>> */
-    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit): array;
+    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array;
 
     /** End the active assignment, retaining assignment history. */
     public function unassignConversation(
@@ -58,23 +58,30 @@ interface StaffInboxRepository
         ?string $requestId = null
     ): bool;
 
+    /** Atomically assign an unassigned conversation to the current agent only. */
+    public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool;
+
+    /** Atomically end an assignment only when the current agent still owns it. */
+    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool;
+
     /** Create a private note. Notes are immutable and never become customer messages. */
     public function addInternalNote(
         string $id,
         string $conversationId,
         string $authorStaffId,
         string $body,
-        ?string $requestId = null
+        ?string $requestId = null,
+        bool $requireAssignment = false
     ): void;
 
     /** @return list<array<string,mixed>> */
-    public function listInternalNotes(string $conversationId, int $afterId, int $limit): array;
+    public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array;
 
     /**
      * Persist a website-visible business reply and its staff-author link atomically.
      * This operation does not enqueue WhatsApp delivery.
      */
-    public function createStaffReply(array $message, string $staffIdentityId, ?string $requestId = null): array;
+    public function createStaffReply(array $message, string $staffIdentityId, ?string $requestId = null, bool $requireAssignment = false): array;
 
     /** @return list<array<string,mixed>> */
     public function listAuditEvents(string $conversationId, int $afterId, int $limit): array;
