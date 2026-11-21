@@ -230,7 +230,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
             // Re-check consent immediately before the external send. A withdrawal
             // can invalidate a job after it was claimed by this worker.
             if (!$repository->hasWhatsAppConsent((string) $job['message_id'])) {
-                $repository->cancelWhatsAppOutbox((int) $job['id'], $lockToken, (string) $job['message_id']);
+                $repository->cancelWhatsAppOutbox((string) $job['id'], $lockToken, (string) $job['message_id']);
                 continue;
             }
 
