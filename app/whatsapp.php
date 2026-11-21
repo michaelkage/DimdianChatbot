@@ -250,7 +250,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
             $delay = whatsapp_retry_delay_seconds($attempt);
             $messageText = mb_substr_safe($error->getMessage(), 0, 900);
             $recorded = $repository->failWhatsAppOutbox(
-                (int) $job['id'],
+                (string) $job['id'],
                 $lockToken,
                 (string) $job['message_id'],
                 $shouldRetry,
@@ -264,7 +264,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
                     $summary['failed']++;
                 }
                 app_log_event('outbox.attempt_failed', [
-                    'job_id' => (int) $job['id'],
+                    'job_id' => (string) $job['id'],
                     'attempt' => $attempt,
                     'result' => $shouldRetry ? 'retry' : 'failed',
                 ]);
