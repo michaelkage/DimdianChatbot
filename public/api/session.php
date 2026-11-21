@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/consent.php';
 
 enforce_allowed_origin();
 handle_preflight();
@@ -38,11 +39,12 @@ if ($whatsappOptIn && $normalizedPhone === null) {
 
 try {
     $pdo = database();
+    $repository = chat_repository($pdo);
 
     $rateConfig = app_config('app.session_rate_limit') ?? [];
     $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 10));
     $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 900));
-    enforce_rate_limit($pdo, 'session:' . client_fingerprint(), $maxRequests, $windowSeconds);
+    enforce_rate_limit($repository, 'session:' . client_fingerprint(), $maxRequests, $windowSeconds);
 
     $sessionId = uuid_v4();
     $conversationId = uuid_v4();
@@ -55,33 +57,18 @@ try {
     $createdAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     $expiresAt = $createdAt->modify('+' . $ttlHours . ' hours');
 
-    $pdo->beginTransaction();
-
-    $guest = $pdo->prepare(
-        'INSERT INTO guests (id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
-         VALUES (:id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
-    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $normalizedPhone, ':whatsapp_opt_in_at' => $whatsappOptIn ? $createdAt->format('Y-m-d H:i:s') : null]);
-
-    $conversation = $pdo->prepare(
-        'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
-         VALUES (:id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
-    $conversation->execute([':id' => $conversationId, ':guest_id' => $guestId]);
-
-    $session = $pdo->prepare(
-        'INSERT INTO guest_sessions (id, guest_id, conversation_id, token_hash, created_at, expires_at)
-         VALUES (:id, :guest_id, :conversation_id, :token_hash, UTC_TIMESTAMP(), :expires_at)'
-    );
-    $session->execute([
-        ':id' => $sessionId,
-        ':guest_id' => $guestId,
-        ':conversation_id' => $conversationId,
-        ':token_hash' => $tokenHash,
-        ':expires_at' => $expiresAt->format('Y-m-d H:i:s'),
+    $repository->createGuestSession([
+        'session_id' => $sessionId,
+        'conversation_id' => $conversationId,
+        'guest_id' => $guestId,
+        'name' => $name,
+        'phone' => $phone,
+        'phone_normalized' => $normalizedPhone,
+        'whatsapp_opt_in' => $whatsappOptIn,
+        'token_hash' => $tokenHash,
+        'expires_at' => $expiresAt,
+        'created_at' => $createdAt,
     ]);
-
-    $pdo->commit();
 
     json_response([
         'data' => [
@@ -90,6 +77,7 @@ try {
             'session_token' => $token,
             'expires_at' => $expiresAt->format(DateTimeInterface::ATOM),
             'created_at' => $createdAt->format(DateTimeInterface::ATOM),
+            'whatsapp_opt_in' => $whatsappOptIn,
         ],
     ], 201);
 } catch (Throwable $error) {
@@ -97,6 +85,6 @@ try {
         $pdo->rollBack();
     }
 
-    error_log('[DimdianChatbot] Guest session creation failed: ' . $error->getMessage());
+    app_log_event('session.create_failed', ['endpoint' => 'session', 'exception_class' => get_class($error)]);
     json_response(['error' => ['code' => 'server_error', 'message' => 'A chat session could not be started. Please try again.']], 500);
 }

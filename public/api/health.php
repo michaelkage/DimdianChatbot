@@ -23,6 +23,11 @@ $requiredTables = [
     'webhook_events',
     'message_outbox',
     'message_status_events',
+    'guest_consent_events',
+    'whatsapp_identity_links',
+    'webhook_inbox',
+    'meta_signup_states',
+    'meta_connections',
 ];
 
 try {
@@ -42,22 +47,36 @@ try {
     $missingTables = array_values(array_diff($requiredTables, $foundTables));
 
     $schemaOk = $missingTables === [];
+    $opensslOk = extension_loaded('openssl');
+    $pdoMysqlOk = extension_loaded('pdo_mysql');
+    $runtimeOk = $opensslOk && $pdoMysqlOk;
+    $queueMetrics = ['webhook_pending' => null, 'webhook_failed' => null, 'outbox_pending' => null, 'outbox_failed' => null];
+    if ($schemaOk) {
+        $queueMetrics['webhook_pending'] = (int) $pdo->query('SELECT COUNT(*) FROM webhook_inbox WHERE status IN ("pending","processing")')->fetchColumn();
+        $queueMetrics['webhook_failed'] = (int) $pdo->query('SELECT COUNT(*) FROM webhook_inbox WHERE status = "failed"')->fetchColumn();
+        $queueMetrics['outbox_pending'] = (int) $pdo->query('SELECT COUNT(*) FROM message_outbox WHERE status IN ("pending","processing")')->fetchColumn();
+        $queueMetrics['outbox_failed'] = (int) $pdo->query('SELECT COUNT(*) FROM message_outbox WHERE status = "failed"')->fetchColumn();
+    }
     $whatsapp = app_config('whatsapp') ?? [];
     $whatsappEnabled = is_array($whatsapp) && !empty($whatsapp['outbound_enabled']);
 
     json_response([
-        'status' => $schemaOk ? 'healthy' : 'degraded',
+        'status' => ($schemaOk && $runtimeOk) ? 'healthy' : 'degraded',
+        'request_id' => app_request_id(),
         'service' => 'Dimdian website chat',
         'checked_at' => gmdate(DateTimeInterface::ATOM),
         'checks' => [
             'php_api' => 'ok',
             'database' => 'ok',
             'schema' => $schemaOk ? 'ok' : 'incomplete',
+            'openssl' => $opensslOk ? 'ok' : 'missing',
+            'pdo_mysql' => $pdoMysqlOk ? 'ok' : 'missing',
         ],
         'missing_tables' => $missingTables,
+        'queues' => $queueMetrics,
         'whatsapp_outbound' => $whatsappEnabled ? 'enabled_in_config' : 'disabled',
         'note' => 'This check does not test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity or live WhatsApp delivery.',
-    ], $schemaOk ? 200 : 503);
+    ], ($schemaOk && $runtimeOk) ? 200 : 503);
 } catch (Throwable $error) {
     // Detailed diagnostics belong in the private hosting error log, not HTTP.
     error_log('[DimdianChatbot] Health check failed: ' . $error->getMessage());

@@ -1,5 +1,7 @@
 # Public API contract
 
+For the versioned compatibility entry points under /api/v1, see [API v1](API-V1.md). The existing /api/*.php routes remain supported during migration.
+
 Base path: `/api`. All responses are JSON except the Meta webhook verification handshake. Timestamps are UTC ISO-8601 strings.
 
 ## Operational health check
@@ -28,7 +30,7 @@ Body fields are optional except that WhatsApp opt-in requires a phone number:
 }
 ```
 
-No account, password, phone verification or OTP is required. If a phone number is supplied, it must include an international country-code prefix (+ or 00); local trunk formats such as 080... are rejected. The opt-in timestamp is stored separately from the contact number.
+No account, password, phone verification or OTP is required. If a phone number is supplied, it must include an international country-code prefix (+ or 00); local trunk formats such as 080... are rejected. The opt-in timestamp is stored separately from the contact number. Each opt-in is also appended to `guest_consent_events` and creates one active `whatsapp_identity_links` route. The session response includes the current `whatsapp_opt_in` state.
 
 ## Send a website message
 
@@ -60,12 +62,12 @@ A valid session may continue reading history after a conversation is closed, but
 
 - GET validates Meta's `hub.verify_token` handshake and returns `hub.challenge`.
 - POST validates `X-Hub-Signature-256` over the exact raw body with the Meta App Secret.
-- `messages` text events from the visitor are matched by normalized sender phone.
-- `smb_message_echoes` text events from the Business app are matched by normalized recipient phone.
+- `messages` text events from the visitor are matched through the single active, consent-backed phone-to-conversation link.
+- `smb_message_echoes` text events from the Business app are matched through that same explicit route using the echo recipient.
 - `messages.statuses` updates outbound message delivery states.
-- Unique provider event keys prevent duplicate processing.
+- Provider event keys and raw-payload hashes prevent duplicate processing.
 
-The webhook returns 200 only after the batch has been committed. Failed processing returns 500 so the provider can retry.
+The endpoint verifies the signature, encrypts the exact raw payload with AES-256-GCM and commits it to `webhook_inbox` before returning 200. It attempts one inline processing pass; `public/cron/process-webhook-inbox.php` recovers pending and expired-lease jobs. A transient processing error does not discard the accepted payload.
 
 ## Error format
 
@@ -80,6 +82,29 @@ Relevant statuses: 400 malformed JSON, 401 invalid/expired session or webhook si
 - Guest tokens are 256-bit random values; only hashes are persisted.
 - CORS is restricted to exact configured website origins.
 - Webhook signatures are checked before parsing.
-- Webhook payloads are not stored; only SHA-256 hashes and normalized event records are retained.
-- The cron worker is CLI-only and cannot be invoked over HTTP.
+- Verified webhook payloads are encrypted at rest in the durable inbox; processed inbox rows are removed by the retention job.
+- Consent changes are append-only in the consent ledger.
+- The cron workers are CLI-only and cannot be invoked over HTTP.
 - No production credentials belong in Git.
+
+
+## Change WhatsApp consent
+
+`POST /api/consent.php`
+
+Headers: `Content-Type: application/json`, `X-DIMDIAN-GUEST-TOKEN`
+
+Body: `{"whatsapp_opt_in":false}` to withdraw WhatsApp continuation. Website chat remains available. Re-opt-in is supported only when the guest session already has a valid international phone number. Every change is appended to the consent ledger. Withdrawal disables the active phone-to-conversation route and cancels pending outbound jobs for that guest.
+
+## Meta Embedded Signup (administrator only)
+
+`POST /api/meta-embedded-signup.php`
+
+Requires `X-DIMDIAN-ADMIN-KEY` and a JSON body. `{"action":"begin"}` returns the Meta App ID, Embedded Signup configuration ID and a one-time state valid for ten minutes. `{"action":"exchange","state":"…","code":"…","phone_number_id":"…","waba_id":"…" }` exchanges the code server-side and stores the access token encrypted. The token is never returned. The endpoint has no public CORS policy; do not expose the admin key in browser JavaScript. A secure server-side operator proxy is required for a browser onboarding UI.
+
+The administrator-only Meta endpoint also accepts `{"action":"subscribe"}` to retry subscribing the active WABA to this app's webhooks if the automatic post-exchange subscription did not succeed. The outbox worker attempts to refresh expiring 60-day system-user tokens when they enter the seven-day renewal window; a failed refresh is logged and the still-valid token is used until expiry.
+
+
+## Request correlation and diagnostics
+
+Every API request receives an opaque `X-DIMDIAN-REQUEST-ID` response header. Operational failures are written as structured JSON records to the private PHP error log. The logger allowlists diagnostic fields and excludes phone numbers, guest tokens, message bodies, access tokens and raw provider responses. Use the response request ID when correlating an issue with server logs.

@@ -1,74 +1,93 @@
 # Product Scope
 
-## Purpose
+## Product definition
 
-Provide a small website chat widget that lets prospective and existing customers send quick enquiries and receive replies from the business's support team.
+ChatBridge is a modular, platform-independent customer communication and support platform. It provides an embeddable website chat widget, a backend API, interchangeable storage and deployment implementations, optional communication channels, optional AI capabilities, and platform-specific business integrations.
+
+WordPress and WooCommerce are the first major distribution and commerce integrations. They are not the product boundary. The first Dimdian deployment and GitHub Pages demo are product pilots, not restrictions on how other businesses must deploy ChatBridge.
 
 ## Customer experience
 
-- Chat is embedded on the business website.
+- A business can embed the widget on a supported website or application.
 - A visitor can start as a guest without creating an account.
-- No OTP, password, or registration step.
-- A visitor can send a short enquiry immediately.
-- A phone number may be captured as a contact detail; it is not used as an identity-verification gate.
-- Conversation history remains available in the same browser session and can be restored when the widget is reopened or the same tab is reloaded.
-- The widget shows customer and support messages in chronological order.
-- No full-page customer portal.
+- The widget communicates with a configured ChatBridge API endpoint.
+- The business can configure branding, welcome text and supported widget behaviour.
+- Website chat does not require WhatsApp or AI.
+- The widget can be served by ChatBridge or self-hosted by the business.
+- Conversation history and session behaviour are controlled by the configured backend.
 
-## Support experience
+## Deployment and infrastructure choices
 
-- The intended support workflow uses the existing WhatsApp Business app.
-- No separate staff dashboard or inbox.
-- Website messages are stored by the backend. When WhatsApp continuation is enabled and the visitor explicitly opts in, an approved template is sent to that visitor's number to establish the WhatsApp thread.
-- A support reply sent from the WhatsApp Business app is mirrored into the originating website conversation through supported `smb_message_echoes` webhook events.
-- This depends on Meta Business App Coexistence being available for the actual business number and the required echo events being delivered.
-- The current product supports text synchronization only.
+The product direction supports managed, self-hosted and hybrid deployments.
+
+Potential backend runtimes include PHP, Node.js, containers and compatible serverless environments. Potential storage targets include MySQL, MariaDB, PostgreSQL, PostgreSQL-compatible services such as Neon and Supabase, and SQLite where operational constraints permit.
+
+These are target compatibility options, not a claim that every adapter is already implemented. The current PHP application is PDO-based and uses MySQL/MariaDB-oriented SQL. PostgreSQL, SQLite and alternative backend runtimes must not be advertised as supported until their implementations, migrations and integration tests exist.
+
+Supabase is one existing hosted demonstration backend. It is not a mandatory runtime or database dependency.
+
+## Platform integrations
+
+### WordPress
+
+The WordPress plugin provides settings, widget injection, health diagnostics and optional integration-specific features. It remains an optional connector.
+
+### WooCommerce
+
+The WooCommerce adapter may expose public catalogue search and product enquiry handoff. It must expose only published, customer-visible catalogue information.
+
+Private order lookup requires a separate verified flow. Public endpoints must never expose private customer or order data.
+
+### Other platforms
+
+The universal script embed is the initial non-WordPress integration. An NPM package and additional CMS/e-commerce adapters are future distribution targets.
+
+## Communication channels
+
+WhatsApp Business Platform is an optional channel. Each business must be able to connect its own eligible business account and configure its own credentials through secure server-side onboarding.
+
+The platform must support website-only chat without WhatsApp. Future channels must be implemented behind channel-provider boundaries rather than embedded in the widget.
+
+## Human support and AI
+
+Human support and AI are separate capabilities.
+
+A human-operated deployment must not require AI configuration. AI is optional and should support interchangeable providers, tenant-specific instructions and knowledge sources, usage controls, and human escalation.
+
+A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, repository, HMAC server-assertion authentication, local role/assignment authorization and versioned API routes are implemented. A turnkey WordPress assertion proxy and separate staff UI remain incomplete. It is not enabled for the Dimdian deployment.
 
 ## Backend responsibilities
 
-- Create and maintain anonymous guest sessions.
-- Store conversations and messages.
-- Send opted-in website messages through the supported WhatsApp Business Platform API using an approved template.
-- Receive and verify WhatsApp webhooks.
-- Associate supported app-originated support replies with website conversations.
-- Expose a small polling API for the widget.
-- Apply request validation, rate limits, exact-origin CORS protections, and webhook idempotency.
-- Keep credentials outside the public web root and never commit secrets.
+- Tenant resolution and isolation.
+- Guest sessions and authentication.
+- Conversation and message lifecycle.
+- Consent and privacy enforcement.
+- Rate limits and abuse protection.
+- Origin allowlists and CORS.
+- Attachments and retention where enabled.
+- Channel orchestration and webhook processing.
+- Provider-independent API responses.
+- Auditing and operational diagnostics.
 
-## WhatsApp integration gate
+## Current repository status
 
-The intended experience depends on the business continuing to use the WhatsApp Business app while the same number is connected to the Cloud API. Confirm that Meta's supported coexistence onboarding is available for the actual +234 business number and that app-originated messages are delivered through the required webhook event. Validate this with a test number/account before migrating or changing the live business number.
+- The active reference backend is PHP with PDO and MySQL/MariaDB-oriented SQL.
+- Existing guest-session, message, consent, webhook and health endpoints are documented in API.md.
+- The embeddable JavaScript widget is implemented and currently calls the PHP API in API-backed mode.
+- The WordPress connector and optional read-only WooCommerce catalogue integration exist.
+- The production-hardening branch includes consent lifecycle controls, durable encrypted webhook ingestion, Meta onboarding operator functionality and retention processing.
+- A Supabase-backed mock API and Meta diagnostic Edge Functions exist separately; they do not yet establish complete API parity with PHP.
+- The GitHub Pages demo currently runs the widget in browser-only simulated mode and does not persist conversations.
+- A full storage-adapter architecture, canonical versioned API, PostgreSQL implementation, alternative backend runtimes, NPM distribution, self-service tenant portal, complete staff inbox and AI provider system are not yet complete.
 
-If coexistence is unavailable, stop and present the operational alternatives before changing the product architecture. Do not silently substitute a separate staff dashboard.
+## Technical and release constraints
 
-## Explicitly out of scope
+- Keep the widget lightweight and independent of backend/database vendors.
+- Keep all private credentials server-side.
+- Maintain backward compatibility while introducing a versioned API.
+- Extract persistence behind repository interfaces before claiming database portability.
+- Require contract tests and dialect-specific integration tests for each advertised backend/database combination.
+- Keep optional integrations disabled unless explicitly configured.
+- Do not claim live WhatsApp delivery, AI responses, persistence or staff functionality unless the deployed implementation actually provides it.
 
-- AI chat, LLM providers, prompts, AI triage or AI settings
-- Staff/admin inbox, agent accounts, assignment or ticket dashboards
-- WooCommerce or other catalogue integrations
-- Product search, MPN lookup, fitment checks, VIN capture or vehicle records
-- Inventory, order management, payments or ERP workflows
-- Customer accounts, passwords or OTP verification
-- Native mobile applications
-- Persistent WebSocket servers or mandatory paid SaaS infrastructure
-- Media downloads, attachments, voice notes, group chats, message edits or deletions
-
-## Technical constraints
-
-- PHP 8.2+ with PDO
-- MySQL / compatible MariaDB
-- Vanilla browser JavaScript, HTML and CSS
-- Shared-hosting compatible HTTP endpoints and short polling
-- Keep the active codebase small and dependency-light
-- No Composer or frontend runtime dependencies
-
-## Current status
-
-- PHP guest-session and message APIs are implemented.
-- The embeddable widget, database schema, outbox worker and Meta webhook processor are implemented.
-- A public mock website with a browser-only widget demo is deployed on GitHub Pages.
-- The PHP backend has not yet been installed on the production Hostinger account.
-- The WordPress embed and production database/configuration have not yet been set up.
-- WhatsApp Coexistence for the actual business number, template approval and live round-trip behavior remain unverified.
-
-The old marketplace-support source is retained under `archive/legacy-marketplace-support/` for reference only.
+See PORTABLE-ARCHITECTURE.md for the architecture decision and ../tests/PORTABILITY-ACCEPTANCE.md for acceptance criteria.

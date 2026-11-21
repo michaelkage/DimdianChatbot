@@ -115,7 +115,9 @@ function eventRow(
     message_type: String(message?.type ?? "unknown").slice(0, 40),
     from_number_masked: maskNumber(message?.from),
     to_number_masked: maskNumber(message?.to),
-    message_text: text ? text.slice(0, 4000) : null,
+    // Diagnostic text capture is opt-in. Keep real customer message content out
+    // of the separate Supabase demo monitor unless an operator explicitly enables it.
+    message_text: Deno.env.get("META_STORE_MESSAGE_TEXT") === "true" && text ? text.slice(0, 4000) : null,
     event_timestamp: unixTimestamp(message?.timestamp),
     phone_number_id: String(((value.metadata as Record<string, unknown> | undefined)?.phone_number_id) ?? "").slice(0, 80) || null,
     payload_sha256: payloadHash,

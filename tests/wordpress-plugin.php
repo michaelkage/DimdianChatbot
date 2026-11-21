@@ -97,6 +97,7 @@ function register_rest_route(string $namespace, string $route, array $args): voi
     $GLOBALS['chatbridge_routes'][$namespace . $route] = $args;
 }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
+function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_option_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
 function sanitize_key(string $value): string { return preg_replace('/[^a-z0-9_\-]/', '', strtolower($value)); }
@@ -175,6 +176,15 @@ $sanitized = chatbridge_widget_sanitize_settings([
 ]);
 check($sanitized['woocommerce_enabled'] === 1, 'WooCommerce setting is saved as an explicit boolean flag');
 check($sanitized['api_base'] === 'https://chat.example.test/api', 'API base URL is normalized');
+$secretSettings = chatbridge_widget_sanitize_settings([
+    'api_base' => 'https://chat.example.test/api',
+    'meta_admin_api_key' => 'test-only-private-admin-key-that-is-long-enough',
+    'meta_partner_solution_id' => 'partner-solution-123',
+]);
+check(($GLOBALS['chatbridge_options']['chatbridge_meta_admin_api_key'] ?? '') === 'test-only-private-admin-key-that-is-long-enough', 'Meta admin key is stored in its separate private option');
+check(($GLOBALS['chatbridge_option_autoload']['chatbridge_meta_admin_api_key'] ?? null) === false, 'Meta admin key is saved with autoload disabled');
+check(!array_key_exists('meta_admin_api_key', $secretSettings), 'Meta admin key is excluded from the general widget settings array');
+check(($secretSettings['meta_partner_solution_id'] ?? '') === 'partner-solution-123', 'Partner Solution ID is saved in the admin settings');
 
 $disabled = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 check($disabled->get_status() === 403, 'public endpoint respects the administrator product-search toggle');

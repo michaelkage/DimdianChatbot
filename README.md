@@ -1,10 +1,12 @@
-# Dimdian Website Chat
+# ChatBridge (DimdianChatbot)
 
-A lightweight customer chat widget for the Dimdian website. Visitors can send an enquiry without creating an account. The intended support workflow lets the team continue the conversation from the existing WhatsApp Business app, subject to Meta's WhatsApp Business App Coexistence requirements being confirmed for the business number.
+ChatBridge is being developed as a platform-independent customer communication product: an embeddable website chat widget, a backend API, interchangeable storage and deployment implementations, and optional WordPress, WooCommerce, WhatsApp and AI integrations.
 
-This README is also the handover guide for the Dimdian business owner and the person maintaining the website.
+The current repository is the first Dimdian pilot. Its reference backend is PHP + PDO + MySQL/MariaDB-oriented SQL; its separate Supabase Edge Functions support the hosted demonstration and Meta diagnostics. These are current implementations, not mandatory infrastructure choices. The canonical portable API and full storage-adapter layer are the next engineering milestones.
 
-> **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
+This README retains the operational handover for the current Dimdian PHP/MySQL pilot. For the product architecture and compatibility boundaries, read [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md), [Product Scope](docs/PRODUCT-SCOPE.md) and [Versioned API](docs/API-V1.md).
+
+> **Product architecture:** [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md) · [Product Scope](docs/PRODUCT-SCOPE.md) · [Portability Acceptance Criteria](tests/PORTABILITY-ACCEPTANCE.md). **Current pilot operations:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md); see the [Production Hardening Guide](docs/PRODUCTION-HARDENING.md) and [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
 ## WordPress plugin (early connector)
 
@@ -61,15 +63,15 @@ The demo does not connect to the PHP API, database or WhatsApp. It hides the vis
 
 An owner-only diagnostic page is available at [the WhatsApp integration test console](https://michaelkage.github.io/DimdianChatbot/whatsapp-test.html). It will display verified Meta webhook events after the separate Supabase test project is configured. It is not a customer inbox and does not initiate WhatsApp onboarding or send messages.
 
-## 4. Production hosting plan
+## 4. Reference PHP/MySQL deployment
 
-The intended hosting is the existing **Hostinger Business Web Hosting** account, using the subdomain:
+This section documents one self-hosted deployment shape for the current PHP reference backend. It is not a requirement for ChatBridge, and no Hostinger account access or production deployment is assumed or claimed.
 
-- Chat/API host: `chat.dimdian.com`
-- Main website: the existing Dimdian WordPress/WooCommerce website
-- Runtime: PHP 8.2+, PDO MySQL, MySQL/MariaDB, HTTPS and a scheduled CLI cron task
+- Example Chat/API host: `chat.dimdian.com` (not confirmed as provisioned)
+- Main website: the Dimdian WordPress/WooCommerce website
+- Runtime for this implementation: PHP 8.2+, PDO MySQL, MySQL/MariaDB, HTTPS and a scheduled CLI cron task
 
-The chat application should be deployed separately from WordPress. It uses its own database and does not need access to the WooCommerce database.
+The chat application should be deployed separately from WordPress. It uses its own database and does not need access to the WooCommerce database. Other supported implementations may use different runtimes and storage once their adapters and compatibility tests exist.
 
 ### Recommended directory layout
 
@@ -91,18 +93,18 @@ For example:
     └── widget.css
 ```
 
-The exact absolute home-directory path is assigned by Hostinger and must be taken from hPanel/SSH; do not copy the example path literally. The PHP bootstrap currently looks for `config.php` in the repository root (one directory above `app/`). If the hosting layout is changed, update that path deliberately and keep the config outside the public directory.
+The exact absolute home-directory path is assigned by the hosting provider and must be taken from its control panel or SSH; do not copy the example path literally. The PHP bootstrap currently looks for `config.php` in the repository root (one directory above `app/`). If the hosting layout is changed, update that path deliberately and keep the config outside the public directory.
 
-### Hostinger setup checklist
+### Self-hosted setup checklist
 
 Do these steps in order. Do not change the main WordPress site or its database.
 
-1. **Create the subdomain.** In Hostinger hPanel, create `chat.dimdian.com`, enable its SSL certificate, and set its document root to the repository's `public/` directory. Confirm that HTTPS works before embedding the widget.
+1. **Create the subdomain.** In your hosting control panel, create the desired chat subdomain, enable its SSL certificate, and set its document root to the repository's `public/` directory. Confirm that HTTPS works before embedding the widget.
 2. **Check PHP.** Select PHP 8.2 or newer and confirm the PDO and PDO MySQL extensions are enabled. The application uses PHP streams and PDO; it does not require Composer, Node.js or a continuously running server process.
 3. **Create a separate database.** Create a new MySQL database and database user for the chat application. Grant that user access only to this database. Do not reuse the WordPress/WooCommerce database credentials.
-4. **Deploy the repository.** Use Hostinger's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
+4. **Deploy the repository.** Use your hosting provider's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
 5. **Create the private configuration file.** Copy `config.example.php` to `config.php` in the repository root (not in `public/`). Fill in the database host/name/user/password, a strong random app key, timezone, public URL and exact website origins. Keep all WhatsApp fields empty/disabled for the first launch.
-6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. This is the complete current schema. Do not run migrations 002 or 003 on top of this fresh schema; those migrations are only for databases created from older schema versions.
+6. **Import the schema.** Using your hosting provider's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. This is the complete current schema. Do not run migrations 002, 003 or 004 on top of this fresh schema. For an existing database, apply migrations 002, 003 and 004 in order after taking a backup; see the [Production Hardening Guide](docs/PRODUCTION-HARDENING.md).
 7. **Test the API before WordPress integration.** Open `https://chat.dimdian.com/api/session.php` in a browser. A method error is expected for a GET request; it confirms PHP is responding. A 503 `not_configured` response means the application cannot find its private `config.php`. A 500 response should be investigated in the hosting PHP error log. Do not expose database credentials in screenshots or support tickets.
 8. **Add the widget to WordPress** using the snippet below, after the API host is working.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
@@ -118,7 +120,7 @@ Start from `config.example.php`. The important application values are:
 | `app.timezone` | `Africa/Lagos` |
 | `app.public_base_url` | `https://chat.dimdian.com` |
 | `app.allowed_origins` | Exact origins of the live website, e.g. `https://dimdian.com` and `https://www.dimdian.com`. Add only hostnames that actually serve the site. No paths or trailing slash. |
-| `database.dsn` | Hostinger database DSN in the form `mysql:host=DB_HOST;dbname=DB_NAME;charset=utf8mb4`. Use the exact database host/name shown in hPanel. |
+| `database.dsn` | Hostinger database DSN in the form `mysql:host=DB_HOST;dbname=DB_NAME;charset=utf8mb4`. Use the exact database host/name shown in your hosting control panel. |
 | `database.username` / `database.password` | Dedicated chat database credentials. |
 | `whatsapp.outbound_enabled` | Keep `false` until the WhatsApp launch gate below is passed. |
 
@@ -188,7 +190,7 @@ Never put any of these secrets in WordPress, the widget JavaScript, GitHub Pages
 
 ## 7. Scheduled worker
 
-The WhatsApp outbox worker is a command-line PHP script, not a public URL. It must be run by Hostinger's cron scheduler using the actual absolute path to the project and the PHP CLI binary provided by the hosting account.
+The WhatsApp outbox worker, durable webhook inbox worker and retention job are command-line PHP scripts, not public URLs. It must be run by your hosting provider's cron scheduler using the actual absolute path to the project and the PHP CLI binary provided by the hosting account.
 
 Script:
 
@@ -196,9 +198,9 @@ Script:
 /path/to/project/public/cron/process-outbox.php
 ```
 
-Suggested schedule after WhatsApp has been enabled: once per minute. In hPanel's Cron Jobs section, use the PHP command format Hostinger provides, with the absolute script path. The exact PHP executable path and project path must be copied from the hosting environment; do not guess them.
+Suggested schedule after WhatsApp has been enabled: once per minute. In your hosting provider's cron-job interface, use its documented PHP command format, with the absolute script path. The exact PHP executable path and project path must be copied from the hosting environment; do not guess them.
 
-While WhatsApp is disabled, the worker exits without processing jobs, so creating the cron job can wait until the WhatsApp integration test phase. Do not try to run this script by visiting it in a browser; it is intentionally CLI-only.
+While WhatsApp is disabled, the outbox worker exits without processing sends. The webhook inbox worker should still run every minute so verified webhook deliveries are processed reliably; the retention job should run daily. Do not try to run this script by visiting it in a browser; it is intentionally CLI-only.
 
 ## 8. Privacy, security and day-to-day ownership
 
@@ -207,10 +209,10 @@ For the business owner:
 - Tell visitors what the chat is used for and avoid asking them to send passwords, card details or sensitive personal information.
 - Only use a visitor's phone number for the WhatsApp continuation they explicitly selected.
 - Do not assume a visitor has consented to WhatsApp just because they started a website chat.
-- Keep access to Hostinger, Meta Business Manager and database backups restricted to trusted people.
+- Keep access to the hosting account, Meta Business Manager and database backups restricted to trusted people.
 - If a visitor asks about a conversation, the current product has no staff dashboard or customer search screen; the technical maintainer may need to investigate the database securely.
 - Agree an internal process for who monitors and replies to enquiries in the WhatsApp Business app and during what hours.
-- Decide how long chat records should be retained and who is responsible for handling deletion/privacy requests. Automated retention/deletion tooling is not currently included.
+- Decide whether the default retention periods match the privacy notice and who handles individual privacy requests. A scheduled retention job now removes old closed conversations and operational records; it does not replace a documented privacy-request process.
 
 Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, exact-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
 
@@ -222,7 +224,7 @@ Technical safeguards already in the code include hashed guest session tokens, pr
 | Widget appears but cannot start a chat | Check that `chat.dimdian.com` is live, PHP 8.2+ and PDO MySQL are enabled, `config.php` is in the expected private location, and the database/schema are correct. |
 | Browser reports a CORS error | Add the exact website origin to `app.allowed_origins`; scheme and hostname must match. |
 | API responds with 503 `not_configured` | The bootstrap cannot find the private root `config.php`, or the file does not return a valid configuration array. |
-| API responds with 500 | Check Hostinger PHP/server error logs and database credentials/schema. Do not display raw server errors to visitors. |
+| API responds with 500 | Check your hosting provider's PHP/server error logs and database credentials/schema. Do not display raw server errors to visitors. |
 | Visitor message says “Website only” | This is expected while WhatsApp is disabled, or when the visitor did not provide a valid number and explicit opt-in. |
 | WhatsApp template is not sent | Check the master switch, cron execution, approved template name/language, token permissions, phone-number ID and Meta error logs. |
 | Staff reply does not appear on the website | Check Coexistence support, webhook subscription and delivery of `smb_message_echoes`; confirm the visitor number matches the website conversation. |
@@ -263,14 +265,14 @@ node --test tests/browser.mjs
 find app public tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 ```
 
-The database-backed integration suite requires a configured MySQL/MariaDB test database. The browser suite requires its Playwright/Chromium test dependencies. GitHub Actions runs the automated checks and deploys the public demo from `docs/`; it does not deploy the PHP backend to Hostinger.
+The database-backed integration suite requires a configured MySQL/MariaDB test database. The browser suite requires its Playwright/Chromium test dependencies. GitHub Actions runs the automated checks and deploys the public demo from `docs/`; it does not deploy the PHP backend to a hosting provider.
 
 ## 11. Current deployment status
 
 | Component | Status |
 |---|---|
 | Public mock website and demo widget | Deployed on GitHub Pages |
-| PHP API and MySQL backend | Implemented in the repository; not yet installed on Hostinger |
+| PHP API and MySQL backend | Implemented in the repository; no production host deployment is confirmed |
 | Production WordPress embed | Not yet configured |
 | Production database and private config | Not yet created |
 | WhatsApp credentials/template | Not configured |
@@ -284,3 +286,8 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 ---
 
 For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).
+
+
+## Production hardening additions
+
+The production hardening pass adds an auditable WhatsApp consent ledger and opt-out endpoint, deterministic phone-to-conversation links, an encrypted durable Meta webhook inbox, a recoverable webhook worker, server-side Embedded Signup code exchange with encrypted token storage, environment-variable configuration overrides, and a CLI retention job. The [file-change manifest](docs/FILE-CHANGE-MANIFEST.md), [manual setup checklist](docs/MANUAL-SETUP-CHECKLIST.md) and [16-milestone acceptance status](docs/MILESTONE-STATUS.md) list the repository changes, deployment steps and remaining production gates. These additions do not create a staff inbox, agent accounts or media synchronization. The WordPress plugin includes the administrator-only Embedded Signup v4 launcher; Meta app review, partner eligibility and live onboarding remain external gates.

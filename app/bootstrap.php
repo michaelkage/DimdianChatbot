@@ -20,7 +20,39 @@ if (!is_array($config)) {
     throw new RuntimeException('config.php must return an array.');
 }
 
+// Optional environment overrides keep secrets out of deployed config files.
+$environmentMap = [
+    'DIMDIAN_APP_KEY' => ['app', 'app_key'],
+    'DIMDIAN_DATABASE_DSN' => ['database', 'dsn'],
+    'DIMDIAN_DATABASE_USERNAME' => ['database', 'username'],
+    'DIMDIAN_DATABASE_PASSWORD' => ['database', 'password'],
+    'DIMDIAN_META_APP_ID' => ['meta', 'app_id'],
+    'DIMDIAN_META_CONFIG_ID' => ['meta', 'config_id'],
+    'DIMDIAN_META_ADMIN_API_KEY' => ['meta', 'admin_api_key'],
+    'DIMDIAN_WHATSAPP_ACCESS_TOKEN' => ['whatsapp', 'access_token'],
+    'DIMDIAN_WHATSAPP_APP_SECRET' => ['whatsapp', 'app_secret'],
+    'DIMDIAN_WHATSAPP_VERIFY_TOKEN' => ['whatsapp', 'verify_token'],
+    'DIMDIAN_WHATSAPP_PHONE_NUMBER_ID' => ['whatsapp', 'phone_number_id'],
+    'DIMDIAN_WHATSAPP_GRAPH_API_VERSION' => ['whatsapp', 'graph_api_version'],
+];
+foreach ($environmentMap as $environmentName => $path) {
+    $value = getenv($environmentName);
+    if ($value === false) continue;
+    if (!isset($config[$path[0]]) || !is_array($config[$path[0]])) $config[$path[0]] = [];
+    $config[$path[0]][$path[1]] = $value;
+}
+$outboundEnvironment = getenv('DIMDIAN_WHATSAPP_OUTBOUND_ENABLED');
+if ($outboundEnvironment !== false) {
+    $config['whatsapp']['outbound_enabled'] = filter_var($outboundEnvironment, FILTER_VALIDATE_BOOL);
+}
+
+require_once __DIR__ . '/observability.php';
+app_request_id();
+
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
+
+require_once __DIR__ . '/storage/ChatRepository.php';
+require_once __DIR__ . '/storage/PdoChatRepository.php';
 
 function app_config(?string $key = null): mixed
 {
@@ -142,6 +174,16 @@ function database(): PDO
     return $pdo;
 }
 
+/**
+ * Resolve the configured persistence adapter.
+ * The current reference adapter is PDO/MySQL; alternative adapters must
+ * implement ChatRepository and be selected through explicit configuration.
+ */
+function chat_repository(?PDO $connection = null): ChatRepository
+{
+    return new PdoChatRepository($connection ?? database());
+}
+
 function client_fingerprint(): string
 {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -152,45 +194,11 @@ function client_fingerprint(): string
     return hash_hmac('sha256', $ip, $key);
 }
 
-function enforce_rate_limit(PDO $pdo, string $bucket, int $maxRequests, int $windowSeconds): void
+function enforce_rate_limit(ChatRepository $repository, string $bucket, int $maxRequests, int $windowSeconds): void
 {
-    // rate_limits.bucket_key is fixed at 64 hex characters; hash all bucket names.
-    $bucketKey = hash('sha256', $bucket);
-    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-    $cutoff = $now->modify('-' . max(1, $windowSeconds) . ' seconds')->format('Y-m-d H:i:s');
-    $nowString = $now->format('Y-m-d H:i:s');
-
-    $pdo->beginTransaction();
-    try {
-        $insert = $pdo->prepare(
-            'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
-             VALUES (:bucket, :now, 1)
-             ON DUPLICATE KEY UPDATE
-               request_count = IF(window_started_at <= :cutoff, 1, request_count + 1),
-               window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)'
-        );
-        $insert->execute([
-            ':bucket' => $bucketKey,
-            ':now' => $nowString,
-            ':cutoff' => $cutoff,
-            ':cutoff2' => $cutoff,
-            ':now2' => $nowString,
-        ]);
-
-        $select = $pdo->prepare('SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
-        $select->execute([':bucket' => $bucketKey]);
-        $row = $select->fetch();
-        $pdo->commit();
-
-        if (!$row || (int)$row['request_count'] > $maxRequests) {
-            header('Retry-After: ' . max(1, $windowSeconds));
-            json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
-        }
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $error;
+    if (!$repository->consumeRateLimit($bucket, $maxRequests, $windowSeconds)) {
+        header('Retry-After: ' . max(1, $windowSeconds));
+        json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
     }
 }
 
@@ -228,38 +236,22 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
 }
 
 /**
- * Resolve the bearer-like guest token to its one active conversation.
+ * Resolve the bearer-like guest token through the configured storage adapter.
  * The raw token is never queried or persisted; only its SHA-256 hash is used.
  */
-function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
+function authenticate_guest_session(ChatRepository $repository, bool $requireOpen = true): array
 {
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
     }
 
-    $tokenHash = hash('sha256', $token);
-    $statement = $pdo->prepare(
-        'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
-                g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
-                c.status AS conversation_status
-         FROM guest_sessions gs
-         INNER JOIN conversations c ON c.id = gs.conversation_id
-         INNER JOIN guests g ON g.id = gs.guest_id
-         WHERE gs.token_hash = :token_hash
-           AND gs.revoked_at IS NULL
-           AND gs.expires_at > UTC_TIMESTAMP()
-         LIMIT 1'
-    );
-    $statement->execute([':token_hash' => $tokenHash]);
-    $session = $statement->fetch();
-
-    if (!$session) {
+    $session = $repository->findGuestSessionByTokenHash(hash('sha256', $token));
+    if ($session === null) {
         json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
     }
 
-    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
-    $touch->execute([':id' => $session['session_id']]);
+    $repository->touchGuestSession((string) $session['session_id']);
 
     if ($requireOpen && $session['conversation_status'] !== 'open') {
         json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);

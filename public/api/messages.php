@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
 enforce_allowed_origin();
 handle_preflight();
 
-$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if (!in_array($method, ['GET', 'POST'], true)) {
     header('Allow: GET, POST, OPTIONS');
     json_response(['error' => ['code' => 'method_not_allowed', 'message' => 'Use GET to retrieve messages or POST to send one.']], 405);
@@ -15,10 +15,11 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 
 try {
     $pdo = database();
-    $session = authenticate_guest_session($pdo, $method === 'POST');
+    $repository = chat_repository($pdo);
+    $session = authenticate_guest_session($repository, $method === 'POST');
 
     if ($method === 'POST') {
-        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
+        $contentType = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
         if ($contentType !== 'application/json') {
             json_response(['error' => ['code' => 'unsupported_media_type', 'message' => 'Content-Type must be application/json.']], 415);
         }
@@ -30,74 +31,46 @@ try {
         }
 
         $rateConfig = app_config('app.message_rate_limit') ?? [];
-        $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 8));
-        $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 60));
-        enforce_rate_limit($pdo, 'message:' . $session['session_id'], $maxRequests, $windowSeconds);
+        $maxRequests = max(1, (int) ($rateConfig['max_requests'] ?? 8));
+        $windowSeconds = max(60, (int) ($rateConfig['window_seconds'] ?? 60));
+        enforce_rate_limit($repository, 'message:' . $session['session_id'], $maxRequests, $windowSeconds);
 
         $clientMessageId = $body['client_message_id'] ?? null;
-        if ($clientMessageId === null) $clientMessageId = uuid_v4();
+        if ($clientMessageId === null) {
+            $clientMessageId = uuid_v4();
+        }
         if (!is_string($clientMessageId) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientMessageId)) {
             json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
         }
-        $messageId = uuid_v4();
-        // Save the visitor message first. If WhatsApp is eligible, queue its send in the same DB transaction so a message cannot be saved without its matching outbox job (or vice versa).
-        // A successful HTTP response confirms database persistence, not delivery to WhatsApp.
-        $transportState = 'not_configured';
+
         $whatsappConfig = app_config('whatsapp') ?? [];
-        $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
+        $visitorWhatsApp = (string) ($session['phone_normalized'] ?? '');
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
         $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
-        $pdo->beginTransaction();
+
         try {
-            $insert = $pdo->prepare(
-                'INSERT IGNORE INTO messages
-                    (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
-                 VALUES
-                    (:id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-            );
-            $insert->execute([
-                ':id' => $messageId,
-                ':conversation_id' => $session['conversation_id'],
-                ':client_message_id' => $clientMessageId,
-                ':body' => $messageText,
-                ':delivery_status' => $outboundEnabled ? 'queued' : 'web_only',
+            $result = $repository->createVisitorMessage([
+                'id' => uuid_v4(),
+                'conversation_id' => (string) $session['conversation_id'],
+                'client_message_id' => $clientMessageId,
+                'body' => $messageText,
+                'outbound_enabled' => $outboundEnabled,
+                'outbox_id' => uuid_v4(),
+                'recipient' => $visitorWhatsApp,
+                'outbox_payload' => mb_substr_safe($messageText, 0, 1000),
             ]);
-
-            $wasInserted = $insert->rowCount() === 1;
-            $sequenceQuery = $pdo->prepare('SELECT id, sequence_id, sent_at, delivery_status, body FROM messages WHERE conversation_id = :conversation_id AND client_message_id = :client_message_id LIMIT 1');
-            $sequenceQuery->execute([':conversation_id' => $session['conversation_id'], ':client_message_id' => $clientMessageId]);
-            $saved = $sequenceQuery->fetch();
-            if (!$saved) throw new RuntimeException('Message idempotency lookup failed.');
-            if (!hash_equals((string)$saved['body'], $messageText)) {
-                $pdo->rollBack();
-                json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
-            }
-            $messageId = (string)$saved['id'];
-
-            $update = $pdo->prepare(
-                'UPDATE conversations
-                 SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "open"'
-            );
-            if ($wasInserted) $update->execute([':id' => $session['conversation_id']]);
-
-            if ($wasInserted && $outboundEnabled) {
-                enqueue_whatsapp_notification($pdo, $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
-                $transportState = 'queued';
-            }
-
-            $pdo->commit();
-        } catch (Throwable $error) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $error;
+        } catch (ChatStorageConflict $error) {
+            json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
         }
+
+        $saved = $result['message'];
+        $wasInserted = $result['inserted'];
+        $transportState = $result['transport'];
 
         json_response([
             'data' => [
-                'id' => $messageId,
-                'sequence_id' => (int)$saved['sequence_id'],
+                'id' => $saved['id'],
+                'sequence_id' => (int) $saved['sequence_id'],
                 'conversation_id' => $session['conversation_id'],
                 'sender' => 'visitor',
                 'message' => $messageText,
@@ -115,65 +88,31 @@ try {
     }
 
     $afterRaw = $_GET['after'] ?? '0';
-    if (!is_string($afterRaw) || !preg_match('/^\d{1,18}$/', $afterRaw)) {
+    if (!is_string($afterRaw) || !preg_match('/^\\d{1,18}$/', $afterRaw)) {
         json_response(['error' => ['code' => 'invalid_cursor', 'message' => 'The after cursor must be a non-negative integer.']], 422);
     }
-    $after = (int)$afterRaw;
+    $after = (int) $afterRaw;
+
     $limitRaw = $_GET['limit'] ?? '50';
-    if (!is_string($limitRaw) || !preg_match('/^\d{1,3}$/', $limitRaw)) {
+    if (!is_string($limitRaw) || !preg_match('/^\\d{1,3}$/', $limitRaw)) {
         json_response(['error' => ['code' => 'invalid_limit', 'message' => 'The limit must be an integer between 1 and 100.']], 422);
     }
-    $limit = max(1, min(100, (int)$limitRaw));
+    $limit = max(1, min(100, (int) $limitRaw));
 
-    $query = $pdo->prepare(
-        'SELECT sequence_id, id, sender_type, body, delivery_status, sent_at
-         FROM messages
-         WHERE conversation_id = :conversation_id AND sequence_id > :after
-         ORDER BY sequence_id ASC
-         LIMIT ' . ($limit + 1)
-    );
-    $query->bindValue(':conversation_id', $session['conversation_id']);
-    $query->bindValue(':after', $after, PDO::PARAM_INT);
-    $query->execute();
-
-    $rows = $query->fetchAll();
-    $hasMore = count($rows) > $limit;
-    if ($hasMore) {
-        $rows = array_slice($rows, 0, $limit);
-    }
-    $items = array_map(static function (array $row): array {
-        return [
-            'id' => $row['id'],
-            'sequence_id' => (int)$row['sequence_id'],
-            'sender' => $row['sender_type'],
-            'message' => $row['body'],
-            'delivery_status' => $row['delivery_status'],
-            'created_at' => (new DateTimeImmutable($row['sent_at'], new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM),
-        ];
-    }, $rows);
-
-    $nextCursor = $items === [] ? $after : $items[array_key_last($items)]['sequence_id'];
-    $statusQuery = $pdo->prepare(
-        'SELECT id, delivery_status FROM messages
-         WHERE conversation_id = :conversation_id AND sender_type = "visitor"
-         ORDER BY sequence_id DESC LIMIT 50'
-    );
-    $statusQuery->execute([':conversation_id' => $session['conversation_id']]);
-    $deliveryUpdates = array_map(static fn(array $row): array => [
-        'id' => $row['id'], 'delivery_status' => $row['delivery_status'],
-    ], $statusQuery->fetchAll());
+    $page = $repository->listConversationMessages((string) $session['conversation_id'], $after, $limit);
+    $deliveryUpdates = $repository->listVisitorDeliveryUpdates((string) $session['conversation_id'], 50);
 
     json_response([
-        'data' => $items,
+        'data' => $page['items'],
         'meta' => [
             'after' => $after,
-            'next_cursor' => $nextCursor,
-            'has_more' => $hasMore,
+            'next_cursor' => $page['next_cursor'],
+            'has_more' => $page['has_more'],
             'poll_after_ms' => 3000,
             'delivery_updates' => $deliveryUpdates,
         ],
     ]);
 } catch (Throwable $error) {
-    error_log('[DimdianChatbot] Message API failed: ' . $error->getMessage());
+    app_log_event('message.api_failed', ['endpoint' => 'messages', 'exception_class' => get_class($error)]);
     json_response(['error' => ['code' => 'server_error', 'message' => 'The chat service could not complete that request. Please try again.']], 500);
 }

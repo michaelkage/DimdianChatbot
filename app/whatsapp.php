@@ -115,22 +115,7 @@ function normalize_whatsapp_number(string $number): string
     return preg_replace('/\D+/', '', $number) ?? '';
 }
 
-function webhook_event_insert(PDO $pdo, string $eventId, string $eventType, string $payloadHash): bool
-{
-    $insert = $pdo->prepare(
-        'INSERT IGNORE INTO webhook_events
-            (provider_event_id, event_type, payload_sha256, received_at, processing_status)
-         VALUES (:event_id, :event_type, :payload_hash, UTC_TIMESTAMP(), "received")'
-    );
-    $insert->execute([
-        ':event_id' => substr($eventId, 0, 191),
-        ':event_type' => substr($eventType, 0, 100),
-        ':payload_hash' => $payloadHash,
-    ]);
-    return $insert->rowCount() === 1;
-}
-
-function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
+function process_meta_webhook(ChatRepository $repository, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
 {
     $processed = 0;
     $ignored = 0;
@@ -148,113 +133,46 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                 continue;
             }
 
-            // Only Coexistence app-echo events can mirror staff replies typed in WhatsApp Business. We accept text echoes and match the echo recipient to the visitor's opted-in number; unsupported media is deliberately ignored.
             if ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
                     if (!is_array($echo)) continue;
                     $wamid = (string)($echo['id'] ?? '');
                     if ($wamid === '') { $ignored++; continue; }
-                    $eventId = 'echo:' . $wamid;
-                    if (!webhook_event_insert($pdo, $eventId, 'smb_message_echoes', $payloadHash)) continue;
-
                     $body = (string)($echo['text']['body'] ?? '');
                     $recipient = normalize_whatsapp_number((string)($echo['to'] ?? ''));
+                    $eventId = 'echo:' . $wamid;
                     if (($echo['type'] ?? '') !== 'text' || $body === '' || $recipient === '') {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
+                        // Preserve the event ledger for unsupported but validly identified provider events.
+                        $result = $repository->recordIgnoredProviderEvent($eventId, 'smb_message_echoes', $payloadHash);
+                        if ($result !== 'processed') $ignored++;
                         continue;
                     }
-
-                    $conversationQuery = $pdo->prepare(
-                        'SELECT c.id
-                         FROM guests g
-                         INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.phone_normalized = :phone AND c.status = "open"
-                         ORDER BY c.updated_at DESC
-                         LIMIT 1'
+                    $result = $repository->recordProviderMessageEvent(
+                        $eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business',
+                        $body, $wamid, 'sent', webhook_timestamp((string)($echo['timestamp'] ?? ''))
                     );
-                    $conversationQuery->execute([':phone' => $recipient]);
-                    $conversationId = $conversationQuery->fetchColumn();
-                    if (!is_string($conversationId)) {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                        continue;
-                    }
-
-                    $sentAt = webhook_timestamp((string)($echo['timestamp'] ?? ''));
-                    $insertMessage = $pdo->prepare(
-                        'INSERT IGNORE INTO messages
-                            (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
-                         VALUES
-                            (:id, :conversation_id, "business", :body, :provider_id, "sent", :sent_at, UTC_TIMESTAMP())'
-                    );
-                    $insertMessage->execute([
-                        ':id' => uuid_v4(),
-                        ':conversation_id' => $conversationId,
-                        ':body' => $body,
-                        ':provider_id' => $wamid,
-                        ':sent_at' => $sentAt,
-                    ]);
-                    if ($insertMessage->rowCount() === 1) {
-                        $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id');
-                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
-                        mark_webhook_event($pdo, $eventId, 'processed');
-                        $processed++;
-                    } else {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                    }
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
             } elseif ($field === 'messages') {
                 foreach (($value['messages'] ?? []) as $incoming) {
                     if (!is_array($incoming)) continue;
                     $wamid = (string)($incoming['id'] ?? '');
+                    if ($wamid === '') { $ignored++; continue; }
                     $sender = normalize_whatsapp_number((string)($incoming['from'] ?? ''));
                     $body = (string)($incoming['text']['body'] ?? '');
-                    if ($wamid === '') { $ignored++; continue; }
                     $eventId = 'inbound:' . $wamid;
-                    if (!webhook_event_insert($pdo, $eventId, 'inbound_message', $payloadHash)) continue;
-
                     if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
+                        $result = $repository->recordIgnoredProviderEvent($eventId, 'inbound_message', $payloadHash);
+                        if ($result !== 'processed') $ignored++;
                         continue;
                     }
-
-                    $conversationQuery = $pdo->prepare(
-                        'SELECT c.id FROM guests g
-                         INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.phone_normalized = :phone AND c.status = "open"
-                         ORDER BY c.updated_at DESC LIMIT 1'
+                    $result = $repository->recordProviderMessageEvent(
+                        $eventId, 'inbound_message', $payloadHash, $sender, 'visitor',
+                        $body, $wamid, 'received', webhook_timestamp((string)($incoming['timestamp'] ?? ''))
                     );
-                    $conversationQuery->execute([':phone' => $sender]);
-                    $conversationId = $conversationQuery->fetchColumn();
-                    if (!is_string($conversationId)) {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                        continue;
-                    }
-
-                    $sentAt = webhook_timestamp((string)($incoming['timestamp'] ?? ''));
-                    $insertMessage = $pdo->prepare(
-                        'INSERT IGNORE INTO messages
-                            (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
-                         VALUES
-                            (:id, :conversation_id, "visitor", :body, :provider_id, "received", :sent_at, UTC_TIMESTAMP())'
-                    );
-                    $insertMessage->execute([
-                        ':id' => uuid_v4(), ':conversation_id' => $conversationId,
-                        ':body' => $body, ':provider_id' => $wamid, ':sent_at' => $sentAt,
-                    ]);
-                    if ($insertMessage->rowCount() === 1) {
-                        $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id');
-                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
-                        mark_webhook_event($pdo, $eventId, 'processed');
-                        $processed++;
-                    } else {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                    }
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
 
                 foreach (($value['statuses'] ?? []) as $status) {
@@ -267,53 +185,17 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         continue;
                     }
                     $eventId = 'status:' . $wamid . ':' . $state . ':' . $timestamp;
-                    if (!webhook_event_insert($pdo, $eventId, 'message_status', $payloadHash)) continue;
-
-                    $storeStatus = $pdo->prepare(
-                        'INSERT IGNORE INTO message_status_events
-                            (provider_message_id, status, event_timestamp, created_at)
-                         VALUES (:provider_id, :status, :event_timestamp, UTC_TIMESTAMP())'
+                    $result = $repository->recordProviderStatusEvent(
+                        $eventId, $payloadHash, $wamid, $state,
+                        ctype_digit($timestamp) ? (int)$timestamp : 0
                     );
-                    $storeStatus->execute([
-                        ':provider_id' => $wamid, ':status' => $state,
-                        ':event_timestamp' => ctype_digit($timestamp) ? (int)$timestamp : 0,
-                    ]);
-                    $found = apply_provider_message_status($pdo, $wamid);
-                    mark_webhook_event($pdo, $eventId, $found ? 'processed' : 'ignored');
-                    $found ? $processed++ : $ignored++;
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
             }
         }
     }
-
     return ['processed' => $processed, 'ignored' => $ignored];
-}
-
-
-function apply_provider_message_status(PDO $pdo, string $providerMessageId): bool
-{
-    $lookup = $pdo->prepare(
-        'SELECT status FROM message_status_events
-         WHERE provider_message_id = :provider_id
-         ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
-                  event_timestamp DESC LIMIT 1'
-    );
-    $lookup->execute([':provider_id' => $providerMessageId]);
-    $status = $lookup->fetchColumn();
-    if (!is_string($status)) return false;
-
-    $update = $pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
-    $update->execute([':status' => $status, ':provider_id' => $providerMessageId]);
-    return $update->rowCount() > 0;
-}
-
-function mark_webhook_event(PDO $pdo, string $eventId, string $status): void
-{
-    $update = $pdo->prepare(
-        'UPDATE webhook_events SET processing_status = :status, processed_at = UTC_TIMESTAMP()
-         WHERE provider_event_id = :event_id'
-    );
-    $update->execute([':status' => $status, ':event_id' => substr($eventId, 0, 191)]);
 }
 
 function webhook_timestamp(string $timestamp): string
@@ -326,18 +208,7 @@ function webhook_timestamp(string $timestamp): string
 
 function enqueue_whatsapp_notification(PDO $pdo, string $messageId, string $recipient, string $text): void
 {
-    $insert = $pdo->prepare(
-        'INSERT INTO message_outbox
-            (id, message_id, recipient, payload_text, status, attempts, available_at, created_at, updated_at)
-         VALUES
-            (:id, :message_id, :recipient, :payload, "pending", 0, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
-    $insert->execute([
-        ':id' => uuid_v4(),
-        ':message_id' => $messageId,
-        ':recipient' => $recipient,
-        ':payload' => $text,
-    ]);
+    chat_repository($pdo)->enqueueWhatsAppOutbox($messageId, $recipient, $text, uuid_v4());
 }
 
 function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int $batchSize = 10, int $maxAttempts = 6): array
@@ -345,115 +216,59 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
     $summary = ['sent' => 0, 'retried' => 0, 'failed' => 0];
     $batchSize = max(1, min(50, $batchSize));
     $maxAttempts = max(1, $maxAttempts);
+    $repository = chat_repository($pdo);
 
     for ($i = 0; $i < $batchSize; $i++) {
         $lockToken = uuid_v4();
-        $pdo->beginTransaction();
+        $claim = $repository->claimWhatsAppOutbox($lockToken, $maxAttempts, 300);
+        $summary['failed'] += $claim['exhausted'];
+        $job = $claim['job'];
+        if (!is_array($job)) break;
+
+        $attempt = (int) $job['attempts'];
         try {
-            // A worker that died during its final permitted attempt must not
-            // silently create a seventh send when its lease becomes stale.
-            $exhausted = $pdo->prepare(
-                'SELECT id, message_id
-                 FROM message_outbox
-                 WHERE status = "processing"
-                   AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
-                   AND attempts >= :max_attempts
-                 FOR UPDATE'
-            );
-            $exhausted->execute([':max_attempts' => $maxAttempts]);
-            foreach ($exhausted->fetchAll() as $expiredJob) {
-                $failJob = $pdo->prepare(
-                    'UPDATE message_outbox
-                     SET status = "failed", locked_at = NULL, lock_token = NULL,
-                         last_error = "Worker lease expired after maximum attempts.",
-                         updated_at = UTC_TIMESTAMP()
-                     WHERE id = :id AND status = "processing"'
-                );
-                $failJob->execute([':id' => $expiredJob['id']]);
-                $failMessage = $pdo->prepare(
-                    'UPDATE messages SET delivery_status = "failed" WHERE id = :id'
-                );
-                $failMessage->execute([':id' => $expiredJob['message_id']]);
-                $summary['failed']++;
+            // Re-check consent immediately before the external send. A withdrawal
+            // can invalidate a job after it was claimed by this worker.
+            if (!$repository->hasWhatsAppConsent((string) $job['message_id'])) {
+                $repository->cancelWhatsAppOutbox((string) $job['id'], $lockToken, (string) $job['message_id']);
+                continue;
             }
 
-            $query = $pdo->prepare(
-                'SELECT id, message_id, recipient, payload_text, attempts
-                 FROM message_outbox
-                 WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
-                    OR (status = "processing" AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
-                        AND attempts < :max_attempts)
-                 ORDER BY available_at ASC, created_at ASC
-                 LIMIT 1 FOR UPDATE'
-            );
-            $query->execute([':max_attempts' => $maxAttempts]);
-            $job = $query->fetch();
-            if (!$job) {
-                $pdo->commit();
-                break;
-            }
-            $attempt = (int)$job['attempts'] + 1;
-            $claim = $pdo->prepare(
-                'UPDATE message_outbox
-                 SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(), lock_token = :lock_token, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id'
-            );
-            $claim->execute([':attempt' => $attempt, ':lock_token' => $lockToken, ':id' => $job['id']]);
-            $pdo->commit();
-        } catch (Throwable $error) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-            throw $error;
-        }
-
-        try {
-            $result = $transport->sendTemplate((string)$job['recipient'], (string)$job['payload_text']);
-            $pdo->beginTransaction();
-            $complete = $pdo->prepare(
-                'UPDATE message_outbox
-                 SET status = "sent", provider_message_id = :provider_id, locked_at = NULL, lock_token = NULL, last_error = NULL, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND lock_token = :lock_token'
-            );
-            $complete->execute([':provider_id' => $result['provider_message_id'], ':id' => $job['id'], ':lock_token' => $lockToken]);
-            if ($complete->rowCount() === 1) {
-                $message = $pdo->prepare(
-                    'UPDATE messages SET provider_message_id = :provider_id, delivery_status = "sent"
-                     WHERE id = :message_id'
-                );
-                $message->execute([':provider_id' => $result['provider_message_id'], ':message_id' => $job['message_id']]);
-                apply_provider_message_status($pdo, $result['provider_message_id']);
+            // Provider I/O is deliberately outside every repository transaction.
+            $result = $transport->sendTemplate((string) $job['recipient'], (string) $job['payload_text']);
+            if ($repository->completeWhatsAppOutbox(
+                (string) $job['id'],
+                $lockToken,
+                (string) $job['message_id'],
+                (string) $result['provider_message_id']
+            )) {
                 $summary['sent']++;
             }
-            $pdo->commit();
         } catch (Throwable $error) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
             $retryable = !($error instanceof WhatsAppTransportException) || $error->retryable;
             $shouldRetry = $retryable && $attempt < $maxAttempts;
             $delay = whatsapp_retry_delay_seconds($attempt);
             $messageText = mb_substr_safe($error->getMessage(), 0, 900);
-
-            $pdo->beginTransaction();
-            $update = $pdo->prepare(
-                'UPDATE message_outbox
-                 SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
-                     locked_at = NULL, lock_token = NULL, last_error = :last_error, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND lock_token = :lock_token'
+            $recorded = $repository->failWhatsAppOutbox(
+                (string) $job['id'],
+                $lockToken,
+                (string) $job['message_id'],
+                $shouldRetry,
+                $delay,
+                $messageText
             );
-            $update->execute([
-                ':status' => $shouldRetry ? 'pending' : 'failed',
-                ':delay' => $delay,
-                ':last_error' => $messageText,
-                ':id' => $job['id'],
-                ':lock_token' => $lockToken,
-            ]);
-            if (!$shouldRetry) {
-                $failed = $pdo->prepare('UPDATE messages SET delivery_status = "failed" WHERE id = :id');
-                $failed->execute([':id' => $job['message_id']]);
-                $summary['failed']++;
-            } else {
-                $summary['retried']++;
+            if ($recorded) {
+                if ($shouldRetry) {
+                    $summary['retried']++;
+                } else {
+                    $summary['failed']++;
+                }
+                app_log_event('outbox.attempt_failed', [
+                    'job_id' => (string) $job['id'],
+                    'attempt' => $attempt,
+                    'result' => $shouldRetry ? 'retry' : 'failed',
+                ]);
             }
-            $pdo->commit();
-            error_log('[DimdianChatbot] WhatsApp outbox attempt failed: ' . $messageText);
         }
     }
 
