@@ -276,7 +276,7 @@ $pdo->prepare(
     ':conversation_id' => $conversationId,
     ':provider_id' => 'wamid.integration.early-status',
 ]);
-expect(apply_provider_message_status($pdo, 'wamid.integration.early-status'), 'early status is reconciled after the provider message ID is attached');
+expect(chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.early-status'), 'early status is reconciled after the provider message ID is attached');
 $statusCheck = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusCheck === 'delivered', 'reconciled early status updates the message row');
 $pdo->prepare(
@@ -297,7 +297,7 @@ $pdo->prepare(
      VALUES ("wamid.integration.sent-then-failed", "sent", 1739321028, UTC_TIMESTAMP()),
             ("wamid.integration.sent-then-failed", "failed", 1739321029, UTC_TIMESTAMP())'
 )->execute();
-apply_provider_message_status($pdo, 'wamid.integration.sent-then-failed');
+chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.sent-then-failed');
 $failedAfterSent = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$sentThenFailedId}'")->fetchColumn();
 expect($failedAfterSent === 'failed', 'failure status supersedes sent when delivery does not complete');
 
