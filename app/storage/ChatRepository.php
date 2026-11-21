@@ -39,6 +39,20 @@ interface ChatRepository
 
     /** @return list<array{id:string,delivery_status:string}> */
     public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array;
+
+    /**
+     * Persist an encrypted, signature-verified provider payload before acknowledging it.
+     * @param array{ciphertext:string,nonce:string,tag:string} $encrypted
+     * @return array{id:int,inserted:bool,status:string}
+     */
+    public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array;
+
+    /** Atomically lease one due inbox row; null means no work is currently available. */
+    public function claimWebhookInbox(string $lockToken, int $maxAttempts = 8): ?array;
+
+    /** Complete or reschedule only the row owned by the supplied lease token. */
+    public function completeWebhookInbox(int $id, string $lockToken): void;
+    public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void;
 }
 
 final class ChatStorageConflict extends RuntimeException
