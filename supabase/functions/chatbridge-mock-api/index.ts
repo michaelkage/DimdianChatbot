@@ -339,6 +339,171 @@ async function attachments(req: Request, tenantId: string, cors: Record<string, 
   return json({ data: items }, 200, cors);
 }
 
+
+function getPublishableKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}");
+    if (typeof keys.default === "string" && keys.default) return keys.default;
+  } catch { /* use legacy fallback below */ }
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+}
+
+async function authenticateStaff(req: Request, tenantId: string): Promise<{ userId: string; role: string }> {
+  const authorization = req.headers.get("authorization") ?? "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!match || !getPublishableKey()) throw new HttpError(401, "staff_auth_required");
+  const authResponse = await fetch(`${PROJECT_URL}/auth/v1/user`, {
+    headers: { apikey: getPublishableKey(), Authorization: `Bearer ${match[1]}` },
+  });
+  if (!authResponse.ok) throw new HttpError(401, "staff_auth_invalid");
+  const user = await authResponse.json();
+  if (!user?.id || typeof user.id !== "string") throw new HttpError(401, "staff_auth_invalid");
+
+  const query = new URLSearchParams({
+    select: "role",
+    tenant_id: `eq.${tenantId}`,
+    user_id: `eq.${user.id}`,
+    status: "eq.active",
+    limit: "1",
+  });
+  const memberships = await rest("GET", `/rest/v1/chatbridge_staff_memberships?${query}`);
+  if (!Array.isArray(memberships) || !memberships[0]?.role) throw new HttpError(403, "staff_membership_required");
+  return { userId: user.id, role: String(memberships[0].role) };
+}
+
+async function staffConversations(req: Request, tenantId: string, cors: Record<string, string>, staff: { userId: string; role: string }): Promise<Response> {
+  const url = new URL(req.url);
+  const status = url.searchParams.get("status") ?? "open";
+  const limitRaw = url.searchParams.get("limit") ?? "50";
+  if (!["open", "closed", "all"].includes(status) || !/^\d{1,3}$/.test(limitRaw)) {
+    return errorResponse("invalid_filter", "Choose open, closed or all conversations and a valid limit.", 422, cors);
+  }
+  const beforeRaw = url.searchParams.get("before");
+  const before = beforeRaw ? new Date(beforeRaw) : null;
+  if (beforeRaw && (!before || Number.isNaN(before.getTime()))) return errorResponse("invalid_cursor", "The before cursor must be a valid timestamp.", 422, cors);
+  const rows = await rest("POST", "/rest/v1/rpc/chatbridge_staff_list_conversations", {
+    p_tenant_id: tenantId,
+    p_user_id: staff.userId,
+    p_status: status,
+    p_limit: Math.min(100, Math.max(1, Number(limitRaw))),
+    p_before: before ? before.toISOString() : null,
+  });
+  return json({ data: Array.isArray(rows) ? rows : [] }, 200, cors);
+}
+
+async function staffConversationDetail(req: Request, tenantId: string, cors: Record<string, string>, staff: { userId: string; role: string }, conversationId: string, resource: "messages" | "attachments"): Promise<Response> {
+  const exists = await rest("GET", `/rest/v1/chatbridge_conversations?${new URLSearchParams({
+    select: "id",
+    id: `eq.${conversationId}`,
+    tenant_id: `eq.${tenantId}`,
+    limit: "1",
+  })}`);
+  if (!Array.isArray(exists) || !exists.length) return errorResponse("conversation_not_found", "This conversation does not exist.", 404, cors);
+
+  if (resource === "messages") {
+    if (req.method === "POST") {
+      const raw = await req.text();
+      if (raw.length > 20000) return errorResponse("payload_too_large", "The request is too large.", 413, cors);
+      let body: any;
+      try { body = JSON.parse(raw); } catch { return errorResponse("invalid_json", "Send a valid JSON object.", 400, cors); }
+      const message = typeof body.message === "string" ? body.message.trim() : "";
+      if (!message || message.length > 4000) return errorResponse("message_required", "Write a message of up to 4,000 characters.", 422, cors);
+      await takeRateLimit(tenantId, `staff-message:${tenantId}:${staff.userId}`, 60, 60);
+      const clientId = body.client_message_id ?? crypto.randomUUID();
+      if (typeof clientId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientId)) {
+        return errorResponse("invalid_idempotency_key", "client_message_id must be a UUID.", 422, cors);
+      }
+      const saved = await rest("POST", "/rest/v1/rpc/chatbridge_staff_append_message", {
+        p_tenant_id: tenantId,
+        p_conversation_id: conversationId,
+        p_user_id: staff.userId,
+        p_client_message_id: clientId,
+        p_body: message,
+      });
+      if (!saved?.id) throw new HttpError(500, "message_save_failed");
+      const inserted = saved.inserted === true;
+      delete saved.inserted;
+      return json({ data: saved, meta: { idempotent_replay: !inserted, transport: "website_chat_only" } }, inserted ? 201 : 200, cors);
+    }
+
+    const url = new URL(req.url);
+    const afterRaw = url.searchParams.get("after") ?? "0";
+    const limitRaw = url.searchParams.get("limit") ?? "100";
+    if (!/^\d{1,18}$/.test(afterRaw) || !/^\d{1,3}$/.test(limitRaw)) return errorResponse("invalid_cursor", "The message cursor or limit is invalid.", 422, cors);
+    const after = Number(afterRaw);
+    const limit = Math.min(200, Math.max(1, Number(limitRaw)));
+    const query = new URLSearchParams({
+      select: "id,sequence_id,sender_type,body,delivery_status,created_at,metadata",
+      tenant_id: `eq.${tenantId}`,
+      conversation_id: `eq.${conversationId}`,
+      sequence_id: `gt.${after}`,
+      order: "sequence_id.asc",
+      limit: String(limit + 1),
+    });
+    const rows = await rest("GET", `/rest/v1/chatbridge_messages?${query}`);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const data = page.map((row: any) => ({
+      id: row.id,
+      sequence_id: Number(row.sequence_id),
+      sender: row.sender_type,
+      message: row.body,
+      delivery_status: row.delivery_status,
+      created_at: row.created_at,
+      actor_user_id: row.metadata?.actor_user_id ?? null,
+    }));
+    return json({ data, meta: { next_cursor: data.length ? data[data.length - 1].sequence_id : after, has_more: hasMore } }, 200, cors);
+  }
+
+  const query = new URLSearchParams({
+    select: "id,storage_path,original_filename,mime_type,byte_size,visibility,created_at,metadata",
+    tenant_id: `eq.${tenantId}`,
+    conversation_id: `eq.${conversationId}`,
+    deleted_at: "is.null",
+    order: "created_at.asc",
+  });
+  const rows = await rest("GET", `/rest/v1/chatbridge_attachments?${query}`);
+  const data = [];
+  for (const row of rows) {
+    const encodedPath = String(row.storage_path).split("/").map(encodeURIComponent).join("/");
+    const signed = await storage("POST", `/storage/v1/object/sign/${BUCKET}/${encodedPath}`, { expiresIn: 120 });
+    const signedUrl = String(signed?.signedURL ?? "");
+    data.push({
+      id: row.id,
+      filename: row.original_filename,
+      mime_type: row.mime_type,
+      byte_size: Number(row.byte_size),
+      visibility: row.visibility,
+      created_at: row.created_at,
+      attachment_kind: row.metadata?.attachment_kind ?? "file",
+      signed_url: signedUrl.startsWith("/") ? PROJECT_URL + signedUrl : signedUrl,
+      url_expires_in: 120,
+    });
+  }
+  return json({ data }, 200, cors);
+}
+
+async function staffUpdateConversation(req: Request, tenantId: string, cors: Record<string, string>, staff: { userId: string; role: string }, conversationId: string): Promise<Response> {
+  const raw = await req.text();
+  if (raw.length > 5000) return errorResponse("payload_too_large", "The request is too large.", 413, cors);
+  let body: any;
+  try { body = JSON.parse(raw); } catch { return errorResponse("invalid_json", "Send a valid JSON object.", 400, cors); }
+  const status = body.status === undefined ? null : body.status;
+  const updateAssignment = Object.prototype.hasOwnProperty.call(body, "assigned_to");
+  const assignedTo = updateAssignment ? body.assigned_to : null;
+  if (status !== null && !["open", "closed"].includes(status)) return errorResponse("invalid_status", "Status must be open or closed.", 422, cors);
+  if (updateAssignment && assignedTo !== null && assignedTo !== staff.userId) return errorResponse("unsupported_assignment", "This mock inbox currently supports assigning to yourself or leaving the conversation unassigned.", 422, cors);
+  const updated = await rest("POST", "/rest/v1/rpc/chatbridge_staff_update_conversation", {
+    p_tenant_id: tenantId,
+    p_conversation_id: conversationId,
+    p_user_id: staff.userId,
+    p_status: status,
+    p_assigned_to: assignedTo,
+    p_update_assignment: updateAssignment,
+  });
+  return json({ data: updated }, 200, cors);
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (!PROJECT_URL || !SERVICE_KEY) return json({ error: { code: "not_configured", message: "The mock API is not configured." } }, 503);
   const origin = normalizeOrigin(req.headers.get("origin"));
@@ -354,7 +519,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     "Access-Control-Allow-Origin": origin,
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-DIMDIAN-GUEST-TOKEN",
+    "Access-Control-Allow-Headers": "Content-Type, X-DIMDIAN-GUEST-TOKEN, Authorization",
     "Access-Control-Max-Age": "600",
   };
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -363,6 +528,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const marker = "/functions/v1/chatbridge-mock-api";
   const route = url.pathname.includes(marker) ? url.pathname.slice(url.pathname.indexOf(marker) + marker.length) : "/";
   try {
+    if (route.startsWith("/staff/")) {
+      const staff = await authenticateStaff(req, tenantId);
+      if (route === "/staff/conversations" && req.method === "GET") return await staffConversations(req, tenantId, cors, staff);
+      const detailMatch = route.match(/^\/staff\/conversations\/([0-9a-f-]{36})\/(messages|attachments)$/i);
+      if (detailMatch && ["GET", "POST"].includes(req.method)) {
+        if (detailMatch[2] === "attachments" && req.method !== "GET") return errorResponse("method_not_allowed", "Attachments are read-only in the staff inbox.", 405, cors);
+        return await staffConversationDetail(req, tenantId, cors, staff, detailMatch[1], detailMatch[2] as "messages" | "attachments");
+      }
+      const updateMatch = route.match(/^\/staff\/conversations\/([0-9a-f-]{36})$/i);
+      if (updateMatch && req.method === "PATCH") return await staffUpdateConversation(req, tenantId, cors, staff, updateMatch[1]);
+      return errorResponse("not_found", "The requested staff inbox route does not exist.", 404, cors);
+    }
     if (route === "/session.php" && req.method === "POST") return await createSession(req, tenantId, cors);
     if (route === "/messages.php" && ["GET", "POST"].includes(req.method)) return await messages(req, tenantId, cors);
     if (route === "/attachments.php" && ["GET", "POST"].includes(req.method)) return await attachments(req, tenantId, cors);
@@ -370,6 +547,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     if (error instanceof HttpError) {
       if (error.message === "rate_limited") return errorResponse("rate_limited", "Too many requests. Please wait and try again.", 429, cors);
+      if (error.message === "staff_auth_required" || error.message === "staff_auth_invalid") return errorResponse("unauthorized", "Sign in with an authorized support account.", 401, cors);
+      if (error.message === "staff_membership_required") return errorResponse("forbidden", "Your account is not assigned to this business support inbox.", 403, cors);
       if (error.message === "session_expired") return errorResponse("session_expired", "This chat session is no longer valid. Start a new chat to continue.", 401, cors);
       if (error.message === "conversation_closed") return errorResponse("conversation_closed", "This conversation has been closed. Start a new chat to continue.", 409, cors);
       console.error("Mock API request failed", error.status);
