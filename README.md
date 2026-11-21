@@ -14,7 +14,9 @@ An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`]
 
 This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin includes a gated Meta Embedded Signup v5 launcher when the service has been configured with an eligible Meta app and tenant API key. It never exposes Meta app secrets or business access tokens to the browser. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification. The tenant AI runtime is optional and disabled by default. A site administrator can now configure an OpenAI-compatible API key, model and token budget through the WordPress connector; knowledge sources remain a separate tenant-scoped import step.
 
-## Mock support inbox\n\nThe Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.\n\n## 1. What this system does
+## Mock support inbox
+
+The Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.\n\n## 1. What this system does
 
 - Adds a small floating **Message us** button to a website, with optional appearance and page-targeting controls.
 - Supports a standalone JavaScript embed on non-WordPress sites.
@@ -22,7 +24,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 - Can show an animated reply-pending indicator and lets visitors switch between up to ten chat sessions in the current browser tab.
 - Opens a chat panel without sending the visitor to another page.
 - Lets a visitor start chatting as a guest. No account, password, OTP or registration.
-- Saves website messages and replies in a MySQL database.
+- Saves website messages in the selected conversation backend: Supabase for the static mock site, or MySQL/MariaDB for self-hosted PHP deployments.
 - Shows replies in the same website chat.
 - Can optionally connect an opted-in visitor's conversation to the WhatsApp Business app, using Meta's WhatsApp Cloud API and supported Business App Coexistence.
 - Includes a basic authenticated support inbox for the Supabase mock site. It is separate from the production WhatsApp Business workflow.
