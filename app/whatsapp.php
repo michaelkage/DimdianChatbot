@@ -115,22 +115,7 @@ function normalize_whatsapp_number(string $number): string
     return preg_replace('/\D+/', '', $number) ?? '';
 }
 
-function webhook_event_insert(PDO $pdo, string $eventId, string $eventType, string $payloadHash): bool
-{
-    $insert = $pdo->prepare(
-        'INSERT IGNORE INTO webhook_events
-            (provider_event_id, event_type, payload_sha256, received_at, processing_status)
-         VALUES (:event_id, :event_type, :payload_hash, UTC_TIMESTAMP(), "received")'
-    );
-    $insert->execute([
-        ':event_id' => substr($eventId, 0, 191),
-        ':event_type' => substr($eventType, 0, 100),
-        ':payload_hash' => $payloadHash,
-    ]);
-    return $insert->rowCount() === 1;
-}
-
-function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
+function process_meta_webhook(ChatRepository $repository, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
 {
     $processed = 0;
     $ignored = 0;
@@ -148,112 +133,46 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                 continue;
             }
 
-            // Only Coexistence app-echo events can mirror staff replies typed in WhatsApp Business. We accept text echoes and match the echo recipient to the visitor's opted-in number; unsupported media is deliberately ignored.
             if ($field === 'smb_message_echoes') {
                 foreach (($value['message_echoes'] ?? []) as $echo) {
                     if (!is_array($echo)) continue;
                     $wamid = (string)($echo['id'] ?? '');
                     if ($wamid === '') { $ignored++; continue; }
-                    $eventId = 'echo:' . $wamid;
-                    if (!webhook_event_insert($pdo, $eventId, 'smb_message_echoes', $payloadHash)) continue;
-
                     $body = (string)($echo['text']['body'] ?? '');
                     $recipient = normalize_whatsapp_number((string)($echo['to'] ?? ''));
+                    $eventId = 'echo:' . $wamid;
                     if (($echo['type'] ?? '') !== 'text' || $body === '' || $recipient === '') {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
+                        // Preserve the event ledger for unsupported but validly identified provider events.
+                        $result = $repository->recordProviderMessageEvent($eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business', '', $wamid, 'sent', webhook_timestamp((string)($echo['timestamp'] ?? '')));
+                        if ($result !== 'processed') $ignored++;
                         continue;
                     }
-
-                    $conversationQuery = $pdo->prepare(
-                        'SELECT c.id
-                         FROM whatsapp_identity_links l
-                         INNER JOIN conversations c ON c.id = l.conversation_id
-                         WHERE l.phone_normalized = :phone AND l.is_active = 1 AND c.status = "open"
-                         LIMIT 1'
+                    $result = $repository->recordProviderMessageEvent(
+                        $eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business',
+                        $body, $wamid, 'sent', webhook_timestamp((string)($echo['timestamp'] ?? ''))
                     );
-                    $conversationQuery->execute([':phone' => $recipient]);
-                    $conversationId = $conversationQuery->fetchColumn();
-                    if (!is_string($conversationId)) {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                        continue;
-                    }
-
-                    $sentAt = webhook_timestamp((string)($echo['timestamp'] ?? ''));
-                    $insertMessage = $pdo->prepare(
-                        'INSERT IGNORE INTO messages
-                            (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
-                         VALUES
-                            (:id, :conversation_id, "business", :body, :provider_id, "sent", :sent_at, UTC_TIMESTAMP())'
-                    );
-                    $insertMessage->execute([
-                        ':id' => uuid_v4(),
-                        ':conversation_id' => $conversationId,
-                        ':body' => $body,
-                        ':provider_id' => $wamid,
-                        ':sent_at' => $sentAt,
-                    ]);
-                    if ($insertMessage->rowCount() === 1) {
-                        $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id');
-                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
-                        mark_webhook_event($pdo, $eventId, 'processed');
-                        $processed++;
-                    } else {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                    }
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
             } elseif ($field === 'messages') {
                 foreach (($value['messages'] ?? []) as $incoming) {
                     if (!is_array($incoming)) continue;
                     $wamid = (string)($incoming['id'] ?? '');
+                    if ($wamid === '') { $ignored++; continue; }
                     $sender = normalize_whatsapp_number((string)($incoming['from'] ?? ''));
                     $body = (string)($incoming['text']['body'] ?? '');
-                    if ($wamid === '') { $ignored++; continue; }
                     $eventId = 'inbound:' . $wamid;
-                    if (!webhook_event_insert($pdo, $eventId, 'inbound_message', $payloadHash)) continue;
-
                     if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
+                        $result = $repository->recordProviderMessageEvent($eventId, 'inbound_message', $payloadHash, $sender, 'visitor', '', $wamid, 'received', webhook_timestamp((string)($incoming['timestamp'] ?? '')));
+                        if ($result !== 'processed') $ignored++;
                         continue;
                     }
-
-                    $conversationQuery = $pdo->prepare(
-                        'SELECT c.id FROM whatsapp_identity_links l
-                         INNER JOIN conversations c ON c.id = l.conversation_id
-                         WHERE l.phone_normalized = :phone AND l.is_active = 1 AND c.status = "open"
-                         LIMIT 1'
+                    $result = $repository->recordProviderMessageEvent(
+                        $eventId, 'inbound_message', $payloadHash, $sender, 'visitor',
+                        $body, $wamid, 'received', webhook_timestamp((string)($incoming['timestamp'] ?? ''))
                     );
-                    $conversationQuery->execute([':phone' => $sender]);
-                    $conversationId = $conversationQuery->fetchColumn();
-                    if (!is_string($conversationId)) {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                        continue;
-                    }
-
-                    $sentAt = webhook_timestamp((string)($incoming['timestamp'] ?? ''));
-                    $insertMessage = $pdo->prepare(
-                        'INSERT IGNORE INTO messages
-                            (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
-                         VALUES
-                            (:id, :conversation_id, "visitor", :body, :provider_id, "received", :sent_at, UTC_TIMESTAMP())'
-                    );
-                    $insertMessage->execute([
-                        ':id' => uuid_v4(), ':conversation_id' => $conversationId,
-                        ':body' => $body, ':provider_id' => $wamid, ':sent_at' => $sentAt,
-                    ]);
-                    if ($insertMessage->rowCount() === 1) {
-                        $update = $pdo->prepare('UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id');
-                        $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
-                        mark_webhook_event($pdo, $eventId, 'processed');
-                        $processed++;
-                    } else {
-                        mark_webhook_event($pdo, $eventId, 'ignored');
-                        $ignored++;
-                    }
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
 
                 foreach (($value['statuses'] ?? []) as $status) {
@@ -266,53 +185,17 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                         continue;
                     }
                     $eventId = 'status:' . $wamid . ':' . $state . ':' . $timestamp;
-                    if (!webhook_event_insert($pdo, $eventId, 'message_status', $payloadHash)) continue;
-
-                    $storeStatus = $pdo->prepare(
-                        'INSERT IGNORE INTO message_status_events
-                            (provider_message_id, status, event_timestamp, created_at)
-                         VALUES (:provider_id, :status, :event_timestamp, UTC_TIMESTAMP())'
+                    $result = $repository->recordProviderStatusEvent(
+                        $eventId, $payloadHash, $wamid, $state,
+                        ctype_digit($timestamp) ? (int)$timestamp : 0
                     );
-                    $storeStatus->execute([
-                        ':provider_id' => $wamid, ':status' => $state,
-                        ':event_timestamp' => ctype_digit($timestamp) ? (int)$timestamp : 0,
-                    ]);
-                    $found = apply_provider_message_status($pdo, $wamid);
-                    mark_webhook_event($pdo, $eventId, $found ? 'processed' : 'ignored');
-                    $found ? $processed++ : $ignored++;
+                    if ($result === 'processed') $processed++;
+                    elseif ($result === 'ignored') $ignored++;
                 }
             }
         }
     }
-
     return ['processed' => $processed, 'ignored' => $ignored];
-}
-
-
-function apply_provider_message_status(PDO $pdo, string $providerMessageId): bool
-{
-    $lookup = $pdo->prepare(
-        'SELECT status FROM message_status_events
-         WHERE provider_message_id = :provider_id
-         ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
-                  event_timestamp DESC LIMIT 1'
-    );
-    $lookup->execute([':provider_id' => $providerMessageId]);
-    $status = $lookup->fetchColumn();
-    if (!is_string($status)) return false;
-
-    $update = $pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
-    $update->execute([':status' => $status, ':provider_id' => $providerMessageId]);
-    return $update->rowCount() > 0;
-}
-
-function mark_webhook_event(PDO $pdo, string $eventId, string $status): void
-{
-    $update = $pdo->prepare(
-        'UPDATE webhook_events SET processing_status = :status, processed_at = UTC_TIMESTAMP()
-         WHERE provider_event_id = :event_id'
-    );
-    $update->execute([':status' => $status, ':event_id' => substr($eventId, 0, 191)]);
 }
 
 function webhook_timestamp(string $timestamp): string
