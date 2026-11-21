@@ -159,6 +159,11 @@ $outbox = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = 
 $outbox->execute([':id' => $created['message']['id']]);
 $visitorPoll = chat_repository($pdo)->listConversationMessages($conversationId, 0, 50);
 staff_expect(count($visitorPoll['items']) === 1 && $visitorPoll['items'][0]['message'] === 'A reply from the staff inbox.', 'visitor message polling returns staff replies but never private notes');
+$staffMessages = $repository->listConversationMessages($conversationId, 0, 50);
+$staffDirectory = $repository->listStaffIdentities();
+staff_expect(count($staffMessages['items']) === 1 && $staffMessages['items'][0]['body'] === 'A reply from the staff inbox.', 'staff message repository returns conversation messages');
+staff_expect(count($staffDirectory) >= 2, 'staff directory repository lists active identities');
+
 staff_expect(
     $created['inserted'] === true
         && $created['message']['sender_type'] === 'business'
@@ -220,6 +225,15 @@ $agentIdentity = $agentService->authenticate($agentServer);
 $agentList = $agentService->listConversations($agentServer, 'open', 0, 50);
 staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides untrusted external role claims');
 staff_expect(count($agentList) === 1 && $agentList[0]['id'] === $conversationId, 'agent inbox is scoped to the current agent assignment');
+$agentMessages = $agentService->listConversationMessages($agentServer, $conversationId, 0, 50);
+staff_expect(count($agentMessages['items']) === 1, 'assigned agent can read conversation messages');
+$agentCannotListStaff = false;
+try {
+    $agentService->listStaffIdentities($agentServer);
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotListStaff = true;
+}
+staff_expect($agentCannotListStaff, 'agent cannot enumerate all staff identities');
 
 $agentCannotReassign = false;
 try {
@@ -241,6 +255,7 @@ staff_expect($repository->getActiveAssignee($secondConversationId) === $resolved
 
 $ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
 staff_expect(count($ownerList) >= 2, 'owner can list all conversations across the installation');
+staff_expect(count($ownerService->listStaffIdentities($ownerServer)) >= 2, 'owner can list active staff identities');
 $ownerService->addInternalNote($ownerServer, uuid_v4(), $secondConversationId, 'Owner note.');
 staff_expect(count($repository->listInternalNotes($secondConversationId, 0, 10)) === 1, 'owner can manage an unassigned conversation');
 
