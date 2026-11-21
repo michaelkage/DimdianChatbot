@@ -34,3 +34,6 @@ This checklist distinguishes shipped repository changes from operational work an
 - [ ] Configure the three CLI jobs and test a restore from backup.
 - [ ] Approve retention periods and privacy-notice wording.
 - [ ] Keep outbound disabled until every WhatsApp launch gate passes.
+
+
+Latest outbox extraction validation: [GitHub Actions run 44939900785](https://github.com/michaelkage/DimdianChatbot/actions/runs/44939900785) passed the MySQL integration suite and WordPress adapter compatibility jobs on PHP 7.4 and 8.2. Integration coverage includes worker success, retryable and permanent failure, exhausted leases, expired-lease reclaim, stale-token fencing, consent lookup, and atomic message/outbox completion.
