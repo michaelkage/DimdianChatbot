@@ -97,15 +97,15 @@ async function loadAudit(){
    const actor=item.actor_user_id?String(item.actor_user_id).slice(0,8):'Former staff account';
    let change='';
    if(item.event_type==='conversation_status_changed')change=String(item.details?.from||'')+' → '+String(item.details?.to||'');
-   if(item.event_type==='conversation_assignment_changed')change=(item.details?.from_user_id?'Assigned':'Unassigned')+' → '+(item.details?.to_user_id?'Assigned':'Unassigned');
+   if(item.event_type==='conversation_assignment_changed')change=(item.details?.from_user_id?String(item.details.from_user_id).slice(0,8):'Unassigned')+' → '+(item.details?.to_user_id?String(item.details.to_user_id).slice(0,8):'Unassigned');
    if(item.event_type==='reply_sent')change='Website chat · message '+String(item.details?.message_id||'').slice(0,8);
    detail.append(el('span','audit-meta',(change?change+' · ':'')+'by '+actor));
    row.append(detail);node.append(row);
   }
  }catch(error){node.replaceChildren(el('h3','','ACTIVITY HISTORY'),el('span','notice','Activity history could not be loaded: '+error.message));}
 }
-async function sendReply(event){event.preventDefault();const input=$('#reply');const message=input.value.trim();if(!message)return;const button=event.submitter;button.disabled=true;try{await api('/staff/conversations/'+selected+'/messages',{method:'POST',body:JSON.stringify({message,client_message_id:crypto.randomUUID()})});input.value='';await loadMessages(true);await loadConversations();showToast('Reply saved to the website conversation.');}catch(error){showToast(error.message);}finally{button.disabled=false;}}
-async function updateConversation(changes){try{await api('/staff/conversations/'+selected,{method:'PATCH',body:JSON.stringify(changes)});await loadConversations();if(selected)await loadMessages(true);showToast('Conversation updated.');}catch(error){showToast(error.message);}}
+async function sendReply(event){event.preventDefault();const input=$('#reply');const message=input.value.trim();if(!message)return;const button=event.submitter;button.disabled=true;try{await api('/staff/conversations/'+selected+'/messages',{method:'POST',body:JSON.stringify({message,client_message_id:crypto.randomUUID()})});input.value='';await loadMessages(true);await loadConversations();await loadAudit();showToast('Reply saved to the website conversation.');}catch(error){showToast(error.message);}finally{button.disabled=false;}}
+async function updateConversation(changes){try{await api('/staff/conversations/'+selected,{method:'PATCH',body:JSON.stringify(changes)});await loadConversations();if(selected){await loadMessages(true);await loadAudit();}showToast('Conversation updated.');}catch(error){showToast(error.message);}}
 function startPolling(){if(pollHandle)clearInterval(pollHandle);pollHandle=setInterval(async()=>{if(!session)return;try{await loadConversations();if(selected){await loadMessages(false);await loadAttachments();await loadAudit();}}catch(error){if(error.message!=='Your staff session expired. Please sign in again.')showToast(error.message);}},6000);}
 $('#loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('#loginButton');button.disabled=true;$('#loginError').textContent='';try{await login($('#email').value.trim(),$('#password').value);}catch(error){$('#loginError').textContent=error.message;}finally{button.disabled=false;}});
 $('#accountSettings').addEventListener('click',()=>{const panel=$('#accountPanel');panel.classList.toggle('hidden');$('#accountEmail').textContent=session?.user?.email||'';$('#newEmail').value='';$('#emailChangeStatus').textContent='';});
