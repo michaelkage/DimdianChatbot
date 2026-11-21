@@ -283,7 +283,7 @@ $pdo->prepare(
     'INSERT IGNORE INTO message_status_events (provider_message_id, status, event_timestamp, created_at)
      VALUES ("wamid.integration.early-status", "failed", 1739321027, UTC_TIMESTAMP())'
 )->execute();
-apply_provider_message_status($pdo, 'wamid.integration.early-status');
+chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.early-status');
 $statusAfterLateFailure = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusAfterLateFailure === 'delivered', 'late failure callback cannot downgrade a delivered message');
 
