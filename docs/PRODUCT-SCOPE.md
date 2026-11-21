@@ -54,7 +54,7 @@ Human support and AI are separate capabilities.
 
 A human-operated deployment must not require AI configuration. AI is optional and should support interchangeable providers, tenant-specific instructions and knowledge sources, usage controls, and human escalation.
 
-A staff inbox is an optional capability. Its initial opt-in MySQL/MariaDB persistence schema and repository boundary are now present, but authentication, authorization middleware, API routes and the staff UI remain incomplete. It is not enabled for the Dimdian deployment.
+A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, repository, HMAC server-assertion authentication, local role/assignment authorization and versioned API routes are implemented. A turnkey WordPress assertion proxy and separate staff UI remain incomplete. It is not enabled for the Dimdian deployment.
 
 ## Backend responsibilities
 
