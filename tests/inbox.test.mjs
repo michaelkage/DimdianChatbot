@@ -75,3 +75,38 @@ test('staff inbox exposes tenant-scoped activity history without recording messa
   assert.match(auditMigration, /jsonb_build_object\('message_id', v_message\.id, 'channel', 'website'\)/);
   assert.doesNotMatch(auditMigration, /p_body\s*,\s*'reply_sent'/);
 });
+
+const retentionMigration = readFileSync(new URL('../supabase/migrations/20261121150000_chatbridge_retention_settings.sql', import.meta.url), 'utf8');
+
+test('retention settings default to fourteen days and support per-category indefinite retention', () => {
+  assert.match(retentionMigration, /conversation_days integer NOT NULL DEFAULT 14/);
+  assert.match(retentionMigration, /attachment_days integer NOT NULL DEFAULT 14/);
+  assert.match(retentionMigration, /diagnostic_days integer NOT NULL DEFAULT 14/);
+  assert.match(retentionMigration, /audit_days integer NOT NULL DEFAULT 14/);
+  assert.match(retentionMigration, /BETWEEN 0 AND 3650/);
+  assert.match(html, /retentionConversations/);
+  assert.match(html, /retentionAttachments/);
+  assert.match(html, /retentionDiagnostics/);
+  assert.match(html, /retentionAudit/);
+  assert.match(html, /Use 0 to keep a category indefinitely/);
+  assert.match(edge, /Only tenant owners and admins can change data retention/);
+  assert.match(edge, /Only tenant owners and admins can run data retention/);
+  assert.match(edge, /expiredAttachments/);
+  assert.match(edge, /expiredConversations/);
+  assert.match(edge, /chatbridge_staff_audit_events/);
+  assert.match(edge, /storage\("DELETE"/);
+  assert.match(edge, /internal\/retention-cleanup/);
+  assert.match(retentionMigration, /cron\.schedule/);
+  assert.match(retentionMigration, /vault\.decrypted_secrets/);
+});
+
+test('retention API validates bounded day counts and keeps public database access revoked', () => {
+  assert.match(edge, /invalid_retention_period/);
+  assert.match(edge, /value > 3650/);
+  assert.match(edge, /route === "\/staff\/retention"/);
+  assert.match(edge, /route === "\/staff\/retention\/run"/);
+  assert.match(retentionMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(retentionMigration, /FROM PUBLIC, anon, authenticated/);
+  assert.match(retentionMigration, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\.chatbridge_retention_settings TO service_role/);
+  assert.match(retentionMigration, /GRANT SELECT, INSERT ON TABLE public\.chatbridge_retention_runs TO service_role/);
+});
