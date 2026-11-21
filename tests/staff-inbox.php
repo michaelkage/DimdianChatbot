@@ -204,7 +204,18 @@ $pdo->prepare(
      VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $secondConversationId, ':guest' => $secondGuestId]);
 
+$thirdGuestId = uuid_v4();
+$thirdConversationId = uuid_v4();
+$pdo->prepare(
+    'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $thirdGuestId]);
+$pdo->prepare(
+    'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
+     VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $thirdConversationId, ':guest' => $thirdGuestId]);
+
 $repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-service-reassign');
+$repository->assignConversation($thirdConversationId, $resolvedA, $resolvedA, 'staff-owner-assignment');
 $pdo->prepare('UPDATE staff_identities SET role = "owner" WHERE id = :id')->execute([':id' => $resolvedA]);
 $agentService = new StaffInboxService(new StaffTestIdentityProvider([
     'auth_provider' => 'test-idp',
@@ -224,7 +235,7 @@ $ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
 $agentIdentity = $agentService->authenticate($agentServer);
 $agentList = $agentService->listConversations($agentServer, 'open', 0, 50);
 staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides untrusted external role claims');
-staff_expect(count($agentList) === 1 && $agentList[0]['id'] === $conversationId, 'agent inbox is scoped to the current agent assignment');
+staff_expect(count($agentList) === 2 && count(array_filter($agentList, static fn(array $row): bool => in_array($row['id'], [$conversationId, $secondConversationId], true))) === 2, 'agent inbox includes own assignments and unassigned conversations but excludes another agent’s assignments');
 $agentMessages = $agentService->listConversationMessages($agentServer, $conversationId, 0, 50);
 staff_expect(count($agentMessages['items']) === 1, 'assigned agent can read conversation messages');
 $agentCannotListStaff = false;
@@ -254,7 +265,7 @@ $agentService->assignConversation($agentServer, $secondConversationId, $resolved
 staff_expect($repository->getActiveAssignee($secondConversationId) === $resolvedB, 'agent can self-assign an unassigned conversation');
 
 $ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
-staff_expect(count($ownerList) >= 2, 'owner can list all conversations across the installation');
+staff_expect(count($ownerList) >= 3, 'owner can list all conversations across the installation');
 staff_expect(count($ownerService->listStaffIdentities($ownerServer)) >= 2, 'owner can list active staff identities');
 $ownerService->addInternalNote($ownerServer, uuid_v4(), $secondConversationId, 'Owner note.');
 staff_expect(count($repository->listInternalNotes($secondConversationId, 0, 10)) === 1, 'owner can manage an unassigned conversation');
