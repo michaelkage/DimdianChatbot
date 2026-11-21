@@ -104,3 +104,12 @@ CREATE TABLE IF NOT EXISTS staff_audit_events (
         FOREIGN KEY (target_staff_id) REFERENCES staff_identities (id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Short-lived nonce ledger prevents replay of signed server-to-server assertions.
+CREATE TABLE IF NOT EXISTS staff_auth_nonces (
+    nonce_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (nonce_sha256),
+    KEY idx_staff_auth_nonce_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
