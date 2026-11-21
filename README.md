@@ -14,7 +14,7 @@ An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`]
 
 This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin includes a gated Meta Embedded Signup v5 launcher when the service has been configured with an eligible Meta app and tenant API key. It never exposes Meta app secrets or business access tokens to the browser. The 0.3.0 connector adds an ownership-checked WooCommerce order summary for signed-in customers; it does not support guest-checkout order verification. The tenant AI runtime is optional and disabled by default. A site administrator can now configure an OpenAI-compatible API key, model and token budget through the WordPress connector; knowledge sources remain a separate tenant-scoped import step.
 
-## 1. What this system does
+## Mock support inbox\n\nThe Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.\n\n## 1. What this system does
 
 - Adds a small floating **Message us** button to a website, with optional appearance and page-targeting controls.
 - Supports a standalone JavaScript embed on non-WordPress sites.
@@ -25,11 +25,11 @@ This is an early connector release, not yet a WordPress.org directory release. I
 - Saves website messages and replies in a MySQL database.
 - Shows replies in the same website chat.
 - Can optionally connect an opted-in visitor's conversation to the WhatsApp Business app, using Meta's WhatsApp Cloud API and supported Business App Coexistence.
-- Keeps the support team on the existing WhatsApp Business app. There is no separate staff dashboard.
+- Includes a basic authenticated support inbox for the Supabase mock site. It is separate from the production WhatsApp Business workflow.
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide a staffed shared inbox, staff accounts, agent assignment/resolution UI, cart/checkout actions, inventory management, payments, CRM, screenshot/file attachments, voice notes or group chats. An optional tenant-scoped AI queue and knowledge retrieval runtime exists; it is disabled by default and can be configured through the WordPress connector with an OpenAI-compatible API key. It still has no staff inbox UI. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only. Screenshot capture/upload and private diagnostic bundles are not implemented yet.
+This is not yet a full customer-management or production contact-centre system. The Supabase mock site has a basic staff inbox with authenticated access, conversation replies, open/closed state, self-assignment and staff-only diagnostic attachment retrieval. The mock inbox does not yet provide team assignment, internal notes, audit history, retention cleanup or WhatsApp delivery. The self-hosted MySQL/MariaDB backend remains available through PHP; a production-grade staff console for those deployments is still outstanding. An optional tenant-scoped AI queue and knowledge retrieval runtime exists; it is disabled by default and can be configured through the WordPress connector with an OpenAI-compatible API key. The WordPress plugin also has an optional read-only WooCommerce product catalogue adapter.
 
 ## 2. How a conversation works
 
