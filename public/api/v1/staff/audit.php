@@ -6,7 +6,7 @@ staff_inbox_guard_enabled();
 require_method('GET');
 staff_inbox_dispatch(static function (): array {
     $conversationId = isset($_GET['conversation_id']) && is_string($_GET['conversation_id']) ? $_GET['conversation_id'] : '';
-    if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('conversation_id must be a UUID.');
+    if (!staff_inbox_is_uuid($conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
     return ['items' => staff_inbox_service()->listAuditEvents(
         $_SERVER,
         $conversationId,
