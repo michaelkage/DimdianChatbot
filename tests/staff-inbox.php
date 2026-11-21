@@ -95,7 +95,7 @@ $author->execute([':id' => $created['message']['id']]);
 $outbox = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = :id');
 $outbox->execute([':id' => $created['message']['id']]);
 $visitorPoll = chat_repository($pdo)->listConversationMessages($conversationId, 0, 50);
-staff_expect(count($visitorPoll['items']) === 1 && $visitorPoll['items'][0]['body'] === 'A reply from the staff inbox.', 'visitor message polling returns staff replies but never private notes');
+staff_expect(count($visitorPoll['items']) === 1 && $visitorPoll['items'][0]['message'] === 'A reply from the staff inbox.', 'visitor message polling returns staff replies but never private notes');
 staff_expect(
     $created['inserted'] === true
         && $created['message']['sender_type'] === 'business'
