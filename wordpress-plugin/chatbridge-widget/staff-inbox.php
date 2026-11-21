@@ -69,8 +69,8 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     $assertion = [
         'auth_provider' => 'wordpress',
         'external_subject' => 'user:' . (int)$user->ID,
-        'display_name' => (string)$user->display_name,
-        'email' => (string)$user->user_email,
+        'display_name' => (string)($user->display_name ?: $user->user_login),
+        'email' => $user->user_email !== '' ? (string)$user->user_email : null,
         'iat' => time(),
         'nonce' => bin2hex(random_bytes(32)),
         'method' => $method,
