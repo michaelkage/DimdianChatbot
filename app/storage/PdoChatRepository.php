@@ -103,7 +103,7 @@ final class PdoChatRepository implements ChatRepository
         return $consent !== false && $consent !== null;
     }
 
-    public function cancelWhatsAppOutbox(int $id, string $lockToken, string $messageId): bool
+    public function cancelWhatsAppOutbox(string $id, string $lockToken, string $messageId): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId): bool {
             $cancel = $this->pdo->prepare(
@@ -123,7 +123,7 @@ final class PdoChatRepository implements ChatRepository
         });
     }
 
-    public function completeWhatsAppOutbox(int $id, string $lockToken, string $messageId, string $providerMessageId): bool
+    public function completeWhatsAppOutbox(string $id, string $lockToken, string $messageId, string $providerMessageId): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId, $providerMessageId): bool {
             $complete = $this->pdo->prepare(
@@ -145,7 +145,7 @@ final class PdoChatRepository implements ChatRepository
         });
     }
 
-    public function failWhatsAppOutbox(int $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
+    public function failWhatsAppOutbox(string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId, $retry, $delaySeconds, $error): bool {
             $update = $this->pdo->prepare(
