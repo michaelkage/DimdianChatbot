@@ -34,7 +34,7 @@ function staff_http_b64url(string $value): string
     return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
 }
 
-function staff_http_assertion(string $method, string $path): string
+function staff_http_assertion(string $method, string $path, string $body = ''): string
 {
     global $secret;
     $payload = [
@@ -56,12 +56,12 @@ function staff_http_request(string $method, string $path, ?array $body = null, b
 {
     global $base;
     $headers = ['Accept: application/json'];
-    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content);
     $content = '';
     if ($body !== null) {
         $headers[] = 'Content-Type: application/json';
         $content = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
+    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content);
     $context = stream_context_create(['http' => [
         'method' => $method,
         'header' => implode("\r\n", $headers),
