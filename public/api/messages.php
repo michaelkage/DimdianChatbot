@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
 enforce_allowed_origin();
 handle_preflight();
 
-$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if (!in_array($method, ['GET', 'POST'], true)) {
     header('Allow: GET, POST, OPTIONS');
     json_response(['error' => ['code' => 'method_not_allowed', 'message' => 'Use GET to retrieve messages or POST to send one.']], 405);
@@ -19,7 +19,7 @@ try {
     $session = authenticate_guest_session($repository, $method === 'POST');
 
     if ($method === 'POST') {
-        $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
+        $contentType = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
         if ($contentType !== 'application/json') {
             json_response(['error' => ['code' => 'unsupported_media_type', 'message' => 'Content-Type must be application/json.']], 415);
         }
@@ -31,26 +31,26 @@ try {
         }
 
         $rateConfig = app_config('app.message_rate_limit') ?? [];
-        $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 8));
-        $windowSeconds = max(60, (int)($rateConfig['window_seconds'] ?? 60));
+        $maxRequests = max(1, (int) ($rateConfig['max_requests'] ?? 8));
+        $windowSeconds = max(60, (int) ($rateConfig['window_seconds'] ?? 60));
         enforce_rate_limit($pdo, 'message:' . $session['session_id'], $maxRequests, $windowSeconds);
 
         $clientMessageId = $body['client_message_id'] ?? null;
-        if ($clientMessageId === null) $clientMessageId = uuid_v4();
+        if ($clientMessageId === null) {
+            $clientMessageId = uuid_v4();
+        }
         if (!is_string($clientMessageId) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientMessageId)) {
             json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
         }
-        $messageId = uuid_v4();
-        // The repository owns the transaction that persists the message,
-        // advances conversation activity and inserts an optional outbox job.
+
         $whatsappConfig = app_config('whatsapp') ?? [];
-        $visitorWhatsApp = (string)($session['phone_normalized'] ?? '');
+        $visitorWhatsApp = (string) ($session['phone_normalized'] ?? '');
         $visitorOptedIn = !empty($session['whatsapp_opt_in_at']) && $visitorWhatsApp !== '';
         $outboundEnabled = is_array($whatsappConfig) && !empty($whatsappConfig['outbound_enabled']) && $visitorOptedIn;
 
         try {
             $result = $repository->createVisitorMessage([
-                'id' => $messageId,
+                'id' => uuid_v4(),
                 'conversation_id' => (string) $session['conversation_id'],
                 'client_message_id' => $clientMessageId,
                 'body' => $messageText,
@@ -67,34 +67,10 @@ try {
         $wasInserted = $result['inserted'];
         $transportState = $result['transport'];
 
-        json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
-            }
-            $messageId = (string)$saved['id'];
-
-            $update = $pdo->prepare(
-                'UPDATE conversations
-                 SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "open"'
-            );
-            if ($wasInserted) $update->execute([':id' => $session['conversation_id']]);
-
-            if ($wasInserted && $outboundEnabled) {
-                enqueue_whatsapp_notification($pdo, $messageId, $visitorWhatsApp, mb_substr_safe($messageText, 0, 1000));
-                $transportState = 'queued';
-            }
-
-            $pdo->commit();
-        } catch (Throwable $error) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $error;
-        }
-
         json_response([
             'data' => [
-                'id' => $messageId,
-                'sequence_id' => (int)$saved['sequence_id'],
+                'id' => $saved['id'],
+                'sequence_id' => (int) $saved['sequence_id'],
                 'conversation_id' => $session['conversation_id'],
                 'sender' => 'visitor',
                 'message' => $messageText,
@@ -112,28 +88,26 @@ try {
     }
 
     $afterRaw = $_GET['after'] ?? '0';
-    if (!is_string($afterRaw) || !preg_match('/^\d{1,18}$/', $afterRaw)) {
+    if (!is_string($afterRaw) || !preg_match('/^\\d{1,18}$/', $afterRaw)) {
         json_response(['error' => ['code' => 'invalid_cursor', 'message' => 'The after cursor must be a non-negative integer.']], 422);
     }
-    $after = (int)$afterRaw;
+    $after = (int) $afterRaw;
+
     $limitRaw = $_GET['limit'] ?? '50';
-    if (!is_string($limitRaw) || !preg_match('/^\d{1,3}$/', $limitRaw)) {
+    if (!is_string($limitRaw) || !preg_match('/^\\d{1,3}$/', $limitRaw)) {
         json_response(['error' => ['code' => 'invalid_limit', 'message' => 'The limit must be an integer between 1 and 100.']], 422);
     }
-    $limit = max(1, min(100, (int)$limitRaw));
+    $limit = max(1, min(100, (int) $limitRaw));
 
     $page = $repository->listConversationMessages((string) $session['conversation_id'], $after, $limit);
-    $items = $page['items'];
-    $hasMore = $page['has_more'];
-    $nextCursor = $page['next_cursor'];
     $deliveryUpdates = $repository->listVisitorDeliveryUpdates((string) $session['conversation_id'], 50);
 
     json_response([
-        'data' => $items,
+        'data' => $page['items'],
         'meta' => [
             'after' => $after,
-            'next_cursor' => $nextCursor,
-            'has_more' => $hasMore,
+            'next_cursor' => $page['next_cursor'],
+            'has_more' => $page['has_more'],
             'poll_after_ms' => 3000,
             'delivery_updates' => $deliveryUpdates,
         ],
