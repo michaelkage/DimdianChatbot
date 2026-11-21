@@ -26,6 +26,12 @@ return [
             'window_seconds' => 60,
         ],
     ],
+    'staff_inbox' => [
+        // Optional module. Import database/optional/staff-inbox.sql only when enabling.
+        'enabled' => false,
+        // Shared server-to-server HMAC secret (minimum 32 characters); never expose to browsers.
+        'assertion_secret' => '',
+    ],
     'privacy' => [
         'closed_conversation_retention_days' => 365,
         'webhook_event_retention_days' => 30,
