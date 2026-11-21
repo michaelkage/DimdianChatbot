@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Persistence contract for visitor chat sessions and website messages.
  *
- * Implementations own their transaction boundaries. HTTP handlers and channel
- * providers must not depend on PDO or database-specific SQL.
+ * Implementations own transaction boundaries for the operations in this contract.
+ * The interface exposes domain-level operations, not PDO or SQL dialect details.
  */
 interface ChatRepository
 {
