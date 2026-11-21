@@ -45,7 +45,7 @@ jobs:
           node-version: '22'
       - name: Lint active PHP source
         run: |
-          find app public tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
       - name: Prepare disposable database and app config
         run: |
