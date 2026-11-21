@@ -10,7 +10,7 @@ staff_inbox_dispatch(static function () use ($input): array {
     if (!staff_inbox_is_uuid($conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
     $body = staff_inbox_required_string($input, 'message', 5000);
     $clientMessageId = staff_inbox_required_string($input, 'client_message_id', 36);
-    if (!preg_match('/^[a-f0-9-]{36}$/i', $clientMessageId)) throw new InvalidArgumentException('client_message_id must be a UUID.');
+    if (!staff_inbox_is_uuid($clientMessageId)) throw new InvalidArgumentException('client_message_id must be a UUID.');
     return staff_inbox_service()->createStaffReply($_SERVER, [
         'id' => uuid_v4(),
         'conversation_id' => $conversationId,
