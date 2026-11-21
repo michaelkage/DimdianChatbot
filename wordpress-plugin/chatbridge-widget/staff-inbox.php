@@ -65,6 +65,16 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     $basePath = (string)wp_parse_url($apiBase, PHP_URL_PATH);
     $requestPath = rtrim($basePath, '/') . '/v1/staff/' . $endpoint;
     if ($requestPath === '') $requestPath = '/v1/staff/' . $endpoint;
+    $queryString = $query !== [] ? http_build_query($query) : '';
+    $requestTarget = $requestPath . ($queryString !== '' ? '?' . $queryString : '');
+    $requestBody = '';
+    if ($method !== 'GET') {
+        $encodedBody = wp_json_encode($payload);
+        if (!is_string($encodedBody)) {
+            return new WP_Error('chatbridge_staff_payload', __('The staff request could not be encoded.', 'chatbridge-widget'));
+        }
+        $requestBody = $encodedBody;
+    }
 
     $assertion = [
         'auth_provider' => 'wordpress',
@@ -74,7 +84,8 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
         'iat' => time(),
         'nonce' => bin2hex(random_bytes(32)),
         'method' => $method,
-        'path' => $requestPath,
+        'target' => $requestTarget,
+        'body_sha256' => hash('sha256', $requestBody),
     ];
     $encodedPayload = chatbridge_staff_base64url(wp_json_encode($assertion));
     $signature = chatbridge_staff_base64url(hash_hmac('sha256', $encodedPayload, $secret, true));
@@ -84,7 +95,7 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     ];
 
     $url = $apiBase . '/v1/staff/' . $endpoint;
-    if ($query !== []) $url .= '?' . http_build_query($query);
+    if ($queryString !== '') $url .= '?' . $queryString;
     $args = [
         'method' => $method,
         'timeout' => 15,
@@ -94,7 +105,7 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     ];
     if ($method !== 'GET') {
         $args['headers']['Content-Type'] = 'application/json';
-        $args['body'] = wp_json_encode($payload);
+        $args['body'] = $requestBody;
     }
 
     $response = wp_safe_remote_request($url, $args);
