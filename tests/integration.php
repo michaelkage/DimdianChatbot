@@ -437,5 +437,32 @@ $atomicityCheck = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE conversatio
 $atomicityCheck->execute([':conversation_id' => $repositoryConversationId, ':client_message_id' => $atomicityClientMessageId]);
 expect($atomicityFailed && (int) $atomicityCheck->fetchColumn() === 0, 'outbox insert failure rolls back the visitor message insert');
 
+
+/*
+ * Consent and rate-limit persistence are part of the shared repository contract.
+ */
+$repositoryGuestIdQuery = $pdo->prepare('SELECT guest_id FROM conversations WHERE id = :id');
+$repositoryGuestIdQuery->execute([':id' => $repositoryConversationId]);
+$repositoryGuestId = (string) $repositoryGuestIdQuery->fetchColumn();
+$repositoryPhoneQuery = $pdo->prepare('SELECT phone_normalized FROM guests WHERE id = :id');
+$repositoryPhoneQuery->execute([':id' => $repositoryGuestId]);
+$repositoryPhone = (string) $repositoryPhoneQuery->fetchColumn();
+$repository->recordWhatsAppConsent($repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_out', 'repository_contract_test');
+$repositoryConsentState = $pdo->prepare('SELECT whatsapp_opt_in_at FROM guests WHERE id = :id');
+$repositoryConsentState->execute([':id' => $repositoryGuestId]);
+$consentTimestamp = $repositoryConsentState->fetchColumn();
+expect($consentTimestamp === false || $consentTimestamp === null, 'repository consent transition clears the current opt-in timestamp');
+$repositoryConsentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE guest_id = :guest AND action = "opt_out" AND source = "repository_contract_test"');
+$repositoryConsentAudit->execute([':guest' => $repositoryGuestId]);
+expect((int) $repositoryConsentAudit->fetchColumn() === 1, 'repository consent transition appends its audit event');
+$repository->recordWhatsAppConsent($repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_in', 'repository_contract_test');
+$repositoryConsentState->execute([':id' => $repositoryGuestId]);
+expect($repositoryConsentState->fetchColumn() !== false && $repositoryConsentState->fetchColumn() !== null, 'repository consent transition can restore opt-in');
+
+$rateBucket = 'integration-contract:' . uuid_v4();
+expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository admits the first request');
+expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository admits requests up to the configured maximum');
+expect(!$repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository rejects requests above the configured maximum');
+
 fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
 exit($failed === 0 ? 0 : 1);
