@@ -9,6 +9,10 @@ declare(strict_types=1);
  * a staff identity resolved by a trusted authentication adapter and must enforce
  * role/permission policy before invoking mutating operations.
  */
+final class StaffInboxAssignmentException extends RuntimeException
+{
+}
+
 interface StaffInboxRepository
 {
     /** Upsert a verified external identity; never accept a browser-supplied subject. */
