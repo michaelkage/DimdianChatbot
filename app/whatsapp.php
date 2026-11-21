@@ -143,7 +143,7 @@ function process_meta_webhook(ChatRepository $repository, array $payload, string
                     $eventId = 'echo:' . $wamid;
                     if (($echo['type'] ?? '') !== 'text' || $body === '' || $recipient === '') {
                         // Preserve the event ledger for unsupported but validly identified provider events.
-                        $result = $repository->recordProviderMessageEvent($eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business', '', $wamid, 'sent', webhook_timestamp((string)($echo['timestamp'] ?? '')));
+                        $result = $repository->recordIgnoredProviderEvent($eventId, 'smb_message_echoes', $payloadHash);
                         if ($result !== 'processed') $ignored++;
                         continue;
                     }
@@ -163,7 +163,7 @@ function process_meta_webhook(ChatRepository $repository, array $payload, string
                     $body = (string)($incoming['text']['body'] ?? '');
                     $eventId = 'inbound:' . $wamid;
                     if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
-                        $result = $repository->recordProviderMessageEvent($eventId, 'inbound_message', $payloadHash, $sender, 'visitor', '', $wamid, 'received', webhook_timestamp((string)($incoming['timestamp'] ?? '')));
+                        $result = $repository->recordIgnoredProviderEvent($eventId, 'inbound_message', $payloadHash);
                         if ($result !== 'processed') $ignored++;
                         continue;
                     }
