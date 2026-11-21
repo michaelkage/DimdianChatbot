@@ -468,6 +468,15 @@ final class PdoChatRepository implements ChatRepository
         });
     }
 
+    public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string
+    {
+        return $this->transaction(function () use ($eventId, $eventType, $payloadHash): string {
+            if (!$this->insertWebhookEvent($eventId, $eventType, $payloadHash)) return 'duplicate';
+            $this->markWebhookEvent($eventId, 'ignored');
+            return 'ignored';
+        });
+    }
+
     public function recordProviderStatusEvent(
         string $eventId, string $payloadHash, string $providerMessageId,
         string $status, int $eventTimestamp
