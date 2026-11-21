@@ -79,6 +79,8 @@ $noteFound = count($notes) === 1 && $notes[0]['body'] === 'Internal-only note.';
 $messageCount = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE conversation_id = :conversation');
 $messageCount->execute([':conversation' => $conversationId]);
 staff_expect($noteFound && (int)$messageCount->fetchColumn() === 0, 'internal notes are stored separately from visitor-visible messages');
+$assignmentHistory = $repository->listAssignmentHistory($conversationId, 0, 20);
+staff_expect(count($assignmentHistory) === 2, 'assignment history is queryable without overwriting prior assignees');
 
 $reply = [
     'id' => uuid_v4(),
@@ -92,6 +94,8 @@ $author = $pdo->prepare('SELECT staff_identity_id FROM staff_message_authors WHE
 $author->execute([':id' => $created['message']['id']]);
 $outbox = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = :id');
 $outbox->execute([':id' => $created['message']['id']]);
+$visitorPoll = chat_repository($pdo)->listConversationMessages($conversationId, 0, 50);
+staff_expect(count($visitorPoll['items']) === 1 && $visitorPoll['items'][0]['body'] === 'A reply from the staff inbox.', 'visitor message polling returns staff replies but never private notes');
 staff_expect(
     $created['inserted'] === true
         && $created['message']['sender_type'] === 'business'
