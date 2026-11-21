@@ -70,6 +70,8 @@ test('staff inbox exposes tenant-scoped activity history without recording messa
   assert.match(auditMigration, /'reply_sent'/);
   assert.match(auditMigration, /'conversation_status_changed'/);
   assert.match(auditMigration, /'conversation_assignment_changed'/);
+  assert.match(auditMigration, /reply_auto_assignment/);
+  assert.match(auditMigration, /FOR UPDATE/);
   assert.match(auditMigration, /jsonb_build_object\('message_id', v_message\.id, 'channel', 'website'\)/);
   assert.doesNotMatch(auditMigration, /p_body\s*,\s*'reply_sent'/);
 });
