@@ -42,6 +42,7 @@ The first owner account is intended to use the email address selected during set
 - Assigns a conversation to the signed-in agent or leaves it unassigned.
 - Closes and reopens conversations.
 - Lists customer-visible uploads and `staff_only` diagnostic bundles. Signed URLs expire after 120 seconds.
+- Shows a per-conversation activity history for staff replies, status changes and assignment changes. Event details exclude message bodies and attachment contents.
 - Refreshes the inbox every six seconds. This is polling, not Supabase Realtime.
 
 ## Security model
@@ -56,4 +57,4 @@ The first owner account is intended to use the email address selected during set
 
 ## Limitations
 
-This is a first functional support inbox, not yet a production-grade team console. It has no teammate directory, team assignment, internal notes, canned replies, file upload by agents, presence/Realtime, audit UI, retention cleanup job or attachment deletion control. Signed attachment links are short-lived, but the browser can access a link until it expires. Add an authenticated staff audit log and retention/deletion workflow before using it for sensitive production support.
+This is a first functional support inbox, not yet a production-grade team console. It has no teammate directory, team assignment, internal notes, canned replies, file upload by agents or presence/Realtime. The audit history currently records staff replies, status changes and assignment changes only; it is not a database-wide audit trail. No retention cleanup job or attachment deletion control is configured. Signed attachment links are short-lived, but the browser can access a link until it expires. Add an authenticated staff audit log and retention/deletion workflow before using it for sensitive production support.
