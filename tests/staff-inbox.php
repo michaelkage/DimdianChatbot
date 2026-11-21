@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
+require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
+require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
 
 $pdo = new PDO(
     getenv('DIMDIAN_TEST_DSN') ?: 'mysql:host=127.0.0.1;dbname=dimdian_test;charset=utf8mb4',
@@ -14,6 +16,17 @@ $pdo = new PDO(
 $repository = new PdoStaffInboxRepository($pdo);
 $passed = 0;
 $failed = 0;
+
+final class StaffTestIdentityProvider implements StaffIdentityProvider
+{
+    public function __construct(private ?array $identity) {}
+
+    public function authenticate(array $server): ?array
+    {
+        return $this->identity;
+    }
+}
+
 
 function staff_expect(bool $condition, string $label): void
 {
@@ -129,6 +142,75 @@ staff_expect(
 
 staff_expect($repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign'), 'active assignment can be ended');
 staff_expect(!$repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign-again'), 'unassigning an unassigned conversation is idempotent');
+
+$secondGuestId = uuid_v4();
+$secondConversationId = uuid_v4();
+$pdo->prepare(
+    'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $secondGuestId]);
+$pdo->prepare(
+    'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
+     VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $secondConversationId, ':guest' => $secondGuestId]);
+
+$pdo->prepare('UPDATE staff_identities SET role = "owner" WHERE id = :id')->execute([':id' => $resolvedA]);
+$agentService = new StaffInboxService(new StaffTestIdentityProvider([
+    'auth_provider' => 'test-idp',
+    'external_subject' => 'staff-subject-b',
+    'display_name' => 'Agent B',
+    'email' => 'agent-b@example.test',
+    'role' => 'owner', // Untrusted external role claims must be ignored.
+]), $repository);
+$ownerService = new StaffInboxService(new StaffTestIdentityProvider([
+    'auth_provider' => 'test-idp',
+    'external_subject' => 'staff-subject-a',
+    'display_name' => 'Agent A',
+    'email' => 'agent-a@example.test',
+]), $repository);
+$agentServer = ['HTTP_AUTHORIZATION' => 'Bearer test-agent-token'];
+$ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
+$agentIdentity = $agentService->authenticate($agentServer);
+$agentList = $agentService->listConversations($agentServer, 'open', 0, 50);
+staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides untrusted external role claims');
+staff_expect(count($agentList) === 1 && $agentList[0]['id'] === $conversationId, 'agent inbox is scoped to the current agent assignment');
+
+$agentCannotReassign = false;
+try {
+    $agentService->assignConversation($agentServer, $conversationId, $resolvedA);
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotReassign = true;
+}
+staff_expect($agentCannotReassign, 'agent cannot assign a conversation to another staff member');
+
+$agentCannotReadUnassigned = false;
+try {
+    $agentService->addInternalNote($agentServer, uuid_v4(), $secondConversationId, 'No access.');
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotReadUnassigned = true;
+}
+staff_expect($agentCannotReadUnassigned, 'agent cannot add notes to an unassigned conversation');
+
+$ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
+staff_expect(count($ownerList) >= 2, 'owner can list all conversations across the installation');
+$ownerService->addInternalNote($ownerServer, uuid_v4(), $secondConversationId, 'Owner note.');
+staff_expect(count($repository->listInternalNotes($secondConversationId, 0, 10)) === 1, 'owner can manage an unassigned conversation');
+
+$agentCannotReadAudit = false;
+try {
+    $agentService->listAuditEvents($agentServer, $conversationId, 0, 50);
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotReadAudit = true;
+}
+staff_expect($agentCannotReadAudit, 'agents cannot inspect the operational audit trail');
+
+$noIdentityService = new StaffInboxService(new StaffTestIdentityProvider(null), $repository);
+$unauthenticatedRejected = false;
+try {
+    $noIdentityService->listConversations([], 'open', 0, 10);
+} catch (StaffInboxAuthenticationException) {
+    $unauthenticatedRejected = true;
+}
+staff_expect($unauthenticatedRejected, 'missing verified external identity fails closed');
 
 $pdo->prepare('UPDATE staff_identities SET status = "disabled" WHERE id = :id')->execute([':id' => $resolvedB]);
 $disabledRejected = false;
