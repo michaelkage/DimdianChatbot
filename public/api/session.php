@@ -56,37 +56,19 @@ try {
     $createdAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     $expiresAt = $createdAt->modify('+' . $ttlHours . ' hours');
 
-    $pdo->beginTransaction();
-
-    $guest = $pdo->prepare(
-        'INSERT INTO guests (id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
-         VALUES (:id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
-    $guest->execute([':id' => $guestId, ':name' => $name, ':phone' => $phone, ':phone_normalized' => $normalizedPhone, ':whatsapp_opt_in_at' => $whatsappOptIn ? $createdAt->format('Y-m-d H:i:s') : null]);
-
-    $conversation = $pdo->prepare(
-        'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
-         VALUES (:id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
-    $conversation->execute([':id' => $conversationId, ':guest_id' => $guestId]);
-
-    $session = $pdo->prepare(
-        'INSERT INTO guest_sessions (id, guest_id, conversation_id, token_hash, created_at, expires_at)
-         VALUES (:id, :guest_id, :conversation_id, :token_hash, UTC_TIMESTAMP(), :expires_at)'
-    );
-    $session->execute([
-        ':id' => $sessionId,
-        ':guest_id' => $guestId,
-        ':conversation_id' => $conversationId,
-        ':token_hash' => $tokenHash,
-        ':expires_at' => $expiresAt->format('Y-m-d H:i:s'),
+    $repository = chat_repository($pdo);
+    $repository->createGuestSession([
+        'session_id' => $sessionId,
+        'conversation_id' => $conversationId,
+        'guest_id' => $guestId,
+        'name' => $name,
+        'phone' => $phone,
+        'phone_normalized' => $normalizedPhone,
+        'whatsapp_opt_in' => $whatsappOptIn,
+        'token_hash' => $tokenHash,
+        'expires_at' => $expiresAt,
+        'created_at' => $createdAt,
     ]);
-
-    if ($whatsappOptIn && $normalizedPhone !== null) {
-        record_whatsapp_consent($pdo, $guestId, $conversationId, $normalizedPhone, 'opt_in', 'website_widget');
-    }
-
-    $pdo->commit();
 
     json_response([
         'data' => [
