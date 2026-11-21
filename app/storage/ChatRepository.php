@@ -53,6 +53,23 @@ interface ChatRepository
     /** Complete or reschedule only the row owned by the supplied lease token. */
     public function completeWebhookInbox(int $id, string $lockToken): void;
     public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void;
+
+    /**
+     * Record an inbound visitor message or Business App echo, including event
+     * deduplication, identity routing, message insertion and conversation activity.
+     * Returns processed, ignored, or duplicate.
+     */
+    public function recordProviderMessageEvent(
+        string $eventId, string $eventType, string $payloadHash, string $phone,
+        string $senderType, string $body, string $providerMessageId,
+        string $deliveryStatus, string $sentAt
+    ): string;
+
+    /** Persist a provider status event and reconcile the message's current status. */
+    public function recordProviderStatusEvent(
+        string $eventId, string $payloadHash, string $providerMessageId,
+        string $status, int $eventTimestamp
+    ): string;
 }
 
 final class ChatStorageConflict extends RuntimeException
