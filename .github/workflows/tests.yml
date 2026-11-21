@@ -97,6 +97,7 @@ jobs:
         run: |
           node --check public/widget.js
           node --check wordpress-plugin/chatbridge-widget/assets/meta-signup-admin.js
+          node --check wordpress-plugin/chatbridge-widget/assets/staff-inbox-admin.js
       - name: Run widget tests
         run: node --test tests/widget.test.mjs
 
