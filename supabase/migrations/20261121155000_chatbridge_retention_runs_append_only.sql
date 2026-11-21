@@ -1,0 +1,1 @@
+REVOKE UPDATE, DELETE ON TABLE public.chatbridge_retention_runs FROM service_role;
