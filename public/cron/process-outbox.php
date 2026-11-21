@@ -9,6 +9,7 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/meta_signup.php';
 
 $config = app_config('whatsapp') ?? [];
 if (!is_array($config) || empty($config['outbound_enabled'])) {
@@ -17,6 +18,7 @@ if (!is_array($config) || empty($config['outbound_enabled'])) {
 }
 
 try {
+    $config = load_meta_whatsapp_config(database(), $config);
     $transport = new MetaCloudApiTransport($config);
     $summary = process_whatsapp_outbox(database(), $transport, 10, 6);
     fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_SLASHES) . PHP_EOL);

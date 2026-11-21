@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.2.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.3.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 function chatbridge_widget_defaults(): array
@@ -79,7 +79,7 @@ function chatbridge_widget_health_check(string $api_base)
     }
 
     // The health endpoint reports service/database/schema state only. It does not verify WhatsApp delivery.
-    return wp_remote_get($api_base . '/health.php', [
+    return wp_safe_remote_get($api_base . '/health.php', [
         'timeout' => 8,
         'redirection' => 2,
         'sslverify' => true,

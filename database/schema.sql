@@ -131,3 +131,85 @@ CREATE TABLE message_status_events (
     UNIQUE KEY uq_message_status_event (provider_message_id, status, event_timestamp),
     KEY idx_message_status_provider (provider_message_id, event_timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Auditable consent lifecycle and unambiguous WhatsApp identity routing.
+CREATE TABLE guest_consent_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    guest_id CHAR(36) NOT NULL,
+    channel VARCHAR(24) NOT NULL,
+    action ENUM('opt_in','opt_out') NOT NULL,
+    source VARCHAR(40) NOT NULL,
+    policy_version VARCHAR(32) NOT NULL DEFAULT '2026-11',
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_consent_guest_created (guest_id, created_at),
+    KEY idx_consent_channel_action (channel, action, created_at),
+    CONSTRAINT fk_consent_guest FOREIGN KEY (guest_id) REFERENCES guests(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE whatsapp_identity_links (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    phone_normalized VARCHAR(32) NOT NULL,
+    guest_id CHAR(36) NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    active_phone VARCHAR(32) GENERATED ALWAYS AS (CASE WHEN is_active = 1 THEN phone_normalized ELSE NULL END) STORED,
+    created_at DATETIME NOT NULL,
+    deactivated_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_whatsapp_active_phone (active_phone),
+    KEY idx_whatsapp_link_conversation (conversation_id, is_active),
+    CONSTRAINT fk_whatsapp_link_guest FOREIGN KEY (guest_id) REFERENCES guests(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_whatsapp_link_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Verified webhook payloads are encrypted before they are acknowledged to Meta.
+CREATE TABLE webhook_inbox (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payload_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    payload_ciphertext LONGBLOB NOT NULL,
+    payload_nonce VARBINARY(12) NOT NULL,
+    payload_tag VARBINARY(16) NOT NULL,
+    status ENUM('pending','processing','processed','failed') NOT NULL DEFAULT 'pending',
+    attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    available_at DATETIME NOT NULL,
+    locked_at DATETIME NULL,
+    lock_token CHAR(36) NULL,
+    last_error VARCHAR(500) NULL,
+    received_at DATETIME NOT NULL,
+    processed_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_webhook_inbox_payload (payload_sha256),
+    KEY idx_webhook_inbox_due (status, available_at, received_at),
+    KEY idx_webhook_inbox_lock (status, locked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE meta_signup_states (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    state_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_meta_signup_state (state_sha256),
+    KEY idx_meta_signup_expiry (expires_at, used_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE meta_connections (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    waba_id VARCHAR(80) NOT NULL,
+    phone_number_id VARCHAR(80) NOT NULL,
+    access_token_ciphertext LONGBLOB NOT NULL,
+    access_token_nonce VARBINARY(12) NOT NULL,
+    access_token_tag VARBINARY(16) NOT NULL,
+    token_expires_at DATETIME NULL,
+    status ENUM('active','revoked','expired') NOT NULL DEFAULT 'active',
+    connected_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_meta_phone_number (phone_number_id),
+    KEY idx_meta_connection_status (status, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

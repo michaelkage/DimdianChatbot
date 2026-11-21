@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/webhook_inbox.php';
+require_once dirname(__DIR__, 2) . '/app/meta_signup.php';
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $verifyToken = (string)app_config('whatsapp.verify_token');
@@ -47,18 +49,25 @@ try {
     }
 
     $pdo = database();
+    // Persist the verified payload before acknowledging Meta. Inline processing
+    // is an optimization; the CLI inbox worker recovers jobs after a process crash.
     $pdo->beginTransaction();
     try {
-        $summary = process_meta_webhook($pdo, $payload, $rawBody, (string)app_config('whatsapp.phone_number_id'));
+        $queued = enqueue_meta_webhook($pdo, $rawBody);
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $error;
     }
+    $summary = ['processed' => 0, 'retried' => 0, 'failed' => 0];
+    if ($queued['status'] !== 'processed') $summary = process_webhook_inbox($pdo, 1, 8);
 
     http_response_code(200);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => true, 'processed' => $summary['processed'], 'ignored' => $summary['ignored']]);
+    echo json_encode([
+        'ok' => true, 'queued' => $queued['inserted'], 'inbox_id' => $queued['id'],
+        'processed' => $summary['processed'], 'retry_scheduled' => $summary['retried'] > 0,
+    ]);
 } catch (JsonException) {
     http_response_code(400);
     exit('Invalid JSON');

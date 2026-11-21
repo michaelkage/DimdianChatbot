@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 2) . '/app/whatsapp.php';
+require_once dirname(__DIR__, 2) . '/app/consent.php';
 
 enforce_allowed_origin();
 handle_preflight();
@@ -81,6 +82,10 @@ try {
         ':expires_at' => $expiresAt->format('Y-m-d H:i:s'),
     ]);
 
+    if ($whatsappOptIn && $normalizedPhone !== null) {
+        record_whatsapp_consent($pdo, $guestId, $conversationId, $normalizedPhone, 'opt_in', 'website_widget');
+    }
+
     $pdo->commit();
 
     json_response([
@@ -90,6 +95,7 @@ try {
             'session_token' => $token,
             'expires_at' => $expiresAt->format(DateTimeInterface::ATOM),
             'created_at' => $createdAt->format(DateTimeInterface::ATOM),
+            'whatsapp_opt_in' => $whatsappOptIn,
         ],
     ], 201);
 } catch (Throwable $error) {

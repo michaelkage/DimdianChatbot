@@ -4,7 +4,7 @@ A lightweight customer chat widget for the Dimdian website. Visitors can send an
 
 This README is also the handover guide for the Dimdian business owner and the person maintaining the website.
 
-> **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For the existing WordPress store architecture and integration boundaries, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
+> **For the business owner:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md). For deployment, consent, webhook recovery, Embedded Signup and retention, see the [Production Hardening Guide](docs/PRODUCTION-HARDENING.md). For the WordPress store boundary, see [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
 ## WordPress plugin (early connector)
 
@@ -102,7 +102,7 @@ Do these steps in order. Do not change the main WordPress site or its database.
 3. **Create a separate database.** Create a new MySQL database and database user for the chat application. Grant that user access only to this database. Do not reuse the WordPress/WooCommerce database credentials.
 4. **Deploy the repository.** Use Hostinger's supported Git deployment or upload the repository. Ensure the full project is present, while only `public/` is exposed as the web document root.
 5. **Create the private configuration file.** Copy `config.example.php` to `config.php` in the repository root (not in `public/`). Fill in the database host/name/user/password, a strong random app key, timezone, public URL and exact website origins. Keep all WhatsApp fields empty/disabled for the first launch.
-6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. This is the complete current schema. Do not run migrations 002 or 003 on top of this fresh schema; those migrations are only for databases created from older schema versions.
+6. **Import the schema.** Using Hostinger's database tool (for example phpMyAdmin), select the new empty chat database and import `database/schema.sql` once. This is the complete current schema. Do not run migrations 002, 003 or 004 on top of this fresh schema. For an existing database, apply migrations 002, 003 and 004 in order after taking a backup; see the [Production Hardening Guide](docs/PRODUCTION-HARDENING.md).
 7. **Test the API before WordPress integration.** Open `https://chat.dimdian.com/api/session.php` in a browser. A method error is expected for a GET request; it confirms PHP is responding. A 503 `not_configured` response means the application cannot find its private `config.php`. A 500 response should be investigated in the hosting PHP error log. Do not expose database credentials in screenshots or support tickets.
 8. **Add the widget to WordPress** using the snippet below, after the API host is working.
 9. **Test from the real website** on desktop and mobile. Send a test message and verify the browser's network requests reach `chat.dimdian.com`. Website-only mode will save the message, but it will not notify the team through WhatsApp.
@@ -188,7 +188,7 @@ Never put any of these secrets in WordPress, the widget JavaScript, GitHub Pages
 
 ## 7. Scheduled worker
 
-The WhatsApp outbox worker is a command-line PHP script, not a public URL. It must be run by Hostinger's cron scheduler using the actual absolute path to the project and the PHP CLI binary provided by the hosting account.
+The WhatsApp outbox worker, durable webhook inbox worker and retention job are command-line PHP scripts, not public URLs. It must be run by Hostinger's cron scheduler using the actual absolute path to the project and the PHP CLI binary provided by the hosting account.
 
 Script:
 
@@ -198,7 +198,7 @@ Script:
 
 Suggested schedule after WhatsApp has been enabled: once per minute. In hPanel's Cron Jobs section, use the PHP command format Hostinger provides, with the absolute script path. The exact PHP executable path and project path must be copied from the hosting environment; do not guess them.
 
-While WhatsApp is disabled, the worker exits without processing jobs, so creating the cron job can wait until the WhatsApp integration test phase. Do not try to run this script by visiting it in a browser; it is intentionally CLI-only.
+While WhatsApp is disabled, the outbox worker exits without processing sends. The webhook inbox worker should still run every minute so verified webhook deliveries are processed reliably; the retention job should run daily. Do not try to run this script by visiting it in a browser; it is intentionally CLI-only.
 
 ## 8. Privacy, security and day-to-day ownership
 
@@ -210,7 +210,7 @@ For the business owner:
 - Keep access to Hostinger, Meta Business Manager and database backups restricted to trusted people.
 - If a visitor asks about a conversation, the current product has no staff dashboard or customer search screen; the technical maintainer may need to investigate the database securely.
 - Agree an internal process for who monitors and replies to enquiries in the WhatsApp Business app and during what hours.
-- Decide how long chat records should be retained and who is responsible for handling deletion/privacy requests. Automated retention/deletion tooling is not currently included.
+- Decide whether the default retention periods match the privacy notice and who handles individual privacy requests. A scheduled retention job now removes old closed conversations and operational records; it does not replace a documented privacy-request process.
 
 Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, exact-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
 
@@ -284,3 +284,8 @@ The database-backed integration suite requires a configured MySQL/MariaDB test d
 ---
 
 For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md](docs/WIDGET.md), [docs/WHATSAPP.md](docs/WHATSAPP.md) and [docs/PRODUCT-SCOPE.md](docs/PRODUCT-SCOPE.md).
+
+
+## Production hardening additions
+
+The production hardening pass adds an auditable WhatsApp consent ledger and opt-out endpoint, deterministic phone-to-conversation links, an encrypted durable Meta webhook inbox, a recoverable webhook worker, server-side Embedded Signup code exchange with encrypted token storage, environment-variable configuration overrides, and a CLI retention job. The [file-change manifest](docs/FILE-CHANGE-MANIFEST.md) lists the repository changes. These additions do not create a staff inbox, agent accounts, media synchronization or a complete Embedded Signup operator UI.

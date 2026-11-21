@@ -20,6 +20,32 @@ if (!is_array($config)) {
     throw new RuntimeException('config.php must return an array.');
 }
 
+// Optional environment overrides keep secrets out of deployed config files.
+$environmentMap = [
+    'DIMDIAN_APP_KEY' => ['app', 'app_key'],
+    'DIMDIAN_DATABASE_DSN' => ['database', 'dsn'],
+    'DIMDIAN_DATABASE_USERNAME' => ['database', 'username'],
+    'DIMDIAN_DATABASE_PASSWORD' => ['database', 'password'],
+    'DIMDIAN_META_APP_ID' => ['meta', 'app_id'],
+    'DIMDIAN_META_CONFIG_ID' => ['meta', 'config_id'],
+    'DIMDIAN_META_ADMIN_API_KEY' => ['meta', 'admin_api_key'],
+    'DIMDIAN_WHATSAPP_ACCESS_TOKEN' => ['whatsapp', 'access_token'],
+    'DIMDIAN_WHATSAPP_APP_SECRET' => ['whatsapp', 'app_secret'],
+    'DIMDIAN_WHATSAPP_VERIFY_TOKEN' => ['whatsapp', 'verify_token'],
+    'DIMDIAN_WHATSAPP_PHONE_NUMBER_ID' => ['whatsapp', 'phone_number_id'],
+    'DIMDIAN_WHATSAPP_GRAPH_API_VERSION' => ['whatsapp', 'graph_api_version'],
+];
+foreach ($environmentMap as $environmentName => $path) {
+    $value = getenv($environmentName);
+    if ($value === false) continue;
+    if (!isset($config[$path[0]]) || !is_array($config[$path[0]])) $config[$path[0]] = [];
+    $config[$path[0]][$path[1]] = $value;
+}
+$outboundEnvironment = getenv('DIMDIAN_WHATSAPP_OUTBOUND_ENABLED');
+if ($outboundEnvironment !== false) {
+    $config['whatsapp']['outbound_enabled'] = filter_var($outboundEnvironment, FILTER_VALIDATE_BOOL);
+}
+
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
 function app_config(?string $key = null): mixed

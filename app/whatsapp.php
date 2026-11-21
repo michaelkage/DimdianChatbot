@@ -167,10 +167,9 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
 
                     $conversationQuery = $pdo->prepare(
                         'SELECT c.id
-                         FROM guests g
-                         INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.phone_normalized = :phone AND c.status = "open"
-                         ORDER BY c.updated_at DESC
+                         FROM whatsapp_identity_links l
+                         INNER JOIN conversations c ON c.id = l.conversation_id
+                         WHERE l.phone_normalized = :phone AND l.is_active = 1 AND c.status = "open"
                          LIMIT 1'
                     );
                     $conversationQuery->execute([':phone' => $recipient]);
@@ -222,10 +221,10 @@ function process_meta_webhook(PDO $pdo, array $payload, string $rawBody, string 
                     }
 
                     $conversationQuery = $pdo->prepare(
-                        'SELECT c.id FROM guests g
-                         INNER JOIN conversations c ON c.guest_id = g.id
-                         WHERE g.phone_normalized = :phone AND c.status = "open"
-                         ORDER BY c.updated_at DESC LIMIT 1'
+                        'SELECT c.id FROM whatsapp_identity_links l
+                         INNER JOIN conversations c ON c.id = l.conversation_id
+                         WHERE l.phone_normalized = :phone AND l.is_active = 1 AND c.status = "open"
+                         LIMIT 1'
                     );
                     $conversationQuery->execute([':phone' => $sender]);
                     $conversationId = $conversationQuery->fetchColumn();

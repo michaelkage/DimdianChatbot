@@ -2,6 +2,9 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/whatsapp.php';
+require_once dirname(__DIR__) . '/app/bootstrap.php';
+require_once dirname(__DIR__) . '/app/webhook_inbox.php';
+require_once dirname(__DIR__) . '/app/meta_signup.php';
 
 $passed = 0;
 $failed = 0;
@@ -34,6 +37,10 @@ check(whatsapp_retry_delay_seconds(1) === 15, 'first retry delay is 15 seconds')
 check(whatsapp_retry_delay_seconds(2) === 30, 'retry delay doubles');
 check(whatsapp_retry_delay_seconds(6) === 480, 'sixth retry delay is bounded exponential');
 check(whatsapp_retry_delay_seconds(99) === 3600, 'retry delay is capped at one hour');
+$encryptedPayload = encrypt_webhook_payload('{"object":"whatsapp_business_account"}');
+check(decrypt_webhook_payload($encryptedPayload['ciphertext'], $encryptedPayload['nonce'], $encryptedPayload['tag']) === '{"object":"whatsapp_business_account"}', 'webhook payload encryption round-trips with authenticated encryption');
+$sealedMetaToken = meta_seal_token('test-meta-access-token');
+check(meta_open_token($sealedMetaToken['ciphertext'], $sealedMetaToken['nonce'], $sealedMetaToken['tag']) === 'test-meta-access-token', 'Meta access tokens are encrypted at rest and authenticated on read');
 
 $transportRejected = false;
 try {

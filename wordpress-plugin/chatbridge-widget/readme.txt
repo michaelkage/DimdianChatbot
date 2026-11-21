@@ -4,7 +4,7 @@ Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -77,7 +77,7 @@ The admin health-check button makes a server-side HTTPS request from WordPress t
 
 == Changelog ==
 
-= 0.2.0 =
+= 0.3.0 =
 * Add optional read-only WooCommerce product search and SKU lookup.
 * Add product-specific enquiry handoff and local compatibility diagnostics.
 

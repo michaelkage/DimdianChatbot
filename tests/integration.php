@@ -141,6 +141,12 @@ $token = $sessionBody['data']['session_token'] ?? '';
 $conversationId = $sessionBody['data']['conversation_id'] ?? '';
 $guestHeaders = array_merge($sessionHeaders, ['X-DIMDIAN-GUEST-TOKEN: ' . $token]);
 expect(is_string($token) && preg_match('/^[a-f0-9]{64}$/', $token) === 1, 'session returns a 256-bit hex token');
+$consentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE action = "opt_in" AND channel = "whatsapp" AND guest_id = (SELECT guest_id FROM conversations WHERE id = :conversation)');
+$consentAudit->execute([':conversation' => $conversationId]);
+expect((int) $consentAudit->fetchColumn() === 1, 'WhatsApp opt-in is written to the auditable consent ledger');
+$identityLink = $pdo->prepare('SELECT COUNT(*) FROM whatsapp_identity_links WHERE conversation_id = :conversation AND is_active = 1');
+$identityLink->execute([':conversation' => $conversationId]);
+expect((int) $identityLink->fetchColumn() === 1, 'opted-in phone is linked to exactly one active conversation');
 
 [$missingTokenStatus] = request_api('GET', '/api/messages.php', null, $sessionHeaders);
 expect($missingTokenStatus === 401, 'message endpoint requires guest token');
@@ -321,6 +327,15 @@ $staleMessageStatus = $pdo->query("SELECT delivery_status FROM messages WHERE id
 expect($countingTransport->calls === 0 && $staleOutboxStatus === 'failed', 'stale final-attempt job is failed without a seventh send');
 expect($staleSummary['failed'] === 1 && $staleMessageStatus === 'failed', 'exhausted stale job updates visitor delivery state');
 
+[$consentStatus, $consentBody] = request_api('POST', '/api/consent.php', ['whatsapp_opt_in' => false], $guestHeaders);
+expect($consentStatus === 200 && ($consentBody['data']['whatsapp_opt_in'] ?? true) === false, 'visitor can revoke WhatsApp continuation without closing website chat');
+$revoked = $pdo->prepare('SELECT g.whatsapp_opt_in_at, l.is_active FROM guests g INNER JOIN conversations c ON c.guest_id=g.id INNER JOIN whatsapp_identity_links l ON l.conversation_id=c.id WHERE c.id=:conversation');
+$revoked->execute([':conversation' => $conversationId]);
+$revokedRow = $revoked->fetch();
+expect($revokedRow && $revokedRow['whatsapp_opt_in_at'] === null && (int)$revokedRow['is_active'] === 0, 'opt-out clears current consent and disables WhatsApp identity routing');
+$optOutAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE action="opt_out" AND guest_id=(SELECT guest_id FROM conversations WHERE id=:conversation)');
+$optOutAudit->execute([':conversation' => $conversationId]);
+expect((int)$optOutAudit->fetchColumn() === 1, 'WhatsApp opt-out is appended to the consent ledger');
 $pdo->prepare('UPDATE conversations SET status = "closed" WHERE id = :id')->execute([':id' => $conversationId]);
 [$closedHistoryStatus] = request_api('GET', '/api/messages.php?after=0&limit=50', null, $guestHeaders);
 [$closedPostStatus] = request_api('POST', '/api/messages.php', ['message' => 'Cannot send', 'client_message_id' => '550e8400-e29b-41d4-a716-446655440001'], $guestHeaders);
