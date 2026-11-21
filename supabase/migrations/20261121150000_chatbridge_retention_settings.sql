@@ -62,6 +62,7 @@ REVOKE ALL ON TABLE public.chatbridge_retention_settings FROM PUBLIC, anon, auth
 REVOKE ALL ON TABLE public.chatbridge_retention_runs FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.chatbridge_retention_settings TO service_role;
 GRANT SELECT, INSERT ON TABLE public.chatbridge_retention_runs TO service_role;
+REVOKE UPDATE, DELETE ON TABLE public.chatbridge_retention_runs FROM service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.chatbridge_retention_runs_id_seq TO service_role;
 
 -- The cleanup Edge Function can retrieve the shared cron secret only with the service-role key.
