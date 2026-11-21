@@ -45,7 +45,8 @@ function staff_http_assertion(string $method, string $path): string
         'iat' => time(),
         'nonce' => staff_http_b64url(random_bytes(32)),
         'method' => strtoupper($method),
-        'path' => parse_url($path, PHP_URL_PATH),
+        'target' => $path,
+        'body_sha256' => hash('sha256', $body),
     ];
     $encoded = staff_http_b64url(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     return $encoded . '.' . staff_http_b64url(hash_hmac('sha256', $encoded, $secret, true));
@@ -55,7 +56,7 @@ function staff_http_request(string $method, string $path, ?array $body = null, b
 {
     global $base;
     $headers = ['Accept: application/json'];
-    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path);
+    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content);
     $content = '';
     if ($body !== null) {
         $headers[] = 'Content-Type: application/json';
