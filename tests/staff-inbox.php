@@ -206,6 +206,8 @@ staff_expect(
 
 staff_expect($repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign'), 'active assignment can be ended');
 staff_expect(!$repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign-again'), 'unassigning an unassigned conversation is idempotent');
+staff_expect($agentService->unassignConversation($agentServer, $conversationId, 'staff-agent-own-unassign'), 'agent can unassign their own active conversation');
+staff_expect($repository->getActiveAssignee($conversationId) === null, 'agent self-unassignment ends only their active assignment');
 
 $secondGuestId = uuid_v4();
 $secondConversationId = uuid_v4();
@@ -251,6 +253,8 @@ staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides unt
 staff_expect(count($agentList) === 2 && count(array_filter($agentList, static fn(array $row): bool => in_array($row['id'], [$conversationId, $secondConversationId], true))) === 2, 'agent inbox includes own assignments and unassigned conversations but excludes another agent’s assignments');
 $agentMessages = $agentService->listConversationMessages($agentServer, $conversationId, 0, 50);
 staff_expect(count($agentMessages['items']) === 1, 'assigned agent can read conversation messages');
+$agentNotes = $agentService->listInternalNotes($agentServer, $conversationId, 0, 20);
+staff_expect(count($agentNotes) === 1, 'assigned agent can read private notes for their active conversation');
 $agentCannotListStaff = false;
 try {
     $agentService->listStaffIdentities($agentServer);
@@ -277,11 +281,50 @@ staff_expect($agentCannotReadUnassigned, 'agent cannot add notes to an unassigne
 $agentService->assignConversation($agentServer, $secondConversationId, $resolvedB, 'staff-agent-self-assign');
 staff_expect($repository->getActiveAssignee($secondConversationId) === $resolvedB, 'agent can self-assign an unassigned conversation');
 
+$ownerService->assignConversation($ownerServer, $secondConversationId, $resolvedA, 'staff-owner-reassign');
+$ownerService->addInternalNote($ownerServer, uuid_v4(), $secondConversationId, 'Private note after reassignment.');
+$agentCannotStealAssignment = false;
+try {
+    $agentService->assignConversation($agentServer, $secondConversationId, $resolvedB, 'staff-agent-race');
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotStealAssignment = true;
+}
+staff_expect($agentCannotStealAssignment && $repository->getActiveAssignee($secondConversationId) === $resolvedA, 'agent self-assignment cannot overwrite an assignment created concurrently by an administrator');
+
+$agentCannotUnassignAnother = false;
+try {
+    $agentService->unassignConversation($agentServer, $secondConversationId, 'staff-agent-unassign-other');
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotUnassignAnother = true;
+}
+staff_expect($agentCannotUnassignAnother && $repository->getActiveAssignee($secondConversationId) === $resolvedA, 'agent cannot unassign a conversation reassigned to another staff member');
+
+$agentCannotReadReassigned = false;
+try {
+    $agentService->listInternalNotes($agentServer, $secondConversationId, 0, 20);
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotReadReassigned = true;
+}
+staff_expect($agentCannotReadReassigned, 'agent cannot read private notes after assignment is revoked');
+
+$agentCannotReplyAfterReassignment = false;
+try {
+    $agentService->createStaffReply($agentServer, [
+        'id' => uuid_v4(),
+        'conversation_id' => $secondConversationId,
+        'client_message_id' => uuid_v4(),
+        'body' => 'This must not be sent after reassignment.',
+    ]);
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotReplyAfterReassignment = true;
+}
+staff_expect($agentCannotReplyAfterReassignment, 'agent cannot reply after assignment is revoked');
+
 $ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
 staff_expect(count($ownerList) >= 3, 'owner can list all conversations across the installation');
 staff_expect(count($ownerService->listStaffIdentities($ownerServer)) >= 2, 'owner can list active staff identities');
 $ownerService->addInternalNote($ownerServer, uuid_v4(), $secondConversationId, 'Owner note.');
-staff_expect(count($repository->listInternalNotes($secondConversationId, 0, 10)) === 1, 'owner can manage an unassigned conversation');
+staff_expect(count($repository->listInternalNotes($secondConversationId, 0, 10)) === 2, 'owner can manage a conversation assigned to another agent');
 
 $agentCannotReadAudit = false;
 try {
