@@ -36,6 +36,8 @@ AS $$
 DECLARE
   v_message public.chatbridge_messages%ROWTYPE;
   v_inserted boolean := false;
+  v_previous_assignee uuid;
+  v_current_assignee uuid;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.chatbridge_staff_memberships m
@@ -65,9 +67,24 @@ BEGIN
       AND client_message_id = p_client_message_id LIMIT 1;
     IF v_message.body IS DISTINCT FROM trim(p_body) THEN RAISE EXCEPTION 'idempotency_conflict'; END IF;
   ELSE
+    SELECT assigned_to INTO v_previous_assignee
+    FROM public.chatbridge_conversations
+    WHERE tenant_id = p_tenant_id AND id = p_conversation_id
+    FOR UPDATE;
+
     UPDATE public.chatbridge_conversations
     SET last_message_at = now(), updated_at = now(), assigned_to = coalesce(assigned_to, p_user_id)
-    WHERE tenant_id = p_tenant_id AND id = p_conversation_id;
+    WHERE tenant_id = p_tenant_id AND id = p_conversation_id
+    RETURNING assigned_to INTO v_current_assignee;
+
+    IF v_previous_assignee IS DISTINCT FROM v_current_assignee THEN
+      INSERT INTO public.chatbridge_staff_audit_events
+        (tenant_id, conversation_id, actor_user_id, event_type, details)
+      VALUES (
+        p_tenant_id, p_conversation_id, p_user_id, 'conversation_assignment_changed',
+        jsonb_build_object('from_user_id', v_previous_assignee, 'to_user_id', v_current_assignee, 'reason', 'reply_auto_assignment')
+      );
+    END IF;
 
     INSERT INTO public.chatbridge_staff_audit_events
       (tenant_id, conversation_id, actor_user_id, event_type, details)
