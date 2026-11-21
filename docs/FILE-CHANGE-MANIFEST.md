@@ -32,7 +32,7 @@
 ## Deliberately not included
 - No staff accounts, agent inbox or staff dashboard.
 - No media/voice-note synchronization.
-- No automatic Meta token refresh.
+- Meta token refresh is attempted automatically within the final seven days; operator reconnection is still needed after an unrecoverable expiry.
 - No operator-facing Embedded Signup UI; a secure server-side admin proxy remains required.
 - The procedural app/whatsapp.php has not been fully decomposed into smaller service classes.
 - No live Meta, Hostinger or WordPress production configuration was changed by these repository commits.

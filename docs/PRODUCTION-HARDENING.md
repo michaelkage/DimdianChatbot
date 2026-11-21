@@ -8,7 +8,7 @@ This document describes the hardening layer added to the PHP/MySQL service. It p
 - **Consent lifecycle:** `guest_consent_events` is an append-only audit ledger. `guests.whatsapp_opt_in_at` remains the current authorization flag. The widget offers an explicit opt-out after a session starts; `POST /api/consent.php` records withdrawal, disables the active route and cancels pending WhatsApp sends.
 - **Exact conversation correlation:** `whatsapp_identity_links` enforces one active conversation per normalized WhatsApp number. A new explicit opt-in moves the active route to the newly consented conversation. Old conversations remain in MySQL but no longer receive phone-number echoes.
 - **Durable webhook intake:** `POST /api/webhook.php` verifies Meta's HMAC signature, encrypts the raw payload with AES-256-GCM, commits it to `webhook_inbox`, and only then acknowledges Meta. It attempts one inline processing pass for low latency; the CLI worker recovers pending or expired-lease jobs after a crash.
-- **Meta Embedded Signup:** `POST /api/meta-embedded-signup.php` provides admin-key-protected `begin` and `exchange` actions. It consumes a one-time, ten-minute state, exchanges the Meta code server-side, and encrypts the resulting access token at rest. The outbox worker prefers this stored connection over static token configuration.
+- **Meta Embedded Signup:** `POST /api/meta-embedded-signup.php` provides admin-key-protected `begin` and `exchange` actions. It consumes a one-time, ten-minute state, exchanges the Meta code server-side, subscribes the WABA to webhook events, and encrypts the resulting access token at rest. The outbox worker prefers this stored connection over static token configuration and attempts a Meta-supported 60-day refresh during the final seven days before expiry.
 - **Retention:** `public/cron/retention.php` removes old closed conversations and related records, expired sessions, old processed webhook data and stale rate-limit buckets. Open conversations are not automatically deleted.
 - **Health:** `/api/health.php` checks the new required tables but does not disclose secrets or claim to test live Meta delivery.
 
@@ -44,8 +44,9 @@ Do not put `meta.admin_api_key`, the App Secret or access tokens in the widget, 
 3. An authenticated operator calls `POST /api/meta-embedded-signup.php` with `X-DIMDIAN-ADMIN-KEY` and JSON `{"action":"begin"}`.
 4. The server returns the app ID, config ID and one-time state. A secure operator page initializes the Meta JavaScript SDK and passes the state through Embedded Signup. Configure the SDK to return an authorization code.
 5. After Meta returns the code and the selected `phone_number_id` and `waba_id`, the secure operator page calls the same endpoint with `{"action":"exchange","state":"…","code":"…","phone_number_id":"…","waba_id":"…" }`.
-6. The server consumes the state once, exchanges the code and stores the token encrypted. The token is never returned.
-7. Test webhook delivery and `smb_message_echoes` with a test number before enabling outbound messages.
+6. The server consumes the state once, exchanges the code, stores the token encrypted and attempts to subscribe the WABA to app webhooks. The token is never returned.
+7. If webhook subscription fails, an administrator can call the endpoint's `subscribe` action after verifying Meta permissions.
+8. Test webhook delivery and `smb_message_echoes` with a test number before enabling outbound messages.
 
 The endpoint deliberately has no public CORS policy and requires an administrator secret. Do not expose that secret in a browser bundle. A production operator UI should proxy these actions through an authenticated server-side WordPress/admin session; that UI is not included.
 

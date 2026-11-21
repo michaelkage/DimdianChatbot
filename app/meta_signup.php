@@ -26,6 +26,27 @@ function meta_graph_get(string $url): array {
     if(!is_array($data)||$status<200||$status>=300||empty($data['access_token']))throw new RuntimeException('Meta token exchange was rejected or returned no token.');
     return $data;
 }
+function meta_graph_post(string $url,string $token): bool {
+    $ctx=stream_context_create(['http'=>[
+        'method'=>'POST','timeout'=>15,'ignore_errors'=>true,
+        'header'=>"Authorization: Bearer ".$token."\r\nAccept: application/json\r\nContent-Length: 0\r\n",
+    ]]);
+    $raw=@file_get_contents($url,false,$ctx);$status=0;
+    foreach($http_response_header??[] as $h)if(preg_match('/^HTTP\/\S+\s+(\d{3})/',$h,$m))$status=(int)$m[1];
+    if(!is_string($raw)||$status<200||$status>=300){
+        error_log('[DimdianChatbot] Meta WABA webhook subscription failed with HTTP '.$status.'.');
+        return false;
+    }
+    return true;
+}
+function meta_subscribe_active_waba(PDO $pdo): bool {
+    $row=$pdo->query('SELECT waba_id,access_token_ciphertext,access_token_nonce,access_token_tag FROM meta_connections WHERE status="active" ORDER BY updated_at DESC LIMIT 1')->fetch();
+    if(!$row)return false;
+    $version=(string)app_config('whatsapp.graph_api_version');
+    if(!preg_match('/^v[0-9]+\.[0-9]+$/',$version))throw new RuntimeException('Meta Graph API version is not configured.');
+    $token=meta_open_token((string)$row['access_token_ciphertext'],(string)$row['access_token_nonce'],(string)$row['access_token_tag']);
+    return meta_graph_post('https://graph.facebook.com/'.$version.'/'.rawurlencode((string)$row['waba_id']).'/subscribed_apps',$token);
+}
 function meta_begin_embedded_signup(PDO $pdo): array {
     $appId=(string)app_config('meta.app_id');$configId=(string)app_config('meta.config_id');
     if($appId===''||$configId==='')throw new RuntimeException('Meta app_id and config_id must be configured.');
@@ -47,17 +68,43 @@ function meta_exchange_embedded_signup(PDO $pdo,string $state,string $code,strin
     $tokenData=meta_graph_get($url);$token=(string)$tokenData['access_token'];$expires=max(0,(int)($tokenData['expires_in']??0));$sealed=meta_seal_token($token);
     $save=$pdo->prepare('INSERT INTO meta_connections(waba_id,phone_number_id,access_token_ciphertext,access_token_nonce,access_token_tag,token_expires_at,status,connected_at,updated_at) VALUES(:waba,:phone,:cipher,:nonce,:tag,:expires,"active",UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE waba_id=VALUES(waba_id),access_token_ciphertext=VALUES(access_token_ciphertext),access_token_nonce=VALUES(access_token_nonce),access_token_tag=VALUES(access_token_tag),token_expires_at=VALUES(token_expires_at),status="active",updated_at=UTC_TIMESTAMP()');
     $save->execute([':waba'=>$wabaId,':phone'=>$phoneId,':cipher'=>$sealed['ciphertext'],':nonce'=>$sealed['nonce'],':tag'=>$sealed['tag'],':expires'=>$expires?gmdate('Y-m-d H:i:s',time()+$expires):null]);
-    return ['connected'=>true,'phone_number_id'=>$phoneId,'waba_id'=>$wabaId,'expires_at'=>$expires?gmdate(DateTimeInterface::ATOM,time()+$expires):null];
+    $webhookSubscribed=meta_graph_post('https://graph.facebook.com/'.$version.'/'.rawurlencode($wabaId).'/subscribed_apps',$token);
+    return ['connected'=>true,'phone_number_id'=>$phoneId,'waba_id'=>$wabaId,'expires_at'=>$expires?gmdate(DateTimeInterface::ATOM,time()+$expires):null,'webhook_subscribed'=>$webhookSubscribed];
 }
 function load_meta_whatsapp_config(PDO $pdo,array $base): array {
-    $row=$pdo->query('SELECT phone_number_id,access_token_ciphertext,access_token_nonce,access_token_tag,token_expires_at FROM meta_connections WHERE status="active" ORDER BY updated_at DESC LIMIT 1')->fetch();
+    $row=$pdo->query('SELECT id,phone_number_id,access_token_ciphertext,access_token_nonce,access_token_tag,token_expires_at FROM meta_connections WHERE status="active" ORDER BY updated_at DESC LIMIT 1')->fetch();
     if(!$row)return $base;
-    if(!empty($row['token_expires_at'])&&strtotime((string)$row['token_expires_at'].' UTC')<=time()){
-        $pdo->prepare('UPDATE meta_connections SET status="expired",updated_at=UTC_TIMESTAMP() WHERE phone_number_id=:phone')->execute([':phone'=>$row['phone_number_id']]);
-        throw new RuntimeException('The connected Meta token has expired. Reconnect WhatsApp.');
+    $token=meta_open_token((string)$row['access_token_ciphertext'],(string)$row['access_token_nonce'],(string)$row['access_token_tag']);
+    $expiry=!empty($row['token_expires_at'])?strtotime((string)$row['token_expires_at'].' UTC'):null;
+    if($expiry!==null&&$expiry<=time()+7*86400){
+        $version=(string)app_config('whatsapp.graph_api_version');
+        $appId=(string)app_config('meta.app_id');
+        $secret=(string)app_config('whatsapp.app_secret');
+        try{
+            if(!preg_match('/^v[0-9]+\.[0-9]+$/',$version)||$appId===''||$secret==='')throw new RuntimeException('Meta refresh credentials are not configured.');
+            $url='https://graph.facebook.com/'.$version.'/oauth/access_token?'.http_build_query([
+                'grant_type'=>'fb_exchange_token','client_id'=>$appId,'client_secret'=>$secret,
+                'set_token_expires_in_60_days'=>'true','fb_exchange_token'=>$token,
+            ]);
+            $refreshed=meta_graph_get($url);
+            $token=(string)$refreshed['access_token'];
+            $expires=max(0,(int)($refreshed['expires_in']??0));
+            $sealed=meta_seal_token($token);
+            $pdo->prepare('UPDATE meta_connections SET access_token_ciphertext=:cipher,access_token_nonce=:nonce,access_token_tag=:tag,token_expires_at=:expires,updated_at=UTC_TIMESTAMP() WHERE id=:id')->execute([
+                ':cipher'=>$sealed['ciphertext'],':nonce'=>$sealed['nonce'],':tag'=>$sealed['tag'],
+                ':expires'=>$expires?gmdate('Y-m-d H:i:s',time()+$expires):null,':id'=>$row['id'],
+            ]);
+            $expiry=$expires?time()+$expires:null;
+        }catch(Throwable $error){
+            error_log('[DimdianChatbot] Meta token refresh attempt failed: '.$error->getMessage());
+            if($expiry!==null&&$expiry<=time()){
+                $pdo->prepare('UPDATE meta_connections SET status="expired",updated_at=UTC_TIMESTAMP() WHERE id=:id')->execute([':id'=>$row['id']]);
+                throw new RuntimeException('The connected Meta token has expired. Reconnect WhatsApp.');
+            }
+        }
     }
     $base['phone_number_id']=(string)$row['phone_number_id'];
-    $base['access_token']=meta_open_token((string)$row['access_token_ciphertext'],(string)$row['access_token_nonce'],(string)$row['access_token_tag']);
+    $base['access_token']=$token;
     return $base;
 }
 function meta_active_phone_number_id(PDO $pdo): string {
