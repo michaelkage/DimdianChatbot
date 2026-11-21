@@ -77,6 +77,19 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return is_string($staffId) ? $staffId : null;
     }
 
+    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', $nonceHash)) {
+            throw new InvalidArgumentException('Staff authentication nonce hash is invalid.');
+        }
+        $query = $this->pdo->prepare(
+            'INSERT IGNORE INTO staff_auth_nonces (nonce_sha256, expires_at, created_at)
+             VALUES (:nonce, :expires, UTC_TIMESTAMP())'
+        );
+        $query->execute([':nonce' => $nonceHash, ':expires' => $expiresAtUtc]);
+        return $query->rowCount() === 1;
+    }
+
     public function listConversations(
         string $status,
         ?string $assignedStaffId,
