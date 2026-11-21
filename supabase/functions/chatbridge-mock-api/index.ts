@@ -660,7 +660,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const incomingUrl = new URL(req.url);
   const functionMarker = "/functions/v1/chatbridge-mock-api";
   const incomingRoute = incomingUrl.pathname.includes(functionMarker) ? incomingUrl.pathname.slice(incomingUrl.pathname.indexOf(functionMarker) + functionMarker.length) : "/";
-  if (incomingRoute === "/internal/retention-cleanup") return await internalRetentionCleanup(req);
+  if (incomingRoute === "/internal/retention-cleanup" || incomingUrl.pathname.endsWith("/internal/retention-cleanup")) return await internalRetentionCleanup(req);
 
   const origin = normalizeOrigin(req.headers.get("origin"));
   if (!origin) return errorResponse("origin_not_allowed", "A verified HTTPS website origin is required.", 403, {});
