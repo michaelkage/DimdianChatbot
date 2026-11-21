@@ -72,10 +72,12 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 2. MySQL/MariaDB repository implementation with transaction and isolation tests.
 3. Concrete authentication-provider integrations and fail-closed HTTP middleware using the provider-neutral assertion contract.
 4. Staff API endpoints: implemented for inbox list, assignment, notes, website replies, assignment history and audit history.
-5. Staff UI as a separate optional client, not code bundled into the visitor widget.
+5. Staff UI as a separate optional client, not code bundled into the visitor widget. (Implemented in the WordPress connector.)
 6. Export, retention, backup/restore and operational documentation.
 7. A separate PostgreSQL implementation only after the shared repository contract and acceptance tests are stable.
 
 ## Current implementation status
 
-The optional schema, repository interface, MySQL/MariaDB PDO adapter, HMAC-signed server assertion adapter with one-time nonce replay protection, local role/assignment authorization service, versioned staff API routes and integration suites are implemented. A turnkey WordPress assertion proxy and separate staff UI are not yet implemented. The backend routes are available only when explicitly enabled and the optional schema is installed; do not describe the complete staff inbox product as finished until the proxy/UI and CI validation are complete.
+The optional schema, repository interface, MySQL/MariaDB PDO adapter, HMAC-signed server assertion adapter, local role/assignment authorization service, versioned staff API routes, WordPress server-side proxy, separate WordPress admin inbox UI and integration suites are implemented. Assertions bind the HTTP method, exact request target (including query string), SHA-256 request-body digest, short expiry and one-time nonce. The WordPress connector keeps the shared secret server-side and requires a logged-in user with the inbox capability. New external identities default to the local agent role; an operator must explicitly provision the first owner with php bin/set-staff-role.php wordpress user:<WORDPRESS_USER_ID> owner after that administrator signs in once. Local roles are not copied from browser claims or external profile fields.
+
+The core workflow is implemented, but the module is not yet a complete support-desk product: conversation search, in-product staff role management, export/restore procedures and broader end-to-end security coverage remain future work. The optional tables are excluded from default installs, and the current PHP schema assumes one business per database.
