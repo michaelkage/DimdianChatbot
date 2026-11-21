@@ -381,5 +381,61 @@ foreach ($http_response_header ?? [] as $header) {
 }
 expect($badSignatureStatus === 401, 'invalid Meta webhook signature is rejected');
 
+
+/*
+ * Repository contract regression: the message and outbox writes must share
+ * one transaction, and an idempotent replay must not enqueue a second send.
+ */
+[$repositorySessionStatus, $repositorySessionBody] = request_api('POST', '/api/session.php', [
+    'name' => 'Repository Contract Visitor',
+    'phone' => '+234 803 999 1234',
+    'whatsapp_opt_in' => true,
+], $sessionHeaders);
+expect($repositorySessionStatus === 201, 'repository contract test creates an opted-in guest session');
+$repositoryConversationId = (string) ($repositorySessionBody['data']['conversation_id'] ?? '');
+$repositoryClientMessageId = '760e8400-e29b-41d4-a716-446655440000';
+$repositoryOutboxId = uuid_v4();
+$repositoryInput = [
+    'id' => uuid_v4(),
+    'conversation_id' => $repositoryConversationId,
+    'client_message_id' => $repositoryClientMessageId,
+    'body' => 'Repository transaction test.',
+    'outbound_enabled' => true,
+    'outbox_id' => $repositoryOutboxId,
+    'recipient' => '2348039991234',
+    'outbox_payload' => 'Repository transaction test.',
+];
+$repository = chat_repository($pdo);
+$repositoryResult = $repository->createVisitorMessage($repositoryInput);
+expect($repositoryResult['inserted'] === true && $repositoryResult['transport'] === 'queued', 'repository persists an outbound-eligible message');
+$repositoryMessageId = (string) $repositoryResult['message']['id'];
+$outboxCount = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = :message_id');
+$outboxCount->execute([':message_id' => $repositoryMessageId]);
+expect((int) $outboxCount->fetchColumn() === 1, 'repository atomically creates exactly one WhatsApp outbox job');
+
+$repositoryReplayInput = $repositoryInput;
+$repositoryReplayInput['id'] = uuid_v4();
+$repositoryReplayInput['outbox_id'] = uuid_v4();
+$repositoryReplay = $repository->createVisitorMessage($repositoryReplayInput);
+expect($repositoryReplay['inserted'] === false && $repositoryReplay['message']['id'] === $repositoryMessageId, 'repository returns the original message for an idempotent replay');
+$outboxCount->execute([':message_id' => $repositoryMessageId]);
+expect((int) $outboxCount->fetchColumn() === 1, 'idempotent replay does not create a duplicate WhatsApp outbox job');
+
+$atomicityClientMessageId = '760e8400-e29b-41d4-a716-446655440001';
+$atomicityInput = $repositoryInput;
+$atomicityInput['id'] = uuid_v4();
+$atomicityInput['client_message_id'] = $atomicityClientMessageId;
+$atomicityInput['body'] = 'This transaction must roll back.';
+$atomicityInput['outbox_id'] = $repositoryOutboxId; // Deliberately collide with the already-created outbox primary key.
+$atomicityFailed = false;
+try {
+    $repository->createVisitorMessage($atomicityInput);
+} catch (PDOException $error) {
+    $atomicityFailed = true;
+}
+$atomicityCheck = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE conversation_id = :conversation_id AND client_message_id = :client_message_id');
+$atomicityCheck->execute([':conversation_id' => $repositoryConversationId, ':client_message_id' => $atomicityClientMessageId]);
+expect($atomicityFailed && (int) $atomicityCheck->fetchColumn() === 0, 'outbox insert failure rolls back the visitor message insert');
+
 fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
 exit($failed === 0 ? 0 : 1);
