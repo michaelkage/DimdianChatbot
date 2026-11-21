@@ -30,7 +30,16 @@
 </form>
 </section>
 <section id="workspace" class="hidden">
-<div class="heading"><div><div class="eyebrow">Dimdian · Mock tenant</div><h1>Conversations</h1><p>Website support messages and private diagnostic attachments.</p></div><button class="ghost" id="logout">Sign out</button></div>
+<div class="heading"><div><div class="eyebrow">Dimdian · Mock tenant</div><h1>Conversations</h1><p>Website support messages and private diagnostic attachments.</p></div><div class="actions"><button class="ghost" id="accountSettings">Account settings</button><button class="ghost" id="logout">Sign out</button></div></div>
+<section id="accountPanel" class="hidden" style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:0 0 16px">
+<div class="eyebrow">Account</div><h2 style="font-size:17px;margin:4px 0">Change sign-in email</h2>
+<p class="muted" style="font-size:12px;margin:4px 0 12px">Current account: <strong id="accountEmail"></strong>. Supabase may require confirmation of the new address before it becomes active. Your staff access remains attached to this account.</p>
+<form id="emailChangeForm" style="max-width:460px">
+<label for="newEmail">New email address</label><input id="newEmail" type="email" autocomplete="email" required>
+<div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="primary" id="emailChangeButton" type="submit">Request email change</button><button class="ghost" id="closeAccountSettings" type="button">Cancel</button></div>
+<div class="error" id="emailChangeStatus" role="status"></div>
+</form>
+</section>
 <div class="inbox">
 <aside class="list"><div class="list-head"><strong style="font-size:12px">Inbox</strong><select id="filter" aria-label="Filter conversations"><option value="open">Open</option><option value="closed">Closed</option><option value="all">All</option></select><button class="ghost" id="refresh" style="padding:7px 9px">↻</button></div><div class="list-body" id="conversationList"><div class="empty">Loading conversations…</div></div></aside>
 <section class="detail" id="detail">
@@ -75,6 +84,9 @@ async function sendReply(event){event.preventDefault();const input=$('#reply');c
 async function updateConversation(changes){try{await api('/staff/conversations/'+selected,{method:'PATCH',body:JSON.stringify(changes)});await loadConversations();if(selected)await loadMessages(true);showToast('Conversation updated.');}catch(error){showToast(error.message);}}
 function startPolling(){if(pollHandle)clearInterval(pollHandle);pollHandle=setInterval(async()=>{if(!session)return;try{await loadConversations();if(selected){await loadMessages(false);await loadAttachments();}}catch(error){if(error.message!=='Your staff session expired. Please sign in again.')showToast(error.message);}},6000);}
 $('#loginForm').addEventListener('submit',async event=>{event.preventDefault();const button=$('#loginButton');button.disabled=true;$('#loginError').textContent='';try{await login($('#email').value.trim(),$('#password').value);}catch(error){$('#loginError').textContent=error.message;}finally{button.disabled=false;}});
+$('#accountSettings').addEventListener('click',()=>{const panel=$('#accountPanel');panel.classList.toggle('hidden');$('#accountEmail').textContent=session?.user?.email||'';$('#newEmail').value='';$('#emailChangeStatus').textContent='';});
+$('#closeAccountSettings').addEventListener('click',()=>$('#accountPanel').classList.add('hidden'));
+$('#emailChangeForm').addEventListener('submit',async event=>{event.preventDefault();const nextEmail=$('#newEmail').value.trim();if(!nextEmail||nextEmail.toLowerCase()===String(session?.user?.email||'').toLowerCase())return;const button=$('#emailChangeButton');button.disabled=true;$('#emailChangeStatus').textContent='Sending confirmation request…';try{const response=await fetch(PROJECT_URL+'/auth/v1/user',{method:'PATCH',headers:{...headers(),'Authorization':'Bearer '+session.access_token},body:JSON.stringify({email:nextEmail})});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.msg||payload.message||payload.error_description||'Could not request the email change.');$('#emailChangeStatus').textContent='Confirmation requested. Check the new email address and follow Supabase’s confirmation instructions. The account may continue showing the current address until verification is complete.';showToast('Email change confirmation requested.');}catch(error){$('#emailChangeStatus').textContent=error.message;}finally{button.disabled=false;}});
 $('#logout').addEventListener('click',async()=>{try{if(session?.access_token)await fetch(PROJECT_URL+'/auth/v1/logout',{method:'POST',headers:{...headers(),'Authorization':'Bearer '+session.access_token}});}catch(_){}clearSession();});
 $('#filter').addEventListener('change',()=>loadConversations().catch(e=>showToast(e.message)));
 $('#refresh').addEventListener('click',()=>loadConversations().then(()=>{if(selected)loadAttachments();}).catch(e=>showToast(e.message)));
