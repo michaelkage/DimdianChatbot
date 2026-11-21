@@ -114,15 +114,15 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
 
             $end = $this->pdo->prepare(
                 'UPDATE staff_conversation_assignments
-                 SET ended_at = UTC_TIMESTAMP()
+                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
                  WHERE conversation_id = :conversation AND ended_at IS NULL'
             );
             $end->execute([':conversation' => $conversationId]);
 
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_conversation_assignments
-                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at)
-                 VALUES (:conversation, :staff, :actor, UTC_TIMESTAMP())'
+                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
+                 VALUES (:conversation, :staff, :actor, UTC_TIMESTAMP(), :conversation)'
             );
             $insert->execute([
                 ':conversation' => $conversationId,
@@ -157,7 +157,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $this->requireActiveStaff($actorStaffId);
             $query = $this->pdo->prepare(
                 'UPDATE staff_conversation_assignments
-                 SET ended_at = UTC_TIMESTAMP()
+                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
                  WHERE conversation_id = :conversation AND ended_at IS NULL'
             );
             $query->execute([':conversation' => $conversationId]);
