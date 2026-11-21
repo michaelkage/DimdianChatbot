@@ -11,6 +11,7 @@
 - database/migrations/004_production_hardening.sql — existing-database upgrade.
 - docs/PRODUCTION-HARDENING.md — deployment and operations guide.
 - docs/MILESTONE-STATUS.md — milestone status and production acceptance gates.
+- docs/MANUAL-SETUP-CHECKLIST.md — full Hostinger, MySQL, WordPress, Meta, cron, privacy and regression-test runbook.
 
 ## Updated files
 - app/bootstrap.php — private environment-variable overrides.
