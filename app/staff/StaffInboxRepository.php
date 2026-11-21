@@ -12,7 +12,7 @@ declare(strict_types=1);
 interface StaffInboxRepository
 {
     /** Upsert a verified external identity; never accept a browser-supplied subject. */
-    public function upsertStaffIdentity(array $identity): void;
+    public function upsertStaffIdentity(array $identity): string;
 
     /**
      * List conversations for the staff inbox.
