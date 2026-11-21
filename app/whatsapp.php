@@ -326,7 +326,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
                      WHERE id = :message_id'
                 );
                 $message->execute([':provider_id' => $result['provider_message_id'], ':message_id' => $job['message_id']]);
-                apply_provider_message_status($pdo, $result['provider_message_id']);
+                chat_repository($pdo)->reconcileProviderMessageStatus($result['provider_message_id']);
                 $summary['sent']++;
             }
             $pdo->commit();
