@@ -481,7 +481,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         );
         $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
         if ($query->fetchColumn() === false) {
-            throw new RuntimeException('Conversation is no longer assigned to this staff identity.');
+            throw new StaffInboxAssignmentException('Conversation is no longer assigned to this staff identity.');
         }
     }
 
