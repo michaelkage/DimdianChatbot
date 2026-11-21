@@ -70,7 +70,7 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 
 1. Persistence contract and opt-in schema.
 2. MySQL/MariaDB repository implementation with transaction and isolation tests.
-3. Authentication-provider contract, fail-closed middleware and role authorization.
+3. Concrete authentication-provider integrations and fail-closed HTTP middleware using the provider-neutral assertion contract.
 4. Staff API endpoints: inbox list, assignment, notes, replies and audit history.
 5. Staff UI as a separate optional client, not code bundled into the visitor widget.
 6. Export, retention, backup/restore and operational documentation.
