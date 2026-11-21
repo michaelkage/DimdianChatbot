@@ -33,6 +33,9 @@ interface StaffInboxRepository
         ?string $requestId = null
     ): void;
 
+    /** @return list<array<string,mixed>> */
+    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit): array;
+
     /** End the active assignment, retaining assignment history. */
     public function unassignConversation(
         string $conversationId,
