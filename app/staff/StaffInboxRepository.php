@@ -26,6 +26,12 @@ interface StaffInboxRepository
      * List conversations for the staff inbox.
      * Status is one of open, closed or all; cursor is a message sequence cursor.
      */
+    /** @return list<array<string,mixed>> */
+    public function listStaffIdentities(): array;
+
+    /** @return list<array<string,mixed>> */
+    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit): array;
+
     public function listConversations(
         string $status,
         ?string $assignedStaffId,
