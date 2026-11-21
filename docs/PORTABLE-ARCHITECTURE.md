@@ -114,7 +114,9 @@ The first canonical API version should use resource-oriented paths under /api/v1
 
 - Extract application services from direct PDO/SQL usage behind repository interfaces.
 - Keep the current MySQL/MariaDB implementation as the first reference adapter.
-- Move one vertical slice at a time (sessions, messages, consent, then channels and background jobs).
+- **Implemented first slice:** `ChatRepository` / `PdoChatRepository` now own guest-session creation and lookup, visitor-message creation, polling and delivery-state reads. The message, conversation activity and optional WhatsApp outbox writes are atomic; guest creation and initial opt-in are atomic.
+- **Still coupled:** rate limiting, subsequent consent changes, webhook processing, staff operations, retention and background workers still use PDO directly.
+- Move one vertical slice at a time (sessions/messages first slice complete; consent next, then channels and background jobs).
 - Add transaction and concurrency tests before implementing a second database.
 - Implement PostgreSQL only after the repository boundary is proven by tests.
 - Add other dialects only when there is a concrete supported implementation and CI coverage.
