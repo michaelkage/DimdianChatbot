@@ -67,15 +67,15 @@ Important: app.app_key derives the encryption keys for webhook payloads and Meta
 - [ ] Configure meta.app_id and meta.config_id in private config.
 - [ ] Configure whatsapp.app_secret, whatsapp.graph_api_version and whatsapp.verify_token.
 - [ ] Generate meta.admin_api_key as a separate random secret of at least 32 characters.
-- [ ] Build or configure a secure server-side operator proxy. It must authenticate the operator and call /api/meta-embedded-signup.php with X-DIMDIAN-ADMIN-KEY. Never place this key in JavaScript, a WordPress option exposed to visitors, or a public page.
-- [ ] Call action=begin, launch the Meta SDK with the returned config_id and state, and receive the authorization code plus WABA/phone-number identifiers.
-- [ ] Immediately call action=exchange through the server-side proxy. The code is short-lived and should not be queued for later.
+- [ ] In WordPress Settings → ChatBridge Widget, save the Meta admin API key and Partner Solution ID. The plugin stores the key in a separate non-autoloaded option.
+- [ ] Use Connect WhatsApp Business account. The plugin's admin-only WordPress AJAX proxy calls the PHP begin endpoint and loads the Meta SDK.
+- [ ] Complete the Meta dialog. The plugin receives the authorization code and WhatsApp signup completion event, then immediately forwards the code and WABA/phone-number IDs to the PHP service. If Meta omits an ID, enter it in the manual fields.
 - [ ] Confirm the response reports connected=true and webhook_subscribed=true.
-- [ ] If webhook_subscribed=false, inspect Meta permissions and retry action=subscribe through the secure proxy.
+- [ ] If webhook_subscribed=false, inspect Meta permissions and use Retry webhook subscription.
 - [ ] Confirm the resulting Meta connection appears active by running the outbox worker in a controlled test.
 - [ ] Test token refresh before expiry in a non-production environment where possible.
 
-The repository provides the protected backend begin/exchange/subscribe actions; it does not provide the operator-facing admin UI or proxy.
+The repository provides both the protected PHP backend and the administrator-only WordPress operator UI/proxy. Never expose the admin key in browser code or public widget settings.
 
 ## 6. Meta webhook configuration
 

@@ -41,11 +41,11 @@ Do not put `meta.admin_api_key`, the App Secret or access tokens in the widget, 
 
 1. Configure the Meta Developer App, WhatsApp product, Embedded Signup configuration, allowed domains and required permissions in Meta Business settings.
 2. Configure `meta.app_id`, `meta.config_id`, `whatsapp.app_secret`, `whatsapp.graph_api_version`, and a random `meta.admin_api_key` in private configuration.
-3. An authenticated operator calls `POST /api/meta-embedded-signup.php` with `X-DIMDIAN-ADMIN-KEY` and JSON `{"action":"begin"}`.
+3. An authenticated WordPress administrator uses Settings → ChatBridge Widget → Connect WhatsApp Business account. The plugin's server-side AJAX proxy calls `POST /api/meta-embedded-signup.php` with `X-DIMDIAN-ADMIN-KEY` and JSON `{"action":"begin"}`.
 4. The server returns the app ID, config ID and one-time state. A secure operator page initializes the Meta JavaScript SDK and passes the state through Embedded Signup. Configure the SDK to return an authorization code.
-5. After Meta returns the code and the selected `phone_number_id` and `waba_id`, the secure operator page calls the same endpoint with `{"action":"exchange","state":"…","code":"…","phone_number_id":"…","waba_id":"…" }`.
+5. After Meta returns the code and the selected `phone_number_id` and `waba_id`, the plugin's server-side proxy calls the same endpoint with `{"action":"exchange","state":"…","code":"…","phone_number_id":"…","waba_id":"…" }`. If Meta does not return an ID, the administrator can enter it in the plugin's manual ID fields.
 6. The server consumes the state once, exchanges the code, stores the token encrypted and attempts to subscribe the WABA to app webhooks. The token is never returned.
-7. If webhook subscription fails, an administrator can call the endpoint's `subscribe` action after verifying Meta permissions.
+7. If webhook subscription fails, an administrator can use the plugin's Retry webhook subscription button after verifying Meta permissions.
 8. Test webhook delivery and `smb_message_echoes` with a test number before enabling outbound messages.
 
 The endpoint deliberately has no public CORS policy and requires an administrator secret. Do not expose that secret in a browser bundle. A production operator UI should proxy these actions through an authenticated server-side WordPress/admin session; that UI is not included.

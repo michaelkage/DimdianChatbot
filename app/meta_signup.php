@@ -53,7 +53,9 @@ function meta_begin_embedded_signup(PDO $pdo): array {
     $state=bin2hex(random_bytes(32));
     $q=$pdo->prepare('INSERT INTO meta_signup_states(state_sha256,expires_at,created_at) VALUES(:hash,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 10 MINUTE),UTC_TIMESTAMP())');
     $q->execute([':hash'=>hash('sha256',$state)]);
-    return ['app_id'=>$appId,'config_id'=>$configId,'state'=>$state,'expires_in_seconds'=>600];
+    $version=(string)app_config('whatsapp.graph_api_version');
+    if(!preg_match('/^v[0-9]+\.[0-9]+$/',$version))throw new RuntimeException('Meta Graph API version is not configured.');
+    return ['app_id'=>$appId,'config_id'=>$configId,'graph_api_version'=>$version,'state'=>$state,'expires_in_seconds'=>600];
 }
 function meta_exchange_embedded_signup(PDO $pdo,string $state,string $code,string $phoneId,string $wabaId): array {
     if(!preg_match('/^[a-f0-9]{64}$/',$state)||$code===''||strlen($code)>4096)throw new InvalidArgumentException('Meta signup response is incomplete.');

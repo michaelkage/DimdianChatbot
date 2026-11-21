@@ -86,8 +86,7 @@ FB.login(callback, {
   extras: {
     setup: {
       solutionID: "YOUR_PARTNER_SOLUTION_ID"
-    },
-    featureType: "whatsapp_business_app_onboarding"
+    }
   }
 });
 ```

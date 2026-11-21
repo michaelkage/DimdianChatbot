@@ -76,3 +76,12 @@ The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/p
 **Order questions are not enabled yet.** Order status, customer addresses, email addresses and other private order data must never be exposed through a public product-search endpoint. A future order lookup must use an ownership-verification flow and server-side WooCommerce permissions.
 
 This adapter runs on the WordPress site itself. The remote chat backend does not need direct database access or WooCommerce API keys. It is deliberately compatible with a store that also uses Paystack and WCFM, but it does not yet read payment-provider state or vendor-private data.
+
+
+## Meta Embedded Signup v4 (administrator only)
+
+Plugin version 0.4.0 adds an operator-only Embedded Signup section to Settings → ChatBridge Widget. Save the PHP service's private Meta admin API key and the Partner Solution ID, then use **Connect WhatsApp Business account**. The plugin requests a one-time state from the PHP service, loads the Meta JavaScript SDK, and calls the backend through authenticated WordPress AJAX handlers. The admin key stays in a separate non-autoloaded WordPress option and is never sent to the browser.
+
+Meta returns the authorization code and a WhatsApp signup completion event. The plugin forwards the code, WABA ID and Phone Number ID to the PHP service over HTTPS. If Meta does not include an identifier, an administrator can enter it in the two manual ID fields. The backend exchanges the code, stores the access token encrypted and subscribes the WABA to webhooks. If subscription fails, use **Retry webhook subscription** after checking Meta app permissions.
+
+This screen is available only to WordPress users with manage_options and uses a WordPress nonce. Do not expose the admin key in public pages, widget attributes or browser JavaScript. The real Meta app must already have an Embedded Signup v4 configuration and the required Tech Provider/Solution Partner approval. The UI does not bypass Meta eligibility or App Review requirements.
