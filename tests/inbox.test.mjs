@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const html = readFileSync(new URL('../docs/inbox/index.html', import.meta.url), 'utf8');
 const edge = readFileSync(new URL('../supabase/functions/chatbridge-mock-api/index.ts', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20261121120000_chatbridge_staff_inbox.sql', import.meta.url), 'utf8');
+const auditMigration = readFileSync(new URL('../supabase/migrations/20261121140000_chatbridge_staff_audit_events.sql', import.meta.url), 'utf8');
 
 test('agent inbox inline JavaScript parses without third-party dependencies', () => {
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
@@ -54,4 +55,21 @@ test('staff schema and RPCs enforce tenant membership and keep direct public tab
   assert.match(migration, /staff_membership_required/);
   assert.match(migration, /assignee_not_in_tenant/);
   assert.match(migration, /sender_type, body, delivery_status, metadata/);
+});
+
+test('staff inbox exposes tenant-scoped activity history without recording message content', () => {
+  assert.match(edge, /staffConversationAudit/);
+  assert.match(edge, /chatbridge_staff_audit_events/);
+  assert.match(edge, /\/audit/);
+  assert.match(html, /ACTIVITY HISTORY/);
+  assert.match(html, /loadAudit/);
+  assert.match(auditMigration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(auditMigration, /FROM PUBLIC, anon, authenticated/);
+  assert.match(auditMigration, /GRANT SELECT, INSERT ON TABLE public\.chatbridge_staff_audit_events TO service_role/);
+  assert.match(auditMigration, /REVOKE ALL ON TABLE public\.chatbridge_staff_audit_events FROM service_role/);
+  assert.match(auditMigration, /'reply_sent'/);
+  assert.match(auditMigration, /'conversation_status_changed'/);
+  assert.match(auditMigration, /'conversation_assignment_changed'/);
+  assert.match(auditMigration, /jsonb_build_object\('message_id', v_message\.id, 'channel', 'website'\)/);
+  assert.doesNotMatch(auditMigration, /p_body\s*,\s*'reply_sent'/);
 });
