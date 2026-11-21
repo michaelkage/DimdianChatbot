@@ -468,12 +468,17 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         }
     }
 
-    private function requireConversation(string $conversationId): void
+    /** Must be called after locking the parent conversation row in the same transaction. */
+    private function requireActiveAssignment(string $conversationId, string $staffIdentityId): void
     {
-        $query = $this->pdo->prepare('SELECT 1 FROM conversations WHERE id = :id LIMIT 1');
-        $query->execute([':id' => $conversationId]);
+        $query = $this->pdo->prepare(
+            'SELECT 1 FROM staff_conversation_assignments
+             WHERE conversation_id = :conversation AND staff_identity_id = :staff
+               AND ended_at IS NULL LIMIT 1 FOR UPDATE'
+        );
+        $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
         if ($query->fetchColumn() === false) {
-            throw new RuntimeException('Conversation does not exist.');
+            throw new RuntimeException('Conversation is no longer assigned to this staff identity.');
         }
     }
 
