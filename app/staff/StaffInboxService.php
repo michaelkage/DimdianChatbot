@@ -79,7 +79,7 @@ final class StaffInboxService
     {
         $actor = $this->authenticate($server);
         $assignedTo = self::isAdministrator($actor) ? null : (string)$actor['id'];
-        return $this->repository->listConversations($status, $assignedTo, $afterSequence, $limit);
+        return $this->repository->listConversations($status, $assignedTo, $afterSequence, $limit, !self::isAdministrator($actor));
     }
 
     public function assignConversation(
