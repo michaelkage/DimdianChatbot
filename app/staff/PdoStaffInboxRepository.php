@@ -81,7 +81,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                 GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                          g.display_name, g.phone, a.staff_identity_id, assigned.display_name
                 HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
-                    OR (:after_sequence = 0 AND COALESCE(MAX(m.sequence_id), 0) = 0)
+                    OR (:after_sequence_empty = 0 AND COALESCE(MAX(m.sequence_id), 0) = 0)
                 ORDER BY latest_sequence DESC, c.updated_at DESC
                 LIMIT ' . $limit;
         $query = $this->pdo->prepare($sql);
@@ -91,6 +91,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             ':assigned_filter' => $assignedStaffId === null ? 1 : 0,
             ':assigned_staff' => $assignedStaffId,
             ':after_sequence' => max(0, $afterSequence),
+            ':after_sequence_empty' => max(0, $afterSequence),
         ]);
         return $query->fetchAll();
     }
