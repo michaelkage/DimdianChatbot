@@ -81,6 +81,31 @@ expect(
     'read-only health endpoint confirms database and required schema'
 );
 
+
+// The versioned routes must preserve the exact same behavior as the legacy API.
+[$v1HealthStatus, $v1HealthBody] = request_api('GET', '/api/v1/health.php', null, ['Origin: ' . $origin]);
+expect(
+    $v1HealthStatus === 200
+        && ($v1HealthBody['status'] ?? '') === 'healthy'
+        && ($v1HealthBody['checks']['database'] ?? '') === 'ok',
+    'versioned health route delegates to the same healthy service'
+);
+
+[$v1SessionStatus, $v1SessionBody] = request_api('POST', '/api/v1/session.php', [
+    'name' => 'Versioned API Visitor',
+], ['Origin: ' . $origin]);
+expect($v1SessionStatus === 201 && isset($v1SessionBody['data']['session_token']), 'versioned session route creates a guest session');
+$v1Token = $v1SessionBody['data']['session_token'] ?? '';
+$v1Headers = ['Origin: ' . $origin, 'X-DIMDIAN-GUEST-TOKEN: ' . $v1Token];
+$v1MessageId = '650e8400-e29b-41d4-a716-446655440000';
+[$v1MessageStatus, $v1MessageBody] = request_api('POST', '/api/v1/messages.php', [
+    'message' => 'Hello through the versioned API.',
+    'client_message_id' => $v1MessageId,
+], $v1Headers);
+expect($v1MessageStatus === 201 && ($v1MessageBody['data']['delivery_status'] ?? '') === 'web_only', 'versioned message route persists a website-only message');
+[$v1PollStatus, $v1PollBody] = request_api('GET', '/api/v1/messages.php?after=0&limit=50', null, $v1Headers);
+expect($v1PollStatus === 200 && count($v1PollBody['data'] ?? []) === 1, 'versioned message route polls the authenticated conversation');
+
 final class IntegrationSuccessTransport implements WhatsAppTextTransport
 {
     public function sendTemplate(string $recipient, string $bodyParameter): array
