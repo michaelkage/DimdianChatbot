@@ -71,6 +71,27 @@ interface ChatRepository
     /** Record an identified but unsupported provider event without creating a message. */
     public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string;
 
+    /** Create an outbound WhatsApp job; normally called in the message transaction. */
+    public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void;
+
+    /**
+     * Lease one due outbound job and terminally fail expired jobs at the attempt limit.
+     * @return array{job:array<string,mixed>|null,exhausted:int}
+     */
+    public function claimWhatsAppOutbox(string $lockToken, int $maxAttempts = 6, int $leaseSeconds = 300): array;
+
+    /** Consent is deliberately checked immediately before the provider request. */
+    public function hasWhatsAppConsent(string $messageId): bool;
+
+    /** Complete a cancelled lease only if its token is still current. */
+    public function cancelWhatsAppOutbox(int $id, string $lockToken, string $messageId): bool;
+
+    /** Persist provider acceptance and reconcile any status callback received early. */
+    public function completeWhatsAppOutbox(int $id, string $lockToken, string $messageId, string $providerMessageId): bool;
+
+    /** Retry or terminally fail only the job still owned by this lease token. */
+    public function failWhatsAppOutbox(int $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool;
+
     /** Persist a provider status event and reconcile the message's current status. */
     public function recordProviderStatusEvent(
         string $eventId, string $payloadHash, string $providerMessageId,
