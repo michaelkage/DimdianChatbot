@@ -93,11 +93,10 @@ final class StaffInboxService
             if ($targetStaffId !== (string)$actor['id']) {
                 throw new StaffInboxAuthorizationException('Agents may only assign conversations to themselves.');
             }
-            $currentAssignee = $this->repository->getActiveAssignee($conversationId);
-            if ($currentAssignee !== null && $currentAssignee !== (string)$actor['id']) {
+            if (!$this->repository->selfAssignConversation($conversationId, (string)$actor['id'], $requestId)) {
                 throw new StaffInboxAuthorizationException('This conversation is already assigned to another agent.');
             }
-            if ($currentAssignee === (string)$actor['id']) return;
+            return;
         }
         $this->repository->assignConversation($conversationId, $targetStaffId, (string)$actor['id'], $requestId);
     }
@@ -108,9 +107,11 @@ final class StaffInboxService
         ?string $requestId = null
     ): bool {
         $actor = $this->authenticate($server);
-        if (!self::isAdministrator($actor)
-            && $this->repository->getActiveAssignee($conversationId) !== (string)$actor['id']) {
-            throw new StaffInboxAuthorizationException('Agents may only unassign their own conversations.');
+        if (!self::isAdministrator($actor)) {
+            if (!$this->repository->unassignOwnConversation($conversationId, (string)$actor['id'], $requestId)) {
+                throw new StaffInboxAuthorizationException('Agents may only unassign their own active conversations.');
+            }
+            return true;
         }
         return $this->repository->unassignConversation($conversationId, (string)$actor['id'], $requestId);
     }
@@ -129,16 +130,16 @@ final class StaffInboxService
     public function listConversationMessages(array $server, string $conversationId, int $afterSequence, int $limit): array
     {
         $actor = $this->authenticate($server);
-        $this->requireConversationAccess($actor, $conversationId);
-        return $this->repository->listConversationMessages($conversationId, $afterSequence, $limit);
+        $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        return $this->repository->listConversationMessages($conversationId, $afterSequence, $limit, $requiredAssignee);
     }
 
     /** @return list<array<string,mixed>> */
     public function listAssignmentHistory(array $server, string $conversationId, int $afterId, int $limit): array
     {
         $actor = $this->authenticate($server);
-        $this->requireConversationAccess($actor, $conversationId);
-        return $this->repository->listAssignmentHistory($conversationId, $afterId, $limit);
+        $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        return $this->repository->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssignee);
     }
 
     public function addInternalNote(
@@ -149,16 +150,17 @@ final class StaffInboxService
         ?string $requestId = null
     ): void {
         $actor = $this->authenticate($server);
-        $this->requireConversationAccess($actor, $conversationId);
-        $this->repository->addInternalNote($id, $conversationId, (string)$actor['id'], $body, $requestId);
+        $this->repository->addInternalNote(
+            $id, $conversationId, (string)$actor['id'], $body, $requestId, !self::isAdministrator($actor)
+        );
     }
 
     /** @return list<array<string,mixed>> */
     public function listInternalNotes(array $server, string $conversationId, int $afterId, int $limit): array
     {
         $actor = $this->authenticate($server);
-        $this->requireConversationAccess($actor, $conversationId);
-        return $this->repository->listInternalNotes($conversationId, $afterId, $limit);
+        $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        return $this->repository->listInternalNotes($conversationId, $afterId, $limit, $requiredAssignee);
     }
 
     public function createStaffReply(
@@ -167,28 +169,19 @@ final class StaffInboxService
         ?string $requestId = null
     ): array {
         $actor = $this->authenticate($server);
-        $conversationId = (string)($message['conversation_id'] ?? '');
-        $this->requireConversationAccess($actor, $conversationId);
-        return $this->repository->createStaffReply($message, (string)$actor['id'], $requestId);
+        return $this->repository->createStaffReply(
+            $message, (string)$actor['id'], $requestId, !self::isAdministrator($actor)
+        );
     }
 
     /** @return list<array<string,mixed>> */
     public function listAuditEvents(array $server, string $conversationId, int $afterId, int $limit): array
     {
         $actor = $this->authenticate($server);
-        $this->requireConversationAccess($actor, $conversationId);
         if (!self::isAdministrator($actor)) {
             throw new StaffInboxAuthorizationException('Only administrators can inspect the audit trail.');
         }
         return $this->repository->listAuditEvents($conversationId, $afterId, $limit);
-    }
-
-    private function requireConversationAccess(array $actor, string $conversationId): void
-    {
-        if (self::isAdministrator($actor)) return;
-        if ($this->repository->getActiveAssignee($conversationId) !== (string)$actor['id']) {
-            throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
-        }
     }
 
     private static function isAdministrator(array $actor): bool
