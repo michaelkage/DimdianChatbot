@@ -8,20 +8,20 @@ const edge = readFileSync(new URL('../supabase/functions/chatbridge-mock-api/ind
 const migration = readFileSync(new URL('../supabase/migrations/20261121120000_chatbridge_staff_inbox.sql', import.meta.url), 'utf8');
 
 test('agent inbox inline JavaScript parses without third-party dependencies', () => {
-  const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/g)];
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, 1);
   assert.doesNotThrow(() => new vm.Script(scripts[0][1]));
 });
 
 test('staff UI authenticates through Supabase Auth and stores tokens only in tab session storage', () => {
-  assert.match(html, /auth\\/v1\\/token\\?grant_type=password/);
+  assert.match(html, /auth\/v1\/token\?grant_type=password/);
   assert.match(html, /grant_type=refresh_token/);
-  assert.match(html, /sessionStorage\\.setItem/);
+  assert.match(html, /sessionStorage\.setItem/);
   assert.doesNotMatch(html, /SUPABASE_SERVICE_ROLE_KEY|sb_secret_|service_role/i);
 });
 
 test('staff UI supports conversation history, replies, status, assignment and private attachments', () => {
-  assert.match(html, /staff\\/conversations/);
+  assert.match(html, /staff\/conversations/);
   assert.match(html, /staff_only/);
   assert.match(html, /Send reply/);
   assert.match(html, /Close conversation/);
@@ -30,16 +30,16 @@ test('staff UI supports conversation history, replies, status, assignment and pr
 });
 
 test('Edge Function verifies Auth identity and active tenant membership before staff routes', () => {
-  assert.match(edge, /auth\\/v1\\/user/);
+  assert.match(edge, /auth\/v1\/user/);
   assert.match(edge, /chatbridge_staff_memberships/);
   assert.match(edge, /authenticateStaff/);
-  assert.match(edge, /route\\.startsWith\\("\\/staff\\/"\\)/);
+  assert.match(edge, /route\.startsWith\("\/staff\/"\)/);
   assert.match(edge, /Access-Control-Allow-Headers.*Authorization/);
   assert.match(edge, /Access-Control-Allow-Methods.*PATCH/);
 });
 
 test('staff schema and RPCs enforce tenant membership and keep direct public table access revoked', () => {
-  assert.match(migration, /REFERENCES auth\\.users/);
+  assert.match(migration, /REFERENCES auth\.users/);
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(migration, /FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /staff_membership_required/);
