@@ -206,10 +206,7 @@ staff_expect(
 
 staff_expect($repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign'), 'active assignment can be ended');
 staff_expect(!$repository->unassignConversation($conversationId, $resolvedA, 'staff-test-unassign-again'), 'unassigning an unassigned conversation is idempotent');
-$repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-reassign-for-self-unassign');
-staff_expect($agentService->unassignConversation($agentServer, $conversationId, 'staff-agent-own-unassign'), 'agent can unassign their own active conversation');
-staff_expect($repository->getActiveAssignee($conversationId) === null, 'agent self-unassignment ends only their active assignment');
-$repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-test-restore-agent-assignment');
+
 
 $secondGuestId = uuid_v4();
 $secondConversationId = uuid_v4();
@@ -257,6 +254,10 @@ $agentMessages = $agentService->listConversationMessages($agentServer, $conversa
 staff_expect(count($agentMessages['items']) === 1, 'assigned agent can read conversation messages');
 $agentNotes = $agentService->listInternalNotes($agentServer, $conversationId, 0, 20);
 staff_expect(count($agentNotes) === 1, 'assigned agent can read private notes for their active conversation');
+staff_expect($agentService->unassignConversation($agentServer, $conversationId, 'staff-agent-own-unassign'), 'agent can unassign their own active conversation');
+staff_expect($repository->getActiveAssignee($conversationId) === null, 'agent self-unassignment ends only their active assignment');
+$agentService->assignConversation($agentServer, $conversationId, $resolvedB, 'staff-agent-self-assign-again');
+staff_expect($repository->getActiveAssignee($conversationId) === $resolvedB, 'agent can self-assign the conversation again after releasing it');
 $agentCannotListStaff = false;
 try {
     $agentService->listStaffIdentities($agentServer);
