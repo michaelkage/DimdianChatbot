@@ -68,6 +68,10 @@ jobs:
                   'username' => getenv('DIMDIAN_TEST_DB_USER'),
                   'password' => getenv('DIMDIAN_TEST_DB_PASSWORD'),
               ],
+              'staff_inbox' => [
+                  'enabled' => true,
+                  'assertion_secret' => str_repeat('s', 64),
+              ],
               'whatsapp' => [
                   'outbound_enabled' => false,
                   'app_secret' => 'test-meta-app-secret',
@@ -87,6 +91,7 @@ jobs:
           php tests/run.php
           php tests/integration.php
           php tests/staff-inbox.php
+          php tests/staff-inbox-http.php
           php tests/wordpress-plugin.php
       - name: Check admin and customer widget JavaScript
         run: |
