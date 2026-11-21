@@ -7,12 +7,21 @@ $closedDays=max(30,min(3650,(int)($privacy['closed_conversation_retention_days']
 $webhookDays=max(7,min(365,(int)($privacy['webhook_event_retention_days']??30)));
 $sessionDays=max(7,min(180,(int)($privacy['expired_session_retention_days']??30)));
 $pdo=database();
-$summary=['outbox'=>0,'statuses'=>0,'messages'=>0,'sessions'=>0,'links'=>0,'conversations'=>0,'consent_events'=>0,'guests'=>0,'webhooks'=>0,'inbox'=>0,'signup_states'=>0,'rate_limits'=>0];
+$summary=['outbox'=>0,'statuses'=>0,'messages'=>0,'sessions'=>0,'links'=>0,'conversations'=>0,'consent_events'=>0,'guests'=>0,'webhooks'=>0,'inbox'=>0,'signup_states'=>0,'rate_limits'=>0,'staff_notes'=>0,'staff_audit_events'=>0,'staff_assignments'=>0,'staff_message_authors'=>0,'staff_auth_nonces'=>0];
 try{
  $pdo->beginTransaction();
  $closed=gmdate('Y-m-d H:i:s',time()-$closedDays*86400);
  $webhooks=gmdate('Y-m-d H:i:s',time()-$webhookDays*86400);
  $sessions=gmdate('Y-m-d H:i:s',time()-$sessionDays*86400);
+ if ((app_config('staff_inbox.enabled') ?? false) === true) {
+  // Optional staff tables are touched only when the operator enabled the module.
+  // Remove dependent rows before the parent conversations/messages are pruned.
+  $q=$pdo->prepare('DELETE e FROM staff_audit_events e INNER JOIN conversations c ON c.id=e.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['staff_audit_events']=$q->rowCount();
+  $q=$pdo->prepare('DELETE n FROM staff_internal_notes n INNER JOIN conversations c ON c.id=n.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['staff_notes']=$q->rowCount();
+  $q=$pdo->prepare('DELETE a FROM staff_conversation_assignments a INNER JOIN conversations c ON c.id=a.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['staff_assignments']=$q->rowCount();
+  $q=$pdo->prepare('DELETE sa FROM staff_message_authors sa INNER JOIN messages m ON m.id=sa.message_id INNER JOIN conversations c ON c.id=m.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['staff_message_authors']=$q->rowCount();
+  $q=$pdo->prepare('DELETE FROM staff_auth_nonces WHERE expires_at<UTC_TIMESTAMP()');$q->execute();$summary['staff_auth_nonces']=$q->rowCount();
+ }
  $q=$pdo->prepare('DELETE o FROM message_outbox o INNER JOIN messages m ON m.id=o.message_id INNER JOIN conversations c ON c.id=m.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['outbox']=$q->rowCount();
  $q=$pdo->prepare('DELETE e FROM message_status_events e INNER JOIN messages m ON m.provider_message_id=e.provider_message_id INNER JOIN conversations c ON c.id=m.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['statuses']=$q->rowCount();
  $q=$pdo->prepare('DELETE m FROM messages m INNER JOIN conversations c ON c.id=m.conversation_id WHERE c.status="closed" AND c.updated_at<:cutoff');$q->execute([':cutoff'=>$closed]);$summary['messages']=$q->rowCount();
