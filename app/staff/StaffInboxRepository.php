@@ -14,6 +14,11 @@ interface StaffInboxRepository
     /** Upsert a verified external identity; never accept a browser-supplied subject. */
     public function upsertStaffIdentity(array $identity): string;
 
+    /** @return array<string,mixed>|null */
+    public function findStaffIdentityById(string $staffIdentityId): ?array;
+
+    public function getActiveAssignee(string $conversationId): ?string;
+
     /**
      * List conversations for the staff inbox.
      * Status is one of open, closed or all; cursor is a message sequence cursor.
