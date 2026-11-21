@@ -131,6 +131,9 @@ final class StaffInboxService
     {
         $actor = $this->authenticate($server);
         $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        if ($requiredAssignee !== null && $this->repository->getActiveAssignee($conversationId) !== $requiredAssignee) {
+            throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
+        }
         return $this->repository->listConversationMessages($conversationId, $afterSequence, $limit, $requiredAssignee);
     }
 
@@ -139,6 +142,9 @@ final class StaffInboxService
     {
         $actor = $this->authenticate($server);
         $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        if ($requiredAssignee !== null && $this->repository->getActiveAssignee($conversationId) !== $requiredAssignee) {
+            throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
+        }
         return $this->repository->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssignee);
     }
 
@@ -150,9 +156,13 @@ final class StaffInboxService
         ?string $requestId = null
     ): void {
         $actor = $this->authenticate($server);
-        $this->repository->addInternalNote(
-            $id, $conversationId, (string)$actor['id'], $body, $requestId, !self::isAdministrator($actor)
-        );
+        try {
+            $this->repository->addInternalNote(
+                $id, $conversationId, (string)$actor['id'], $body, $requestId, !self::isAdministrator($actor)
+            );
+        } catch (StaffInboxAssignmentException) {
+            throw new StaffInboxAuthorizationException('This conversation is no longer assigned to the current agent.');
+        }
     }
 
     /** @return list<array<string,mixed>> */
@@ -160,6 +170,9 @@ final class StaffInboxService
     {
         $actor = $this->authenticate($server);
         $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
+        if ($requiredAssignee !== null && $this->repository->getActiveAssignee($conversationId) !== $requiredAssignee) {
+            throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
+        }
         return $this->repository->listInternalNotes($conversationId, $afterId, $limit, $requiredAssignee);
     }
 
@@ -169,9 +182,13 @@ final class StaffInboxService
         ?string $requestId = null
     ): array {
         $actor = $this->authenticate($server);
-        return $this->repository->createStaffReply(
-            $message, (string)$actor['id'], $requestId, !self::isAdministrator($actor)
-        );
+        try {
+            return $this->repository->createStaffReply(
+                $message, (string)$actor['id'], $requestId, !self::isAdministrator($actor)
+            );
+        } catch (StaffInboxAssignmentException) {
+            throw new StaffInboxAuthorizationException('This conversation is no longer assigned to the current agent.');
+        }
     }
 
     /** @return list<array<string,mixed>> */
