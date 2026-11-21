@@ -1,6 +1,11 @@
 # File-change manifest — production hardening
 
 ## New files
+- app/staff/StaffInboxRepository.php — optional staff persistence contract.
+- app/staff/PdoStaffInboxRepository.php — MySQL/MariaDB staff identity, assignment, private-note, website-reply and audit persistence.
+- database/optional/staff-inbox.sql — opt-in staff inbox schema, excluded from the default install.
+- docs/STAFF-INBOX-ARCHITECTURE.md — optional module boundaries, security model and implementation sequence.
+- tests/staff-inbox.php — staff persistence integration tests.
 - app/consent.php — append-only consent audit and opt-in/opt-out lifecycle.
 - app/webhook_inbox.php — encrypted durable webhook inbox, payload deduplication and retry worker.
 - app/meta_signup.php — one-time Embedded Signup state, server-side code exchange, WABA subscription, encrypted token storage and token renewal.
@@ -28,14 +33,15 @@
 - public/widget.js / public/widget.css — post-session WhatsApp opt-out control, including access for pre-upgrade sessions.
 - wordpress-plugin/chatbridge-widget/chatbridge-widget.php — version 0.4.0, safe remote health request, private non-autoloaded Meta key storage and server-side AJAX proxy.
 - wordpress-plugin/chatbridge-widget/readme.txt — plugin stable version and changelog.
-- tests/run.php / tests/integration.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle and private admin-key regression coverage.
+- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle, staff persistence and private admin-key regression coverage.
+- .github/workflows/tests.yml — imports the opt-in staff schema only in the disposable CI database and runs staff inbox integration tests.
 - .github/workflows/tests.yml — checks admin/customer widget JavaScript syntax.
 - docs/API.md / docs/WHATSAPP.md / docs/WORDPRESS-PLUGIN.md / README.md — updated contracts and operations.
 - supabase/functions/meta-webhook/index.ts — message-body persistence disabled by default.
 - supabase/README.md — diagnostic data minimization and existing service-role-only RLS boundary.
 
 ## Deliberately not included / external gates
-- No staff accounts, agent inbox or staff dashboard.
+- The optional staff inbox is not yet a complete product feature: authentication, authorization middleware, API routes and staff UI remain unimplemented. Its schema is opt-in and is not part of the default deployment.
 - No media/voice-note/reaction/edit/delete synchronization; WhatsApp sync is text and delivery-status scoped.
 - Meta token renewal is attempted automatically within the final seven days; operator reconnection is still required after an unrecoverable expiry.
 - Meta business verification, app review and Partner/Solution eligibility must be completed by the business in Meta.
