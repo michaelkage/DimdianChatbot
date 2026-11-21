@@ -1,0 +1,141 @@
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/app/bootstrap.php';
+require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
+
+$base = getenv('DIMDIAN_TEST_BASE_URL') ?: 'http://127.0.0.1:8080';
+$secret = str_repeat('s', 64);
+$pdo = new PDO(
+    getenv('DIMDIAN_TEST_DSN') ?: 'mysql:host=127.0.0.1;dbname=dimdian_test;charset=utf8mb4',
+    getenv('DIMDIAN_TEST_DB_USER') ?: 'root',
+    getenv('DIMDIAN_TEST_DB_PASSWORD') ?: 'root',
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+);
+$repository = new PdoStaffInboxRepository($pdo);
+$passed = 0;
+$failed = 0;
+
+function staff_http_expect(bool $condition, string $label): void
+{
+    global $passed, $failed;
+    if ($condition) {
+        $passed++;
+        fwrite(STDOUT, "PASS {$label}\n");
+    } else {
+        $failed++;
+        fwrite(STDERR, "FAIL {$label}\n");
+    }
+}
+
+function staff_http_b64url(string $value): string
+{
+    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+
+function staff_http_assertion(string $method, string $path): string
+{
+    global $secret;
+    $payload = [
+        'auth_provider' => 'http-test',
+        'external_subject' => 'staff-http-owner',
+        'display_name' => 'HTTP Staff Owner',
+        'email' => 'http-staff@example.test',
+        'iat' => time(),
+        'nonce' => staff_http_b64url(random_bytes(32)),
+        'method' => strtoupper($method),
+        'path' => parse_url($path, PHP_URL_PATH),
+    ];
+    $encoded = staff_http_b64url(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    return $encoded . '.' . staff_http_b64url(hash_hmac('sha256', $encoded, $secret, true));
+}
+
+function staff_http_request(string $method, string $path, ?array $body = null, bool $signed = true): array
+{
+    global $base;
+    $headers = ['Accept: application/json'];
+    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path);
+    $content = '';
+    if ($body !== null) {
+        $headers[] = 'Content-Type: application/json';
+        $content = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+    $context = stream_context_create(['http' => [
+        'method' => $method,
+        'header' => implode("\r\n", $headers),
+        'content' => $content,
+        'ignore_errors' => true,
+        'timeout' => 10,
+    ]]);
+    $raw = file_get_contents($base . $path, false, $context);
+    $status = 0;
+    foreach ($http_response_header ?? [] as $header) {
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $header, $match)) $status = (int)$match[1];
+    }
+    return [$status, is_string($raw) ? json_decode($raw, true) : null];
+}
+
+$guestId = uuid_v4();
+$conversationId = uuid_v4();
+$pdo->prepare(
+    'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $guestId]);
+$pdo->prepare(
+    'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
+     VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $conversationId, ':guest' => $guestId]);
+$staffId = $repository->upsertStaffIdentity([
+    'id' => uuid_v4(),
+    'auth_provider' => 'http-test',
+    'external_subject' => 'staff-http-owner',
+    'display_name' => 'HTTP Staff Owner',
+    'email' => 'http-staff@example.test',
+]);
+$pdo->prepare('UPDATE staff_identities SET role = "owner" WHERE id = :id')->execute([':id' => $staffId]);
+$repository->assignConversation($conversationId, $staffId, $staffId, 'staff-http-assign');
+
+[$missingAuthStatus] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open', null, false);
+staff_http_expect($missingAuthStatus === 401, 'staff API rejects requests without a signed identity assertion');
+
+[$inboxStatus, $inboxBody] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open');
+staff_http_expect(
+    $inboxStatus === 200
+        && count(array_filter($inboxBody['data']['items'] ?? [], static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
+    'signed staff API returns the authenticated owner inbox'
+);
+
+[$noteStatus, $noteBody] = staff_http_request('POST', '/api/v1/staff/notes.php', [
+    'conversation_id' => $conversationId,
+    'body' => 'Private note through HTTP.',
+]);
+staff_http_expect($noteStatus === 200 && ($noteBody['data']['created'] ?? false) === true, 'staff notes endpoint persists a private note');
+
+[$notesStatus, $notesBody] = staff_http_request('GET', '/api/v1/staff/notes.php?conversation_id=' . $conversationId);
+staff_http_expect(
+    $notesStatus === 200
+        && count($notesBody['data']['items'] ?? []) === 1
+        && ($notesBody['data']['items'][0]['body'] ?? '') === 'Private note through HTTP.',
+    'staff notes endpoint returns private notes to authenticated staff'
+);
+
+[$replyStatus, $replyBody] = staff_http_request('POST', '/api/v1/staff/replies.php', [
+    'conversation_id' => $conversationId,
+    'message' => 'Website reply through staff API.',
+    'client_message_id' => uuid_v4(),
+]);
+staff_http_expect(
+    $replyStatus === 200
+        && ($replyBody['data']['message']['sender_type'] ?? '') === 'business'
+        && ($replyBody['data']['message']['delivery_status'] ?? '') === 'web_only',
+    'staff reply endpoint creates a website-only business message'
+);
+
+[$auditStatus, $auditBody] = staff_http_request('GET', '/api/v1/staff/audit.php?conversation_id=' . $conversationId);
+staff_http_expect(
+    $auditStatus === 200 && count($auditBody['data']['items'] ?? []) >= 3,
+    'staff audit endpoint exposes assignment, note and reply events to owner'
+);
+
+fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
+exit($failed === 0 ? 0 : 1);
