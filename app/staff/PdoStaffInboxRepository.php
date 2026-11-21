@@ -100,7 +100,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $query->fetchAll();
     }
 
-    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit): array
+    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array
     {
         $query = $this->pdo->prepare(
             'SELECT m.sequence_id, m.id, m.sender_type, m.body, m.delivery_status, m.sent_at,
@@ -109,9 +109,19 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
              LEFT JOIN staff_message_authors sa ON sa.message_id = m.id
              LEFT JOIN staff_identities author ON author.id = sa.staff_identity_id
              WHERE m.conversation_id = :conversation AND m.sequence_id > :after_sequence
+               AND (:assignment_required = 0 OR EXISTS (
+                   SELECT 1 FROM staff_conversation_assignments access
+                   WHERE access.conversation_id = m.conversation_id
+                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
+               ))
              ORDER BY m.sequence_id ASC LIMIT ' . (max(1, min(100, $limit)) + 1)
         );
-        $query->execute([':conversation' => $conversationId, ':after_sequence' => max(0, $afterSequence)]);
+        $query->execute([
+            ':conversation' => $conversationId,
+            ':after_sequence' => max(0, $afterSequence),
+            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
+            ':required_assignee' => $requiredAssigneeId,
+        ]);
         $rows = $query->fetchAll();
         $hasMore = count($rows) > max(1, min(100, $limit));
         if ($hasMore) $rows = array_slice($rows, 0, max(1, min(100, $limit)));
@@ -203,7 +213,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         });
     }
 
-    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit): array
+    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
     {
         $query = $this->pdo->prepare(
             'SELECT a.id, a.staff_identity_id, a.assigned_by_staff_id, a.assigned_at, a.ended_at,
@@ -212,9 +222,19 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
              INNER JOIN staff_identities assignee ON assignee.id = a.staff_identity_id
              INNER JOIN staff_identities assigner ON assigner.id = a.assigned_by_staff_id
              WHERE a.conversation_id = :conversation AND a.id > :after_id
+               AND (:assignment_required = 0 OR EXISTS (
+                   SELECT 1 FROM staff_conversation_assignments access
+                   WHERE access.conversation_id = a.conversation_id
+                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
+               ))
              ORDER BY a.id ASC LIMIT ' . max(1, min(100, $limit))
         );
-        $query->execute([':conversation' => $conversationId, ':after_id' => max(0, $afterId)]);
+        $query->execute([
+            ':conversation' => $conversationId,
+            ':after_id' => max(0, $afterId),
+            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
+            ':required_assignee' => $requiredAssigneeId,
+        ]);
         return $query->fetchAll();
     }
 
@@ -242,16 +262,20 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $conversationId,
         string $authorStaffId,
         string $body,
-        ?string $requestId = null
+        ?string $requestId = null,
+        bool $requireAssignment = false
     ): void {
         $body = trim($body);
         if (!self::isUuid($id) || $body === '' || self::characterLength($body) > 10000) {
             throw new InvalidArgumentException('Internal note ID or body is invalid.');
         }
 
-        $this->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId): void {
+        $this->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId, $requireAssignment): void {
             $this->requireActiveStaff($authorStaffId);
-            $this->requireConversation($conversationId);
+            $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
+            $conversation->execute([':id' => $conversationId]);
+            if ($conversation->fetchColumn() === false) throw new RuntimeException('Conversation does not exist.');
+            if ($requireAssignment) $this->requireActiveAssignment($conversationId, $authorStaffId);
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_internal_notes
                     (id, conversation_id, author_staff_id, body, created_at)
@@ -267,7 +291,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         });
     }
 
-    public function listInternalNotes(string $conversationId, int $afterId, int $limit): array
+    public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
     {
         $query = $this->pdo->prepare(
             'SELECT n.id, n.sequence_id, n.body, n.created_at,
@@ -275,13 +299,23 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
              FROM staff_internal_notes n
              INNER JOIN staff_identities s ON s.id = n.author_staff_id
              WHERE n.conversation_id = :conversation AND n.sequence_id > :after_id
+               AND (:assignment_required = 0 OR EXISTS (
+                   SELECT 1 FROM staff_conversation_assignments access
+                   WHERE access.conversation_id = n.conversation_id
+                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
+               ))
              ORDER BY n.sequence_id ASC LIMIT ' . max(1, min(100, $limit))
         );
-        $query->execute([':conversation' => $conversationId, ':after_id' => max(0, $afterId)]);
+        $query->execute([
+            ':conversation' => $conversationId,
+            ':after_id' => max(0, $afterId),
+            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
+            ':required_assignee' => $requiredAssigneeId,
+        ]);
         return $query->fetchAll();
     }
 
-    public function createStaffReply(array $message, string $staffIdentityId, ?string $requestId = null): array
+    public function createStaffReply(array $message, string $staffIdentityId, ?string $requestId = null, bool $requireAssignment = false): array
     {
         $id = (string)($message['id'] ?? '');
         $conversationId = (string)($message['conversation_id'] ?? '');
@@ -293,7 +327,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         }
 
         return $this->transaction(function () use (
-            $id, $conversationId, $clientMessageId, $body, $staffIdentityId, $requestId
+            $id, $conversationId, $clientMessageId, $body, $staffIdentityId, $requestId, $requireAssignment
         ): array {
             $this->requireActiveStaff($staffIdentityId);
             $conversation = $this->pdo->prepare(
@@ -303,6 +337,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             if ($conversation->fetchColumn() !== 'open') {
                 throw new RuntimeException('Cannot reply to a missing or closed conversation.');
             }
+            if ($requireAssignment) $this->requireActiveAssignment($conversationId, $staffIdentityId);
 
             $existing = $this->pdo->prepare(
                 'SELECT id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, sequence_id
