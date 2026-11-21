@@ -42,10 +42,13 @@ function staff_inbox_dispatch(callable $operation): never
         json_response(['error' => ['code' => 'forbidden', 'message' => 'You are not allowed to perform this staff operation.']], 403);
     } catch (ChatStorageConflict) {
         json_response(['error' => ['code' => 'conflict', 'message' => 'This request conflicts with an existing message.']], 409);
+    } catch (PDOException $error) {
+        app_log_event('staff_inbox.storage_failed', ['endpoint' => 'staff_inbox', 'exception_class' => get_class($error)]);
+        json_response(['error' => ['code' => 'storage_error', 'message' => 'The staff operation could not be completed.']], 500);
     } catch (InvalidArgumentException $error) {
         json_response(['error' => ['code' => 'invalid_request', 'message' => $error->getMessage()]], 422);
-    } catch (RuntimeException $error) {
-        json_response(['error' => ['code' => 'operation_rejected', 'message' => $error->getMessage()]], 409);
+    } catch (RuntimeException) {
+        json_response(['error' => ['code' => 'operation_rejected', 'message' => 'The staff operation was rejected.']], 409);
     } catch (Throwable $error) {
         app_log_event('staff_inbox.request_failed', [
             'endpoint' => 'staff_inbox',
@@ -60,7 +63,8 @@ function staff_inbox_required_string(array $input, string $key, int $maxLength):
     $value = $input[$key] ?? null;
     if (!is_string($value)) throw new InvalidArgumentException($key . ' must be text.');
     $value = trim($value);
-    if ($value === '' || preg_match_all('/./us', $value) > $maxLength) {
+    $length = preg_match_all('/./us', $value);
+    if ($value === '' || $length === false || $length > $maxLength) {
         throw new InvalidArgumentException($key . ' is missing or too long.');
     }
     return $value;
@@ -74,4 +78,9 @@ function staff_inbox_query_int(string $key, int $default, int $min, int $max): i
         throw new InvalidArgumentException($key . ' is outside the allowed range.');
     }
     return $value;
+}
+
+function staff_inbox_is_uuid(string $value): bool
+{
+    return (bool)preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value);
 }
