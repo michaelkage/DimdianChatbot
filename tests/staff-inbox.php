@@ -99,21 +99,29 @@ $assertionPayload = [
     'iat' => time(),
     'nonce' => staff_base64url(random_bytes(32)),
     'method' => 'GET',
-    'path' => '/api/v1/staff/inbox.php',
+    'target' => '/api/v1/staff/inbox.php?status=open',
+    'body_sha256' => hash('sha256', ''),
 ];
 $assertionServer = [
     'HTTP_X_CHATBRIDGE_STAFF_ASSERTION' => staff_sign_assertion($assertionPayload, $assertionSecret),
     'REQUEST_METHOD' => 'GET',
     'REQUEST_URI' => '/api/v1/staff/inbox.php?status=open',
+    'CHATBRIDGE_RAW_BODY' => '',
 ];
 $verifiedAssertion = $hmacProvider->authenticate($assertionServer);
 staff_expect(is_array($verifiedAssertion) && $verifiedAssertion['external_subject'] === 'hmac-staff-01', 'valid server-signed staff assertion is accepted');
 staff_expect($hmacProvider->authenticate($assertionServer) === null, 'signed staff assertion nonce cannot be replayed');
 
-$wrongPathPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'path' => '/api/v1/staff/notes.php']);
+$wrongPathPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'target' => '/api/v1/staff/notes.php?status=open']);
 $wrongPathServer = $assertionServer;
 $wrongPathServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongPathPayload, $assertionSecret);
-staff_expect($hmacProvider->authenticate($wrongPathServer) === null, 'signed staff assertion cannot be replayed against another API path');
+staff_expect($hmacProvider->authenticate($wrongPathServer) === null, 'signed staff assertion cannot be replayed against another API path or query');
+
+$wrongBodyPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'body_sha256' => hash('sha256', '{"changed":true}')]);
+$wrongBodyServer = $assertionServer;
+$wrongBodyServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongBodyPayload, $assertionSecret);
+$wrongBodyServer['CHATBRIDGE_RAW_BODY'] = '{"original":true}';
+staff_expect($hmacProvider->authenticate($wrongBodyServer) === null, 'signed staff assertion rejects a modified request body');
 
 $expiredPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'iat' => time() - 300]);
 $expiredServer = $assertionServer;
