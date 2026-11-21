@@ -146,3 +146,10 @@ A release may advertise a database, runtime, hosting target, channel, or platfor
 4. its compatibility tests run in CI or an explicitly documented external test environment.
 
 No compatibility claim may be inferred solely from a shared protocol, compatible SQL dialect, or vendor marketing statement.
+
+
+### Repository boundary progress (2026-11-21)
+
+The MySQL/MariaDB repository now owns visitor session/message persistence, WhatsApp consent transitions (including audit events, identity-link activation/deactivation and queued-send cancellation), and fixed-window rate-limit bucket updates. HTTP handlers retain response formatting and policy configuration; they no longer issue these persistence queries directly. The procedural consent helper remains as a compatibility shim and delegates to the repository.
+
+This remains a partial extraction: webhook inbox processing, staff operations, retention and WhatsApp outbox worker persistence still use PDO directly. The adapter is still MySQL/MariaDB-specific; this change does not establish PostgreSQL support.
