@@ -237,7 +237,7 @@ function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int
             // Provider I/O is deliberately outside every repository transaction.
             $result = $transport->sendTemplate((string) $job['recipient'], (string) $job['payload_text']);
             if ($repository->completeWhatsAppOutbox(
-                (int) $job['id'],
+                (string) $job['id'],
                 $lockToken,
                 (string) $job['message_id'],
                 (string) $result['provider_message_id']
