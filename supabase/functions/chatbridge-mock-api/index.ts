@@ -572,7 +572,6 @@ async function runRetentionForTenant(tenantId: string): Promise<Record<string, n
   let auditEventsDeleted = 0;
   const auditDays = Number(settings.audit_days);
   if (auditDays > 0) {
-    const cutoff = new Date(Date.now() - auditDays * 86400000).toISOString();
     const removed = await rest("POST", "/rest/v1/rpc/chatbridge_retention_delete_audit_events", { p_tenant_id: tenantId });
     auditEventsDeleted = Number(removed) || 0;
   }
