@@ -322,6 +322,32 @@ try {
 }
 staff_expect($agentCannotReplyAfterReassignment, 'agent cannot reply after assignment is revoked');
 
+$staleNoteDenied = false;
+try {
+    $repository->addInternalNote(uuid_v4(), $secondConversationId, $resolvedB, 'Stale assignment write.', null, true);
+} catch (StaffInboxAssignmentException) {
+    $staleNoteDenied = true;
+}
+staff_expect($staleNoteDenied, 'repository rechecks assignment inside the note-write transaction');
+
+$staleReplyDenied = false;
+try {
+    $repository->createStaffReply([
+        'id' => uuid_v4(),
+        'conversation_id' => $secondConversationId,
+        'client_message_id' => uuid_v4(),
+        'body' => 'Stale assignment reply.',
+    ], $resolvedB, null, true);
+} catch (StaffInboxAssignmentException) {
+    $staleReplyDenied = true;
+}
+staff_expect($staleReplyDenied, 'repository rechecks assignment inside the reply transaction');
+
+$staleMessages = $repository->listConversationMessages($secondConversationId, 0, 20, $resolvedB);
+$staleNotes = $repository->listInternalNotes($secondConversationId, 0, 20, $resolvedB);
+$staleAssignments = $repository->listAssignmentHistory($secondConversationId, 0, 20, $resolvedB);
+staff_expect($staleMessages['items'] === [] && $staleNotes === [] && $staleAssignments === [], 'repository read queries return no conversation data after assignment revocation');
+
 $ownerList = $ownerService->listConversations($ownerServer, 'open', 0, 50);
 staff_expect(count($ownerList) >= 3, 'owner can list all conversations across the installation');
 staff_expect(count($ownerService->listStaffIdentities($ownerServer)) >= 2, 'owner can list active staff identities');
