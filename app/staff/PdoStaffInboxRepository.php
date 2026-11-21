@@ -13,7 +13,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
     {
     }
 
-    public function upsertStaffIdentity(array $identity): void
+    public function upsertStaffIdentity(array $identity): string
     {
         $id = (string)($identity['id'] ?? '');
         $provider = (string)($identity['auth_provider'] ?? '');
@@ -44,6 +44,15 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             ':name' => $name,
             ':email' => $email,
         ]);
+        $lookup = $this->pdo->prepare(
+            'SELECT id FROM staff_identities WHERE auth_provider = :provider AND external_subject = :subject LIMIT 1'
+        );
+        $lookup->execute([':provider' => strtolower($provider), ':subject' => $subject]);
+        $localId = $lookup->fetchColumn();
+        if (!is_string($localId) || $localId === '') {
+            throw new RuntimeException('Staff identity could not be resolved after synchronization.');
+        }
+        return $localId;
     }
 
     public function listConversations(
