@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.4.0');
+define('CHATBRIDGE_WIDGET_VERSION', '0.5.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 function chatbridge_widget_defaults(): array
@@ -22,6 +22,7 @@ function chatbridge_widget_defaults(): array
     return [
         'enabled' => 0,
         'woocommerce_enabled' => 0,
+        'staff_inbox_enabled' => 0,
         'api_base' => '',
         'title' => 'Chat with us',
         'subtitle' => 'Send us a message. Our team will reply as soon as we can.',
@@ -34,6 +35,7 @@ function chatbridge_widget_settings(): array
     $saved = get_option('chatbridge_widget_settings', []);
     $settings = wp_parse_args(is_array($saved) ? $saved : [], chatbridge_widget_defaults());
     $settings['meta_admin_api_key'] = (string) get_option('chatbridge_meta_admin_api_key', '');
+    $settings['staff_assertion_secret'] = (string) get_option('chatbridge_staff_assertion_secret', '');
     return $settings;
 }
 
@@ -51,9 +53,15 @@ function chatbridge_widget_sanitize_settings($input): array
         // Keep this credential out of the autoloaded widget-settings option.
         update_option('chatbridge_meta_admin_api_key', substr(sanitize_text_field($submittedAdminKey), 0, 255), false);
     }
+    $submittedStaffSecret = isset($input['staff_assertion_secret']) ? trim((string) $input['staff_assertion_secret']) : '';
+    if ($submittedStaffSecret !== '' && strlen($submittedStaffSecret) >= 32) {
+        // The shared HMAC secret is private server configuration, never an autoloaded option.
+        update_option('chatbridge_staff_assertion_secret', substr(sanitize_text_field($submittedStaffSecret), 0, 255), false);
+    }
     return [
         'enabled' => !empty($input['enabled']) ? 1 : 0,
         'woocommerce_enabled' => !empty($input['woocommerce_enabled']) ? 1 : 0,
+        'staff_inbox_enabled' => !empty($input['staff_inbox_enabled']) ? 1 : 0,
         'api_base' => $api_base,
         'title' => isset($input['title']) ? sanitize_text_field($input['title']) : $defaults['title'],
         'subtitle' => isset($input['subtitle']) ? sanitize_text_field($input['subtitle']) : $defaults['subtitle'],
@@ -177,6 +185,23 @@ function chatbridge_widget_render_settings_page(): void
                     <td>
                         <input id="chatbridge-api-base" class="regular-text code" type="url" inputmode="url" name="chatbridge_widget_settings[api_base]" value="<?php echo esc_attr($settings['api_base']); ?>" placeholder="https://chat.example.com/api" required>
                         <p class="description"><?php esc_html_e('Use the API address supplied by your ChatBridge service administrator. HTTPS is required. Do not enter API keys or WhatsApp tokens here.', 'chatbridge-widget'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Optional staff inbox', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="chatbridge_widget_settings[staff_inbox_enabled]" value="1" <?php checked($settings['staff_inbox_enabled'], 1); ?>>
+                            <?php esc_html_e('Enable the staff inbox for this WordPress site', 'chatbridge-widget'); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e('Requires the optional staff schema and staff_inbox.enabled=true on the ChatBridge PHP service. This does not affect WhatsApp-only operation.', 'chatbridge-widget'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="chatbridge-staff-assertion-secret"><?php esc_html_e('Private staff assertion secret', 'chatbridge-widget'); ?></label></th>
+                    <td>
+                        <input id="chatbridge-staff-assertion-secret" class="regular-text" type="password" autocomplete="new-password" name="chatbridge_widget_settings[staff_assertion_secret]" value="" placeholder="<?php echo !empty($settings['staff_assertion_secret']) ? esc_attr__('Saved — leave blank to keep current secret', 'chatbridge-widget') : ''; ?>">
+                        <p class="description"><?php esc_html_e('Use the same random secret (at least 32 characters) as staff_inbox.assertion_secret in the private PHP service config. It is stored separately with autoload disabled and never sent to browser JavaScript.', 'chatbridge-widget'); ?></p>
                     </td>
                 </tr>
                 <tr>
@@ -554,3 +579,5 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
     set_transient($cache_key, $payload, 30);
     return new WP_REST_Response($payload, 200);
 }
+
+require_once __DIR__ . '/staff-inbox.php';
