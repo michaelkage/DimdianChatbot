@@ -63,6 +63,17 @@ final class StaffInboxService
         return $identity;
     }
 
+    /** @return array{id:string,role:string,display_name:string} */
+    public function currentIdentity(array $server): array
+    {
+        $actor = $this->authenticate($server);
+        return [
+            'id' => (string)$actor['id'],
+            'role' => (string)$actor['role'],
+            'display_name' => (string)$actor['display_name'],
+        ];
+    }
+
     /** @return list<array<string,mixed>> */
     public function listConversations(array $server, string $status, int $afterSequence, int $limit): array
     {
