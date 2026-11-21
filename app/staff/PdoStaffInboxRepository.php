@@ -132,6 +132,21 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         });
     }
 
+    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit): array
+    {
+        $query = $this->pdo->prepare(
+            'SELECT a.id, a.staff_identity_id, a.assigned_by_staff_id, a.assigned_at, a.ended_at,
+                    assignee.display_name AS assignee_name, assigner.display_name AS assigned_by_name
+             FROM staff_conversation_assignments a
+             INNER JOIN staff_identities assignee ON assignee.id = a.staff_identity_id
+             INNER JOIN staff_identities assigner ON assigner.id = a.assigned_by_staff_id
+             WHERE a.conversation_id = :conversation AND a.id > :after_id
+             ORDER BY a.id ASC LIMIT ' . max(1, min(100, $limit))
+        );
+        $query->execute([':conversation' => $conversationId, ':after_id' => max(0, $afterId)]);
+        return $query->fetchAll();
+    }
+
     public function unassignConversation(
         string $conversationId,
         string $actorStaffId,
