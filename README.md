@@ -22,11 +22,11 @@ This is an early connector release, not yet a WordPress.org directory release. I
 - Saves website messages and replies in a MySQL database.
 - Shows replies in the same website chat.
 - Can optionally connect an opted-in visitor's conversation to the WhatsApp Business app, using Meta's WhatsApp Cloud API and supported Business App Coexistence.
-- Keeps the support team on the existing WhatsApp Business app. There is no separate staff dashboard.
+- Keeps Dimdian's support team on the existing WhatsApp Business app. Other businesses may enable the optional WordPress staff inbox; it is disabled by default.
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, staff accounts, a shared inbox, agent assignment, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. The WordPress plugin now has an optional read-only WooCommerce product catalogue adapter; this is separate from the current PHP chat backend. The chat conversation itself currently synchronizes text messages only.
+This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. An optional staff inbox provides staff accounts through a trusted WordPress identity bridge, assignment, private notes and website-only replies; it is not enabled in Dimdian's WhatsApp-first deployment. The WordPress plugin also has an optional read-only WooCommerce product catalogue adapter. The chat conversation itself currently synchronizes text messages only.
 
 ## 2. How a conversation works
 
@@ -39,9 +39,9 @@ This is a focused enquiry channel, not a full customer-management system. It doe
 5. The widget polls the API while open and displays new messages.
 6. The widget polls for new messages and displays them.
 
-**Operational limitation:** with WhatsApp disabled, this is currently a visitor message-capture channel, not a complete two-way support inbox. There is no staff dashboard or manual reply screen, so the team cannot reply to website-only messages from inside this product yet. A support reply reaches the widget only through the WhatsApp-connected workflow described below (or through a future staff reply interface, which is not currently in scope).
+**Operational limitation:** in Dimdian's default configuration, with WhatsApp enabled and the optional staff inbox disabled, staff reply through WhatsApp Business. If WhatsApp is disabled too, the widget is only a visitor message-capture channel unless the operator deliberately enables and provisions the optional staff inbox.
 
-WhatsApp transport is disabled by default. In this state, the widget can collect and store enquiries, but it does not notify the team or provide a way for staff to answer them from this application. Do not launch it as the sole customer-support channel until the team has an agreed way to receive and answer those messages.
+WhatsApp transport is disabled by default. With the staff inbox also disabled, the widget can collect and store enquiries but does not notify the team or provide a way for staff to answer them from this application. Do not launch it as the sole customer-support channel until the team has an agreed way to receive and answer those messages.
 
 ### Intended WhatsApp-connected mode
 
@@ -291,3 +291,8 @@ For the implementation details, see [docs/API.md](docs/API.md), [docs/WIDGET.md]
 ## Production hardening additions
 
 The production hardening pass adds an auditable WhatsApp consent ledger and opt-out endpoint, deterministic phone-to-conversation links, an encrypted durable Meta webhook inbox, a recoverable webhook worker, server-side Embedded Signup code exchange with encrypted token storage, environment-variable configuration overrides, and a CLI retention job. The [file-change manifest](docs/FILE-CHANGE-MANIFEST.md), [manual setup checklist](docs/MANUAL-SETUP-CHECKLIST.md) and [16-milestone acceptance status](docs/MILESTONE-STATUS.md) list the repository changes, deployment steps and remaining production gates. These additions do not create a staff inbox, agent accounts or media synchronization. The WordPress plugin includes the administrator-only Embedded Signup v4 launcher; Meta app review, partner eligibility and live onboarding remain external gates.
+
+
+## Optional staff inbox
+
+Businesses that want website-based support can enable the optional staff inbox in the WordPress connector. It provides assignment, private internal notes, staff-authored website replies and audit history. It is a separate module with an opt-in schema; it does not alter Dimdian's own WhatsApp-first workflow. See [Optional Staff Inbox Architecture](docs/STAFF-INBOX-ARCHITECTURE.md) and [WordPress Plugin Setup](docs/WORDPRESS-PLUGIN.md).
