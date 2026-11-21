@@ -51,6 +51,7 @@ jobs:
         run: |
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/schema.sql
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/optional/staff-inbox.sql
           cat > config.php <<'PHP'
           <?php
           return [
@@ -85,6 +86,7 @@ jobs:
         run: |
           php tests/run.php
           php tests/integration.php
+          php tests/staff-inbox.php
           php tests/wordpress-plugin.php
       - name: Check admin and customer widget JavaScript
         run: |
