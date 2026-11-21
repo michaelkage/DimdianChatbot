@@ -194,45 +194,11 @@ function client_fingerprint(): string
     return hash_hmac('sha256', $ip, $key);
 }
 
-function enforce_rate_limit(PDO $pdo, string $bucket, int $maxRequests, int $windowSeconds): void
+function enforce_rate_limit(ChatRepository $repository, string $bucket, int $maxRequests, int $windowSeconds): void
 {
-    // rate_limits.bucket_key is fixed at 64 hex characters; hash all bucket names.
-    $bucketKey = hash('sha256', $bucket);
-    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-    $cutoff = $now->modify('-' . max(1, $windowSeconds) . ' seconds')->format('Y-m-d H:i:s');
-    $nowString = $now->format('Y-m-d H:i:s');
-
-    $pdo->beginTransaction();
-    try {
-        $insert = $pdo->prepare(
-            'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
-             VALUES (:bucket, :now, 1)
-             ON DUPLICATE KEY UPDATE
-               request_count = IF(window_started_at <= :cutoff, 1, request_count + 1),
-               window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)'
-        );
-        $insert->execute([
-            ':bucket' => $bucketKey,
-            ':now' => $nowString,
-            ':cutoff' => $cutoff,
-            ':cutoff2' => $cutoff,
-            ':now2' => $nowString,
-        ]);
-
-        $select = $pdo->prepare('SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
-        $select->execute([':bucket' => $bucketKey]);
-        $row = $select->fetch();
-        $pdo->commit();
-
-        if (!$row || (int)$row['request_count'] > $maxRequests) {
-            header('Retry-After: ' . max(1, $windowSeconds));
-            json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
-        }
-    } catch (Throwable $error) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $error;
+    if (!$repository->consumeRateLimit($bucket, $maxRequests, $windowSeconds)) {
+        header('Retry-After: ' . max(1, $windowSeconds));
+        json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
     }
 }
 
