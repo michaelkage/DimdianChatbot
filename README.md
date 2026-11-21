@@ -234,9 +234,9 @@ For the business owner:
 - Only use a visitor's phone number for the WhatsApp continuation they explicitly selected.
 - Do not assume a visitor has consented to WhatsApp just because they started a website chat.
 - Keep access to Hostinger, Meta Business Manager and database backups restricted to trusted people.
-- If a visitor asks about a conversation, the current product has no staff dashboard or customer search screen; the technical maintainer may need to investigate the database securely.
+- If a visitor asks about a conversation, the current production WordPress/PHP deployment has no connected staff dashboard or customer search screen; the Supabase mock inbox is separate and does not read production MySQL data.
 - Agree an internal process for who monitors and replies to enquiries in the WhatsApp Business app and during what hours.
-- Decide how long chat records should be retained and who is responsible for handling deletion/privacy requests. Automated retention/deletion tooling is not currently included.
+- The Supabase mock inbox has configurable 14-day defaults for conversations, uploads, diagnostics and staff activity. Customer-owned production PHP/MySQL/MariaDB deployments still need their own retention/deletion controls and a privacy-request workflow.
 
 Technical safeguards already in the code include hashed guest session tokens, prepared SQL statements, verified tenant-origin CORS allowlisting, input limits, rate limiting, idempotent message submission, webhook HMAC signature verification, webhook deduplication and a CLI-only worker. These safeguards do not replace secure hosting, backups, access control or a clear privacy notice.
 
