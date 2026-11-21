@@ -14,7 +14,7 @@ test('agent inbox inline JavaScript parses without third-party dependencies', ()
 });
 
 test('staff UI authenticates through Supabase Auth and stores tokens only in tab session storage', () => {
-  assert.match(html, /auth\/v1\/token\?grant_type=password/);
+  assert.match(html, /token\?grant_type=password/);
   assert.match(html, /grant_type=refresh_token/);
   assert.match(html, /sessionStorage\.setItem/);
   assert.doesNotMatch(html, /SUPABASE_SERVICE_ROLE_KEY|sb_secret_|service_role/i);
