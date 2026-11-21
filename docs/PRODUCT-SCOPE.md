@@ -54,7 +54,7 @@ Human support and AI are separate capabilities.
 
 A human-operated deployment must not require AI configuration. AI is optional and should support interchangeable providers, tenant-specific instructions and knowledge sources, usage controls, and human escalation.
 
-A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, repository, HMAC server-assertion authentication, local role/assignment authorization and versioned API routes are implemented. A turnkey WordPress assertion proxy and separate staff UI remain incomplete. It is not enabled for the Dimdian deployment.
+A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, repository, HMAC server-assertion authentication, local role/assignment authorization, versioned API routes, WordPress server-side assertion proxy and separate WordPress admin UI are implemented. The assertion binds the exact request target and body digest; roles are provisioned locally, with an explicit CLI command for the initial owner. Conversation search, in-product role administration, export/restore and shared-database multi-tenant isolation remain incomplete. It is not enabled for the Dimdian deployment.
 
 ## Backend responsibilities
 
@@ -78,7 +78,7 @@ A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, reposi
 - The production-hardening branch includes consent lifecycle controls, durable encrypted webhook ingestion, Meta onboarding operator functionality and retention processing.
 - A Supabase-backed mock API and Meta diagnostic Edge Functions exist separately; they do not yet establish complete API parity with PHP.
 - The GitHub Pages demo currently runs the widget in browser-only simulated mode and does not persist conversations.
-- A full storage-adapter architecture, canonical versioned API, PostgreSQL implementation, alternative backend runtimes, NPM distribution, self-service tenant portal, complete staff inbox and AI provider system are not yet complete.
+- A full storage-adapter architecture, PostgreSQL implementation, alternative backend runtimes, NPM distribution, self-service tenant portal and complete helpdesk-grade staff inbox/AI provider system are not yet complete.
 
 ## Technical and release constraints
 
