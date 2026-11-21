@@ -103,7 +103,7 @@ jobs:
       - name: Check widget JavaScript syntax
         run: node --check public/widget.js
       - name: Run widget tests
-        run: node --test tests/widget.test.mjs
+        run: node --test tests/widget.test.mjs tests/inbox.test.mjs
 
   plugin-php-compat:
     runs-on: ubuntu-latest
