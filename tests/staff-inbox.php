@@ -199,6 +199,7 @@ $pdo->prepare(
      VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $secondConversationId, ':guest' => $secondGuestId]);
 
+$repository->assignConversation($conversationId, $resolvedB, $resolvedA, 'staff-service-reassign');
 $pdo->prepare('UPDATE staff_identities SET role = "owner" WHERE id = :id')->execute([':id' => $resolvedA]);
 $agentService = new StaffInboxService(new StaffTestIdentityProvider([
     'auth_provider' => 'test-idp',
