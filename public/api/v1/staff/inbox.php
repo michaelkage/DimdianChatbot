@@ -1,0 +1,12 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__, 4) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 4) . '/app/staff/bootstrap.php';
+staff_inbox_guard_enabled();
+require_method('GET');
+staff_inbox_dispatch(static function (): array {
+    $status = isset($_GET['status']) && is_string($_GET['status']) ? $_GET['status'] : 'open';
+    $after = staff_inbox_query_int('after', 0, 0, PHP_INT_MAX);
+    $limit = staff_inbox_query_int('limit', 50, 1, 100);
+    return ['items' => staff_inbox_service()->listConversations($_SERVER, $status, $after, $limit)];
+});
