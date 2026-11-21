@@ -78,4 +78,4 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 
 ## Current implementation status
 
-The optional schema and repository interface define the initial persistence boundary. The PDO adapter, authentication adapter, API routes, staff UI and integration tests are not yet implemented. Do not advertise the staff inbox as available until those pieces are complete and CI verifies them.
+The optional schema, repository interface, MySQL/MariaDB PDO adapter and first integration suite now define and exercise the initial persistence boundary. The trusted authentication adapter, role authorization middleware, API routes and staff UI are not yet implemented. Do not advertise the staff inbox as available until those pieces are complete and CI verifies them.
