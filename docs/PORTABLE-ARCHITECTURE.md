@@ -115,8 +115,8 @@ The first canonical API version should use resource-oriented paths under /api/v1
 - Extract application services from direct PDO/SQL usage behind repository interfaces.
 - Keep the current MySQL/MariaDB implementation as the first reference adapter.
 - **Implemented first slice:** `ChatRepository` / `PdoChatRepository` now own guest-session creation and lookup, visitor-message creation, polling and delivery-state reads. The message, conversation activity and optional WhatsApp outbox writes are atomic; guest creation and initial opt-in are atomic.
-- **Still coupled:** rate limiting, subsequent consent changes, webhook processing, staff operations, retention and background workers still use PDO directly.
-- Move one vertical slice at a time (sessions/messages first slice complete; consent next, then channels and background jobs).
+- **Still coupled:** WhatsApp event-to-message processing, staff operations, retention and WhatsApp outbox-worker persistence still use PDO directly. Webhook inbox SQL and lease transitions are repository-backed.
+- Move one vertical slice at a time (sessions/messages, consent/rate limits, then webhook inbox persistence). Keep provider event interpretation and other worker domains separate until their own contracts are extracted.
 - Add transaction and concurrency tests before implementing a second database.
 - Implement PostgreSQL only after the repository boundary is proven by tests.
 - Add other dialects only when there is a concrete supported implementation and CI coverage.
@@ -129,7 +129,7 @@ The first canonical API version should use resource-oriented paths under /api/v1
 
 ## Current repository facts
 
-The active PHP application uses PDO and MySQL/MariaDB-oriented SQL. Its configuration contains a PDO DSN and credentials. The first `ChatRepository` slice now owns guest-session creation, token lookup/touch, visitor-message creation, message polling and delivery-status reads. The MySQL/MariaDB `PdoChatRepository` keeps the message insert, conversation activity update and optional WhatsApp outbox insert in one transaction; guest/session creation and its initial consent record also remain atomic. The HTTP handlers still use PDO directly for rate limiting, and consent changes, webhook processing, staff operations, retention and outbox workers have not yet moved behind repository contracts. This is a deliberately partial extraction, not a complete storage-adapter architecture.
+The active PHP application uses PDO and MySQL/MariaDB-oriented SQL. Its configuration contains a PDO DSN and credentials. The MySQL/MariaDB `PdoChatRepository` owns guest-session creation, token lookup/touch, visitor-message creation, message polling, delivery-status reads, WhatsApp consent transitions, fixed-window rate-limit buckets, and encrypted webhook-inbox enqueue/claim/complete/failure transitions. The message insert, conversation activity update and optional WhatsApp outbox insert remain atomic; guest/session creation and initial consent remain atomic. Webhook inbox payload encryption and WhatsApp event interpretation remain application-service responsibilities, while inbox SQL and lease transitions are repository-backed. Staff operations, retention, WhatsApp event-to-message processing and outbox-worker persistence remain PDO-coupled. This is a deliberately partial extraction, not a complete storage-adapter architecture.
 
 The repository also contains a Supabase Edge Function demonstration backend and Meta webhook diagnostic functions. These are separate implementations and currently do not establish cross-backend API parity.
 
@@ -150,6 +150,6 @@ No compatibility claim may be inferred solely from a shared protocol, compatible
 
 ### Repository boundary progress (2026-11-21)
 
-The MySQL/MariaDB repository now owns visitor session/message persistence, WhatsApp consent transitions (including audit events, identity-link activation/deactivation and queued-send cancellation), and fixed-window rate-limit bucket updates. HTTP handlers retain response formatting and policy configuration; they no longer issue these persistence queries directly. The procedural consent helper remains as a compatibility shim and delegates to the repository.
+The MySQL/MariaDB repository now owns visitor session/message persistence, WhatsApp consent transitions (including audit events, identity-link activation/deactivation and queued-send cancellation), fixed-window rate-limit bucket updates, and webhook-inbox persistence/leases. Webhook payload encryption and Meta event interpretation remain in application services; event-to-message persistence is still PDO-coupled.
 
-This remains a partial extraction: webhook inbox processing, staff operations, retention and WhatsApp outbox worker persistence still use PDO directly. The adapter is still MySQL/MariaDB-specific; this change does not establish PostgreSQL support.
+This remains a partial extraction: staff operations, retention, WhatsApp event-to-message processing and WhatsApp outbox-worker persistence still use PDO directly. The adapter is still MySQL/MariaDB-specific; this change does not establish PostgreSQL support.
