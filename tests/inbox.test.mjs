@@ -20,6 +20,15 @@ test('staff UI authenticates through Supabase Auth and stores tokens only in tab
   assert.doesNotMatch(html, /SUPABASE_SERVICE_ROLE_KEY|sb_secret_|service_role/i);
 });
 
+test('staff UI lets the signed-in user request an email change through Supabase Auth', () => {
+  assert.match(html, /Account settings/);
+  assert.match(html, /Change sign-in email/);
+  assert.match(html, /auth\/v1\/user/);
+  assert.match(html, /method:'PATCH'/);
+  assert.match(html, /JSON\.stringify\(\{email:nextEmail\}\)/);
+  assert.match(html, /confirmation/i);
+});
+
 test('staff UI supports conversation history, replies, status, assignment and private attachments', () => {
   assert.match(html, /staff\/conversations/);
   assert.match(html, /staff_only/);
