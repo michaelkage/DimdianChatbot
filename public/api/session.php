@@ -39,6 +39,7 @@ if ($whatsappOptIn && $normalizedPhone === null) {
 
 try {
     $pdo = database();
+    $repository = chat_repository($pdo);
 
     $rateConfig = app_config('app.session_rate_limit') ?? [];
     $maxRequests = max(1, (int)($rateConfig['max_requests'] ?? 10));
@@ -56,7 +57,6 @@ try {
     $createdAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     $expiresAt = $createdAt->modify('+' . $ttlHours . ' hours');
 
-    $repository = chat_repository($pdo);
     $repository->createGuestSession([
         'session_id' => $sessionId,
         'conversation_id' => $conversationId,
