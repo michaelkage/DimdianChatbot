@@ -51,6 +51,9 @@ app_request_id();
 
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
+require_once __DIR__ . '/storage/ChatRepository.php';
+require_once __DIR__ . '/storage/PdoChatRepository.php';
+
 function app_config(?string $key = null): mixed
 {
     global $config;
@@ -171,6 +174,16 @@ function database(): PDO
     return $pdo;
 }
 
+/**
+ * Resolve the configured persistence adapter.
+ * The current reference adapter is PDO/MySQL; alternative adapters must
+ * implement ChatRepository and be selected through explicit configuration.
+ */
+function chat_repository(?PDO $connection = null): ChatRepository
+{
+    return new PdoChatRepository($connection ?? database());
+}
+
 function client_fingerprint(): string
 {
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -257,38 +270,22 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
 }
 
 /**
- * Resolve the bearer-like guest token to its one active conversation.
+ * Resolve the bearer-like guest token through the configured storage adapter.
  * The raw token is never queried or persisted; only its SHA-256 hash is used.
  */
-function authenticate_guest_session(PDO $pdo, bool $requireOpen = true): array
+function authenticate_guest_session(ChatRepository $repository, bool $requireOpen = true): array
 {
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
     }
 
-    $tokenHash = hash('sha256', $token);
-    $statement = $pdo->prepare(
-        'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
-                g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
-                c.status AS conversation_status
-         FROM guest_sessions gs
-         INNER JOIN conversations c ON c.id = gs.conversation_id
-         INNER JOIN guests g ON g.id = gs.guest_id
-         WHERE gs.token_hash = :token_hash
-           AND gs.revoked_at IS NULL
-           AND gs.expires_at > UTC_TIMESTAMP()
-         LIMIT 1'
-    );
-    $statement->execute([':token_hash' => $tokenHash]);
-    $session = $statement->fetch();
-
-    if (!$session) {
+    $session = $repository->findGuestSessionByTokenHash(hash('sha256', $token));
+    if ($session === null) {
         json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
     }
 
-    $touch = $pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
-    $touch->execute([':id' => $session['session_id']]);
+    $repository->touchGuestSession((string) $session['session_id']);
 
     if ($requireOpen && $session['conversation_status'] !== 'open') {
         json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);
