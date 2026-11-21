@@ -65,6 +65,9 @@ interface ChatRepository
         string $deliveryStatus, string $sentAt
     ): string;
 
+    /** Record an identified but unsupported provider event without creating a message. */
+    public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string;
+
     /** Persist a provider status event and reconcile the message's current status. */
     public function recordProviderStatusEvent(
         string $eventId, string $payloadHash, string $providerMessageId,
