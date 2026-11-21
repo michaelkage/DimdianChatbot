@@ -149,14 +149,14 @@
     const eventName = envelope.event || message.event || '';
     const details = envelope.data || envelope;
 
-    if (eventName === 'CANCEL') {
+    if (eventName === 'CANCEL' || eventName === 'ERROR') {
+      signupState = null;
+      authorizationCode = null;
+      signupAssets = null;
+      prepared = false;
       startButton.disabled = false;
-      show('WhatsApp Embedded Signup was cancelled. No connection was changed.', 'warning');
-      return;
-    }
-    if (eventName === 'ERROR') {
-      startButton.disabled = false;
-      show('Meta reported an Embedded Signup error. Check the Meta app configuration and operator console.', 'error');
+      show(eventName === 'CANCEL' ? 'WhatsApp Embedded Signup was cancelled. No connection was changed.' : 'Meta reported an Embedded Signup error. Check the Meta app configuration and operator console.', eventName === 'CANCEL' ? 'warning' : 'error');
+      prepareSignup();
       return;
     }
     if (eventName === 'FINISH' || eventName === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
@@ -183,10 +183,14 @@
     }
     authorizationCode = null;
     signupAssets = null;
+    const attemptState = signupState;
+    if (wabaInput) wabaInput.value = '';
+    if (phoneInput) phoneInput.value = '';
     startButton.disabled = true;
     window.removeEventListener('message', onMetaMessage);
     window.addEventListener('message', onMetaMessage);
     window.FB.login(function (response) {
+      if (signupState !== attemptState) return;
       if (!response || !response.authResponse || !response.authResponse.code) {
         startButton.disabled = false;
         show('Meta did not return an authorization code. If the flow was cancelled or blocked, start again.', 'warning');

@@ -188,10 +188,6 @@ function chatbridge_widget_render_settings_page(): void
                     <td><input id="chatbridge-subtitle" class="large-text" type="text" maxlength="160" name="chatbridge_widget_settings[subtitle]" value="<?php echo esc_attr($settings['subtitle']); ?>"></td>
                 </tr>
             </table>
-            <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
-        </form>
-
-        <hr>
         <hr>
         <h2><?php esc_html_e('WhatsApp Embedded Signup (administrator only)', 'chatbridge-widget'); ?></h2>
         <p><?php esc_html_e('Use a private server-to-server proxy to connect the business WhatsApp account. The Meta admin key is stored in WordPress options and is never sent to public widget JavaScript.', 'chatbridge-widget'); ?></p>
@@ -220,6 +216,9 @@ function chatbridge_widget_render_settings_page(): void
             <input id="chatbridge-meta-phone-id" class="regular-text code" type="text" inputmode="numeric" autocomplete="off">
         </p>
         <div id="chatbridge-meta-status" class="notice notice-info inline" role="status" aria-live="polite"><p><?php esc_html_e('WhatsApp is not connected through this screen yet. Save the settings above before starting.', 'chatbridge-widget'); ?></p></div>
+
+            <?php submit_button(__('Save settings', 'chatbridge-widget')); ?>
+        </form>
 
         <hr>
         <h2><?php esc_html_e('Store compatibility', 'chatbridge-widget'); ?></h2>
