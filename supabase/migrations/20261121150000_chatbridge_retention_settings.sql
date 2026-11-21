@@ -16,6 +16,25 @@ INSERT INTO public.chatbridge_retention_settings (tenant_id)
 SELECT id FROM public.chatbridge_tenants
 ON CONFLICT (tenant_id) DO NOTHING;
 
+CREATE OR REPLACE FUNCTION public.chatbridge_seed_retention_settings()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $
+BEGIN
+  INSERT INTO public.chatbridge_retention_settings (tenant_id)
+  VALUES (NEW.id)
+  ON CONFLICT (tenant_id) DO NOTHING;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS chatbridge_tenant_seed_retention ON public.chatbridge_tenants;
+CREATE TRIGGER chatbridge_tenant_seed_retention
+AFTER INSERT ON public.chatbridge_tenants
+FOR EACH ROW EXECUTE FUNCTION public.chatbridge_seed_retention_settings();
+
 CREATE TABLE IF NOT EXISTS public.chatbridge_retention_runs (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_id uuid NOT NULL REFERENCES public.chatbridge_tenants(id) ON DELETE CASCADE,
@@ -83,7 +102,7 @@ SELECT cron.schedule(
         'x-chatbridge-retention-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'chatbridge_retention_secret')
       ),
       body := jsonb_build_object('source', 'scheduled'),
-      timeout_milliseconds := 10000
+      timeout_milliseconds := 120000
     );
   $job$
 );
