@@ -518,7 +518,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const cors = {
     "Access-Control-Allow-Origin": origin,
     "Vary": "Origin",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-DIMDIAN-GUEST-TOKEN, Authorization",
     "Access-Control-Max-Age": "600",
   };
