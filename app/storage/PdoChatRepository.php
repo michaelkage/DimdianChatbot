@@ -14,6 +14,107 @@ final class PdoChatRepository implements ChatRepository
     {
     }
 
+    public function recordWhatsAppConsent(string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void
+    {
+        if (!in_array($action, ['opt_in', 'opt_out'], true)) {
+            throw new InvalidArgumentException('Unsupported consent action.');
+        }
+        if ($action === 'opt_in' && !preg_match('/^[1-9][0-9]{7,14}$/', $normalizedPhone)) {
+            throw new InvalidArgumentException('A valid international WhatsApp number is required.');
+        }
+
+        $this->transaction(function () use ($guestId, $conversationId, $normalizedPhone, $action, $source): void {
+            if ($action === 'opt_in') {
+                // A phone number can route to one active website conversation only.
+                // Re-consent deliberately moves the route; prior conversations remain readable.
+                $deactivate = $this->pdo->prepare(
+                    'UPDATE whatsapp_identity_links
+                     SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
+                     WHERE phone_normalized = :phone AND is_active = 1'
+                );
+                $deactivate->execute([':phone' => $normalizedPhone]);
+                $link = $this->pdo->prepare(
+                    'INSERT INTO whatsapp_identity_links
+                        (phone_normalized, guest_id, conversation_id, is_active, created_at)
+                     VALUES (:phone, :guest, :conversation, 1, UTC_TIMESTAMP())'
+                );
+                $link->execute([':phone' => $normalizedPhone, ':guest' => $guestId, ':conversation' => $conversationId]);
+                $update = $this->pdo->prepare(
+                    'UPDATE guests SET phone_normalized = :phone, whatsapp_opt_in_at = :now, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
+                );
+                $update->execute([':phone' => $normalizedPhone, ':now' => gmdate('Y-m-d H:i:s'), ':guest' => $guestId]);
+            } else {
+                $deactivate = $this->pdo->prepare(
+                    'UPDATE whatsapp_identity_links
+                     SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
+                     WHERE guest_id = :guest AND is_active = 1'
+                );
+                $deactivate->execute([':guest' => $guestId]);
+                $update = $this->pdo->prepare(
+                    'UPDATE guests SET whatsapp_opt_in_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
+                );
+                $update->execute([':guest' => $guestId]);
+
+                // Prevent queued messages from being sent after consent withdrawal.
+                $cancel = $this->pdo->prepare(
+                    'UPDATE message_outbox o
+                     INNER JOIN messages m ON m.id = o.message_id
+                     INNER JOIN conversations c ON c.id = m.conversation_id
+                     SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
+                         o.last_error = "Cancelled after WhatsApp consent withdrawal.",
+                         o.updated_at = UTC_TIMESTAMP()
+                     WHERE c.guest_id = :guest AND o.status IN ("pending","processing")'
+                );
+                $cancel->execute([':guest' => $guestId]);
+                $mark = $this->pdo->prepare(
+                    'UPDATE messages m INNER JOIN conversations c ON c.id = m.conversation_id
+                     SET m.delivery_status = "web_only"
+                     WHERE c.guest_id = :guest AND m.delivery_status = "queued"'
+                );
+                $mark->execute([':guest' => $guestId]);
+            }
+
+            $event = $this->pdo->prepare(
+                'INSERT INTO guest_consent_events (guest_id, channel, action, source, policy_version, created_at)
+                 VALUES (:guest, "whatsapp", :action, :source, "2026-11", UTC_TIMESTAMP())'
+            );
+            $event->execute([
+                ':guest' => $guestId,
+                ':action' => $action,
+                ':source' => substr(preg_replace('/[^a-z0-9_-]/i', '', $source) ?: 'website_widget', 0, 40),
+            ]);
+        });
+    }
+
+    public function consumeRateLimit(string $bucket, int $maxRequests, int $windowSeconds): bool
+    {
+        $bucketKey = hash('sha256', $bucket);
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $cutoff = $now->modify('-' . max(1, $windowSeconds) . ' seconds')->format('Y-m-d H:i:s');
+        $nowString = $now->format('Y-m-d H:i:s');
+
+        return $this->transaction(function () use ($bucketKey, $cutoff, $nowString, $maxRequests): bool {
+            $insert = $this->pdo->prepare(
+                'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
+                 VALUES (:bucket, :now, 1)
+                 ON DUPLICATE KEY UPDATE
+                   request_count = IF(window_started_at <= :cutoff, 1, request_count + 1),
+                   window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)'
+            );
+            $insert->execute([
+                ':bucket' => $bucketKey,
+                ':now' => $nowString,
+                ':cutoff' => $cutoff,
+                ':cutoff2' => $cutoff,
+                ':now2' => $nowString,
+            ]);
+            $select = $this->pdo->prepare('SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
+            $select->execute([':bucket' => $bucketKey]);
+            $row = $select->fetch();
+            return is_array($row) && (int) $row['request_count'] <= max(1, $maxRequests);
+        });
+    }
+
     public function createGuestSession(array $session): void
     {
         $this->transaction(function () use ($session): void {
@@ -51,13 +152,8 @@ final class PdoChatRepository implements ChatRepository
             ]);
 
             if ($session['whatsapp_opt_in'] && $session['phone_normalized'] !== null) {
-                if (!function_exists('record_whatsapp_consent')) {
-                    throw new LogicException('The WhatsApp consent service must be loaded before creating an opted-in session.');
-                }
-                // Keep the existing consent policy/identity-link implementation as the single source of truth.
-                // It runs on this adapter's connection and therefore commits atomically with the guest/session rows.
-                record_whatsapp_consent(
-                    $this->pdo,
+                // The consent ledger, active identity route and guest flag share this transaction.
+                $this->recordWhatsAppConsent(
                     (string) $session['guest_id'],
                     (string) $session['conversation_id'],
                     (string) $session['phone_normalized'],
