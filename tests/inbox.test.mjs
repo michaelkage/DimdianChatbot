@@ -77,6 +77,7 @@ test('staff inbox exposes tenant-scoped activity history without recording messa
 });
 
 const retentionMigration = readFileSync(new URL('../supabase/migrations/20261121150000_chatbridge_retention_settings.sql', import.meta.url), 'utf8');
+const retentionAuditMigration = readFileSync(new URL('../supabase/migrations/20261121154000_chatbridge_retention_audit_rpc.sql', import.meta.url), 'utf8');
 
 test('retention settings default to fourteen days and support per-category indefinite retention', () => {
   assert.match(retentionMigration, /conversation_days integer NOT NULL DEFAULT 14/);
@@ -109,4 +110,13 @@ test('retention API validates bounded day counts and keeps public database acces
   assert.match(retentionMigration, /FROM PUBLIC, anon, authenticated/);
   assert.match(retentionMigration, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public\.chatbridge_retention_settings TO service_role/);
   assert.match(retentionMigration, /GRANT SELECT, INSERT ON TABLE public\.chatbridge_retention_runs TO service_role/);
+});
+
+test('audit retention uses a restricted server-only function instead of granting direct delete access', () => {
+  assert.match(retentionAuditMigration, /SECURITY DEFINER/);
+  assert.match(retentionAuditMigration, /SET search_path = ''/);
+  assert.match(retentionAuditMigration, /s\.audit_days > 0/);
+  assert.match(retentionAuditMigration, /e\.created_at < now\(\) - make_interval/);
+  assert.match(retentionAuditMigration, /REVOKE ALL ON FUNCTION/);
+  assert.match(retentionAuditMigration, /GRANT EXECUTE ON FUNCTION public\.chatbridge_retention_delete_audit_events\(uuid\) TO service_role/);
 });
