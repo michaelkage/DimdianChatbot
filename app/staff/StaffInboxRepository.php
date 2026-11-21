@@ -19,6 +19,9 @@ interface StaffInboxRepository
 
     public function getActiveAssignee(string $conversationId): ?string;
 
+    /** Atomically consume a one-time authentication nonce until its expiry. */
+    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool;
+
     /**
      * List conversations for the staff inbox.
      * Status is one of open, closed or all; cursor is a message sequence cursor.
