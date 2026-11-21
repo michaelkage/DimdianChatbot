@@ -40,6 +40,9 @@ CREATE TRIGGER chatbridge_tenant_seed_retention
 AFTER INSERT ON public.chatbridge_tenants
 FOR EACH ROW EXECUTE FUNCTION public.chatbridge_seed_retention_settings();
 
+CREATE INDEX IF NOT EXISTS idx_chatbridge_retention_settings_updated_by
+  ON public.chatbridge_retention_settings(updated_by);
+
 CREATE TABLE IF NOT EXISTS public.chatbridge_retention_runs (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_id uuid NOT NULL REFERENCES public.chatbridge_tenants(id) ON DELETE CASCADE,
