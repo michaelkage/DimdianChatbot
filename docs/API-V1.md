@@ -53,7 +53,8 @@ See API.md for the detailed request/response and error contract.
 - The v1 aliases must pass the same integration tests as the legacy routes.
 - Behaviour changes that break existing clients require a new API version or an explicitly documented compatibility window.
 - Additional backend implementations must implement this contract independently and pass the shared API acceptance suite.
-- Do not advertise PostgreSQL, SQLite, another runtime, or a provider as supported merely because these aliases exist. The current PHP handler still uses the existing MySQL/MariaDB-oriented persistence implementation.
+- The PHP session/message handlers now use a `ChatRepository` interface backed by `PdoChatRepository`; the rest of the application is not yet fully repository-backed.
+- Do not advertise PostgreSQL, SQLite, another runtime, or a provider as supported merely because these aliases or the repository interface exist. The current adapter still uses MySQL/MariaDB-oriented SQL.
 
 ## Next API milestone
 
