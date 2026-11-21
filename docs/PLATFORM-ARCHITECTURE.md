@@ -125,7 +125,7 @@ A plugin ZIP can be installable before it is directory-ready. Do not market the 
 | Capability | Status |
 |---|---|
 | Guest chat and WhatsApp transport | Existing PHP implementation; production deployment and real Coexistence remain unverified |
-| Supabase mock conversation store | Tenant-scoped tables, private attachment bucket, PHP adapter and deployed Edge Function; static mock UI is wired and `https://michaelkage.github.io` is seeded as a verified origin |
+| Supabase mock conversation store | Tenant-scoped tables, private attachment bucket, PHP adapter and deployed Edge Function; static mock UI and authenticated staff inbox are wired; `https://michaelkage.github.io` is seeded as a verified origin |
 | WordPress connector | Internal installable plugin |
 | WooCommerce public product search | Implemented and tested with adapter tests |
 | WooCommerce customer order lookup | First increment implemented on feature branch; logged-in owner check and tests added |
