@@ -8,7 +8,7 @@ $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'GET') {
     staff_inbox_dispatch(static function () use ($service): array {
         $conversationId = isset($_GET['conversation_id']) && is_string($_GET['conversation_id']) ? $_GET['conversation_id'] : '';
-        if (!preg_match('/^[a-f0-9-]{36}$/i', $conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
+        if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('conversation_id must be a UUID.');
         return ['items' => $service->listInternalNotes(
             $_SERVER,
             $conversationId,
@@ -21,7 +21,7 @@ if ($method === 'POST') {
     $input = request_json(12000);
     staff_inbox_dispatch(static function () use ($service, $input): array {
         $conversationId = staff_inbox_required_string($input, 'conversation_id', 36);
-        if (!preg_match('/^[a-f0-9-]{36}$/i', $conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
+        if (!staff_inbox_is_uuid($1)) throw new InvalidArgumentException('conversation_id must be a UUID.');
         $body = staff_inbox_required_string($input, 'body', 10000);
         $id = uuid_v4();
         $service->addInternalNote($_SERVER, $id, $conversationId, $body, app_request_id());
