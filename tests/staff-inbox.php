@@ -115,7 +115,12 @@ staff_expect($hmacProvider->authenticate($assertionServer) === null, 'signed sta
 $wrongPathPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'target' => '/api/v1/staff/notes.php?status=open']);
 $wrongPathServer = $assertionServer;
 $wrongPathServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongPathPayload, $assertionSecret);
-staff_expect($hmacProvider->authenticate($wrongPathServer) === null, 'signed staff assertion cannot be replayed against another API path or query');
+staff_expect($hmacProvider->authenticate($wrongPathServer) === null, 'signed staff assertion cannot be replayed against another API path');
+
+$wrongQueryPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'target' => '/api/v1/staff/inbox.php?status=closed']);
+$wrongQueryServer = $assertionServer;
+$wrongQueryServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongQueryPayload, $assertionSecret);
+staff_expect($hmacProvider->authenticate($wrongQueryServer) === null, 'signed staff assertion cannot be replayed with a different query string');
 
 $wrongBodyPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'body_sha256' => hash('sha256', '{"changed":true}')]);
 $wrongBodyServer = $assertionServer;
