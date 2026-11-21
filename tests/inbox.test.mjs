@@ -96,6 +96,9 @@ test('retention settings default to fourteen days and support per-category indef
   assert.match(edge, /expiredConversations/);
   assert.match(edge, /chatbridge_staff_audit_events/);
   assert.match(edge, /storage\("DELETE"/);
+  assert.match(edge, /prefixes:/);
+  assert.match(edge, /chatbridge_retention_delete_audit_events/);
+  assert.doesNotMatch(edge, /DELETE.*chatbridge_staff_audit_events/);
   assert.match(edge, /internal\/retention-cleanup/);
   assert.match(retentionMigration, /cron\.schedule/);
   assert.match(retentionMigration, /vault\.decrypted_secrets/);
