@@ -90,6 +90,38 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $query->rowCount() === 1;
     }
 
+    public function listStaffIdentities(): array
+    {
+        $query = $this->pdo->query(
+            'SELECT id, display_name, email, role, status
+             FROM staff_identities WHERE status = "active"
+             ORDER BY display_name ASC LIMIT 250'
+        );
+        return $query->fetchAll();
+    }
+
+    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit): array
+    {
+        $query = $this->pdo->prepare(
+            'SELECT m.sequence_id, m.id, m.sender_type, m.body, m.delivery_status, m.sent_at,
+                    author.display_name AS staff_author_name
+             FROM messages m
+             LEFT JOIN staff_message_authors sa ON sa.message_id = m.id
+             LEFT JOIN staff_identities author ON author.id = sa.staff_identity_id
+             WHERE m.conversation_id = :conversation AND m.sequence_id > :after_sequence
+             ORDER BY m.sequence_id ASC LIMIT ' . (max(1, min(100, $limit)) + 1)
+        );
+        $query->execute([':conversation' => $conversationId, ':after_sequence' => max(0, $afterSequence)]);
+        $rows = $query->fetchAll();
+        $hasMore = count($rows) > max(1, min(100, $limit));
+        if ($hasMore) $rows = array_slice($rows, 0, max(1, min(100, $limit)));
+        return [
+            'items' => $rows,
+            'has_more' => $hasMore,
+            'next_cursor' => $rows === [] ? $afterSequence : (int)$rows[array_key_last($rows)]['sequence_id'],
+        ];
+    }
+
     public function listConversations(
         string $status,
         ?string $assignedStaffId,
