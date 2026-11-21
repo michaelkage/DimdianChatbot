@@ -44,13 +44,22 @@ final class HmacStaffIdentityProvider implements StaffIdentityProvider
         $issuedAt = filter_var($payload['iat'] ?? null, FILTER_VALIDATE_INT);
         $nonce = $payload['nonce'] ?? null;
         $method = strtoupper((string)($server['REQUEST_METHOD'] ?? 'GET'));
-        $requestPath = parse_url((string)($server['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+        $requestTarget = (string)($server['REQUEST_URI'] ?? '/');
         $signedMethod = strtoupper((string)($payload['method'] ?? ''));
-        $signedPath = (string)($payload['path'] ?? '');
+        $signedTarget = $payload['target'] ?? null;
+        $signedBodyHash = $payload['body_sha256'] ?? null;
+        $rawBody = $server['CHATBRIDGE_RAW_BODY'] ?? null;
+        if (!is_string($rawBody)) {
+            $readBody = file_get_contents('php://input');
+            $rawBody = is_string($readBody) ? $readBody : '';
+        }
+        $actualBodyHash = hash('sha256', $rawBody);
 
         if ($issuedAt === false || abs(time() - $issuedAt) > $this->clockSkewSeconds
             || !is_string($nonce) || !preg_match('/^[A-Za-z0-9_-]{32,128}$/', $nonce)
-            || $signedMethod !== $method || !is_string($requestPath) || $signedPath !== $requestPath) {
+            || $signedMethod !== $method || !is_string($signedTarget) || $signedTarget !== $requestTarget
+            || !is_string($signedBodyHash) || !preg_match('/^[a-f0-9]{64}$/', $signedBodyHash)
+            || !hash_equals($actualBodyHash, $signedBodyHash)) {
             return null;
         }
 
