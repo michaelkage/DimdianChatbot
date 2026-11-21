@@ -29,8 +29,7 @@ CREATE TABLE IF NOT EXISTS staff_conversation_assignments (
     assigned_by_staff_id CHAR(36) NOT NULL,
     assigned_at DATETIME NOT NULL,
     ended_at DATETIME NULL,
-    active_conversation_id CHAR(36)
-        GENERATED ALWAYS AS (CASE WHEN ended_at IS NULL THEN conversation_id ELSE NULL END) STORED,
+    active_conversation_id CHAR(36) NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_staff_active_conversation (active_conversation_id),
     KEY idx_staff_assignment_agent (staff_identity_id, ended_at, assigned_at),
