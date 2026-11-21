@@ -43,6 +43,17 @@
     return node;
   }
 
+  function uuidV4() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+  }
+
   function formatDate(value) {
     if (!value) return '';
     const date = new Date(value);
@@ -219,9 +230,7 @@
       await request('chatbridge_staff_reply', {
         conversation_id: conversation.id,
         message: message,
-        client_message_id: (window.crypto && window.crypto.randomUUID)
-          ? window.crypto.randomUUID()
-          : String(Date.now()) + '-' + Math.random().toString(16).slice(2)
+        client_message_id: uuidV4()
       });
       $('cb-staff-reply').value = '';
       await loadConversation(conversation.id);
