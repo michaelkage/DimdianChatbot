@@ -127,7 +127,7 @@ The first canonical API version should use resource-oriented paths under /api/v1
 
 ## Current repository facts
 
-The active PHP application uses PDO and MySQL/MariaDB-oriented SQL. Its configuration contains a PDO DSN and credentials. API routes call the database directly and share helper functions from app/bootstrap.php; this is not yet a complete storage-adapter architecture.
+The active PHP application uses PDO and MySQL/MariaDB-oriented SQL. Its configuration contains a PDO DSN and credentials. The first `ChatRepository` slice now owns guest-session creation, token lookup/touch, visitor-message creation, message polling and delivery-status reads. The MySQL/MariaDB `PdoChatRepository` keeps the message insert, conversation activity update and optional WhatsApp outbox insert in one transaction; guest/session creation and its initial consent record also remain atomic. The HTTP handlers still use PDO directly for rate limiting, and consent changes, webhook processing, staff operations, retention and outbox workers have not yet moved behind repository contracts. This is a deliberately partial extraction, not a complete storage-adapter architecture.
 
 The repository also contains a Supabase Edge Function demonstration backend and Meta webhook diagnostic functions. These are separate implementations and currently do not establish cross-backend API parity.
 
