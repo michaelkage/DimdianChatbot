@@ -21,14 +21,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public
-AS $
+AS $seed$
 BEGIN
   INSERT INTO public.chatbridge_retention_settings (tenant_id)
   VALUES (NEW.id)
   ON CONFLICT (tenant_id) DO NOTHING;
   RETURN NEW;
 END;
-$;
+$seed$;
 
 DROP TRIGGER IF EXISTS chatbridge_tenant_seed_retention ON public.chatbridge_tenants;
 CREATE TRIGGER chatbridge_tenant_seed_retention
