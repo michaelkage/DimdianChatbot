@@ -72,10 +72,10 @@ $('.commerce-search').addEventListener('submit',async event=>{
 function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
- if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null,whatsappOptIn:saved.whatsappOptIn===true};consentRevoke.hidden=!session.whatsappOptIn;cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
+ if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null,whatsappOptIn:saved.whatsappOptIn===true,whatsappOptInKnown:typeof saved.whatsappOptIn==='boolean'};consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
  }
 } catch (_) {}
-function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,whatsappOptIn:session.whatsappOptIn===true,cursor}));}catch(_){}}}
+function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,whatsappOptIn:session.whatsappOptInKnown?session.whatsappOptIn:null,cursor}));}catch(_){}}}
 function status(t,kind){$('.status').textContent=t;$('.status').dataset.kind=kind||'normal';}
 async function request(path,opts){
  const headers=Object.assign({Accept:'application/json'},opts&&opts.headers);
@@ -113,7 +113,7 @@ async function startSession(){
  if(optedIn&&!phone){status('Add your WhatsApp number before choosing WhatsApp continuation.','warning');$('.phone').focus();throw new Error('A WhatsApp number is required for WhatsApp continuation.');}
  const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:rawPhone||null,whatsapp_opt_in:optedIn})});
  if(!body.data||!/^[a-f0-9]{64}$/.test(body.data.session_token||''))throw new Error('Could not initialize a chat session.');
- session={token:body.data.session_token,expiresAt:body.data.expires_at||null,whatsappOptIn:body.data.whatsapp_opt_in===true};cursor=0;consentRevoke.hidden=!session.whatsappOptIn;persist();
+ session={token:body.data.session_token,expiresAt:body.data.expires_at||null,whatsappOptIn:body.data.whatsapp_opt_in===true,whatsappOptInKnown:true};cursor=0;consentRevoke.hidden=!session.whatsappOptIn;persist();
  $('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;welcome.hidden=true;
 }
 function expired(){
@@ -168,14 +168,14 @@ async function send(text){
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
 }
-function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;consentRevoke.hidden=!session.whatsappOptIn;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
+function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
 function close(){opened=false;panel.hidden=true;launcher.hidden=false;launcher.setAttribute('aria-expanded','false');stop();launcher.focus();}
 consentRevoke.addEventListener('click',async()=>{
- if(!session||!session.whatsappOptIn)return;
+ if(!session||(session.whatsappOptInKnown&&!session.whatsappOptIn))return;
  consentRevoke.disabled=true;
  try{
   await request('/consent.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({whatsapp_opt_in:false})});
-  session.whatsappOptIn=false;persist();consentRevoke.hidden=true;
+  session.whatsappOptIn=false;session.whatsappOptInKnown=true;persist();consentRevoke.hidden=true;
   status('WhatsApp continuation has been turned off. Website chat remains available.');
  }catch(e){status(e.message||'Could not update your WhatsApp preference.','warning');}
  finally{consentRevoke.disabled=false;}
