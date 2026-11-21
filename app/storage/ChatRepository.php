@@ -65,6 +65,9 @@ interface ChatRepository
         string $deliveryStatus, string $sentAt
     ): string;
 
+    /** Reconcile the highest-precedence stored status onto a provider message. */
+    public function reconcileProviderMessageStatus(string $providerMessageId): bool;
+
     /** Record an identified but unsupported provider event without creating a message. */
     public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string;
 
