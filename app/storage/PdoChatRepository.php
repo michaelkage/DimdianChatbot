@@ -468,6 +468,23 @@ final class PdoChatRepository implements ChatRepository
         });
     }
 
+    public function reconcileProviderMessageStatus(string $providerMessageId): bool
+    {
+        $lookup = $this->pdo->prepare(
+            'SELECT status FROM message_status_events
+             WHERE provider_message_id = :provider_id
+             ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
+                      event_timestamp DESC LIMIT 1'
+        );
+        $lookup->execute([':provider_id' => $providerMessageId]);
+        $status = $lookup->fetchColumn();
+        if (!is_string($status)) return false;
+
+        $update = $this->pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
+        $update->execute([':status' => $status, ':provider_id' => $providerMessageId]);
+        return $update->rowCount() > 0;
+    }
+
     public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string
     {
         return $this->transaction(function () use ($eventId, $eventType, $payloadHash): string {
@@ -499,21 +516,7 @@ final class PdoChatRepository implements ChatRepository
                 ':event_timestamp' => max(0, $eventTimestamp),
             ]);
 
-            $lookup = $this->pdo->prepare(
-                'SELECT status FROM message_status_events
-                 WHERE provider_message_id = :provider_id
-                 ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
-                          event_timestamp DESC LIMIT 1'
-            );
-            $lookup->execute([':provider_id' => $providerMessageId]);
-            $current = $lookup->fetchColumn();
-            if (!is_string($current)) {
-                $this->markWebhookEvent($eventId, 'ignored');
-                return 'ignored';
-            }
-            $update = $this->pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
-            $update->execute([':status' => $current, ':provider_id' => $providerMessageId]);
-            $found = $update->rowCount() > 0;
+            $found = $this->reconcileProviderMessageStatus($providerMessageId);
             $this->markWebhookEvent($eventId, $found ? 'processed' : 'ignored');
             return $found ? 'processed' : 'ignored';
         });
