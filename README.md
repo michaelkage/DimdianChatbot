@@ -16,7 +16,9 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ## Mock support inbox
 
-The Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.\n\n## 1. What this system does
+The Supabase reference site includes a separate staff workspace at [the Dimdian Support Inbox](https://michaelkage.github.io/DimdianChatbot/inbox/). Staff must first be created in Supabase Auth and granted an active `chatbridge_staff_memberships` row. Follow [Staff Inbox Setup](docs/STAFF-INBOX.md). This is a mock/reference feature; it does not connect to WhatsApp or notify a production support team.
+
+## 1. What this system does
 
 - Adds a small floating **Message us** button to a website, with optional appearance and page-targeting controls.
 - Supports a standalone JavaScript embed on non-WordPress sites.
