@@ -483,6 +483,131 @@ async function staffConversationDetail(req: Request, tenantId: string, cors: Rec
   return json({ data }, 200, cors);
 }
 
+function secureEquals(left: string, right: string): boolean {
+  if (!left || left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < left.length; i++) mismatch |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return mismatch === 0;
+}
+
+async function removeStoredAttachment(row: any, tenantId: string): Promise<void> {
+  const bucket = String(row.storage_bucket || BUCKET);
+  const encodedPath = String(row.storage_path).split("/").map(encodeURIComponent).join("/");
+  try { await storage("DELETE", `/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`); }
+  catch (error) { if (!(error instanceof HttpError) || error.status !== 404) throw error; }
+  await rest("DELETE", `/rest/v1/chatbridge_attachments?id=eq.${encodeURIComponent(String(row.id))}&tenant_id=eq.${encodeURIComponent(tenantId)}`, undefined, { Prefer: "return=minimal" });
+}
+
+async function expiredAttachments(tenantId: string, days: number, diagnostic: boolean): Promise<{ deleted: number; failures: number }> {
+  if (days === 0) return { deleted: 0, failures: 0 };
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  const params = new URLSearchParams({ select: "id,storage_bucket,storage_path", tenant_id: `eq.${tenantId}`, created_at: `lt.${cutoff}`, order: "created_at.asc", limit: "500" });
+  params.set("metadata->>attachment_kind", diagnostic ? "eq.debug_bundle" : "neq.debug_bundle");
+  const rows = await rest("GET", `/rest/v1/chatbridge_attachments?${params}`);
+  let deleted = 0, failures = 0;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    try { await removeStoredAttachment(row, tenantId); deleted++; }
+    catch (error) { failures++; console.error("Retention attachment cleanup failed", String(row.id), error); }
+  }
+  return { deleted, failures };
+}
+
+async function expiredConversations(tenantId: string, days: number): Promise<{ deleted: number; attachments: number; failures: number }> {
+  if (days === 0) return { deleted: 0, attachments: 0, failures: 0 };
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  const params = new URLSearchParams({ select: "id,guest_id", tenant_id: `eq.${tenantId}`, or: `(last_message_at.lt.${cutoff},and(last_message_at.is.null,created_at.lt.${cutoff}))`, order: "created_at.asc", limit: "250" });
+  const rows = await rest("GET", `/rest/v1/chatbridge_conversations?${params}`);
+  let deleted = 0, attachments = 0, failures = 0;
+  for (const conversation of Array.isArray(rows) ? rows : []) {
+    const conversationId = String(conversation.id), guestId = String(conversation.guest_id);
+    const attachmentQuery = new URLSearchParams({ select: "id,storage_bucket,storage_path", tenant_id: `eq.${tenantId}`, conversation_id: `eq.${conversationId}`, limit: "500" });
+    const files = await rest("GET", `/rest/v1/chatbridge_attachments?${attachmentQuery}`);
+    let ready = true;
+    for (const file of Array.isArray(files) ? files : []) {
+      try { await removeStoredAttachment(file, tenantId); attachments++; }
+      catch (error) { ready = false; failures++; console.error("Conversation retention cleanup failed", conversationId, error); }
+    }
+    if (!ready) continue;
+    await rest("DELETE", `/rest/v1/chatbridge_attachments?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
+    await rest("DELETE", `/rest/v1/chatbridge_guest_sessions?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
+    await rest("DELETE", `/rest/v1/chatbridge_messages?tenant_id=eq.${tenantId}&conversation_id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
+    await rest("DELETE", `/rest/v1/chatbridge_conversations?tenant_id=eq.${tenantId}&id=eq.${conversationId}`, undefined, { Prefer: "return=minimal" });
+    deleted++;
+    const remaining = await rest("GET", `/rest/v1/chatbridge_conversations?select=id&tenant_id=eq.${tenantId}&guest_id=eq.${guestId}&limit=1`);
+    if (!Array.isArray(remaining) || remaining.length === 0) {
+      await rest("DELETE", `/rest/v1/chatbridge_guest_sessions?tenant_id=eq.${tenantId}&guest_id=eq.${guestId}`, undefined, { Prefer: "return=minimal" });
+      await rest("DELETE", `/rest/v1/chatbridge_guests?tenant_id=eq.${tenantId}&id=eq.${guestId}`, undefined, { Prefer: "return=minimal" });
+    }
+  }
+  return { deleted, attachments, failures };
+}
+
+async function runRetentionForTenant(tenantId: string): Promise<Record<string, number>> {
+  const settingRows = await rest("GET", `/rest/v1/chatbridge_retention_settings?select=conversation_days,attachment_days,diagnostic_days,audit_days&tenant_id=eq.${tenantId}&limit=1`);
+  const settings = Array.isArray(settingRows) ? settingRows[0] : null;
+  if (!settings) return { conversations_deleted: 0, attachments_deleted: 0, audit_events_deleted: 0, failures: 0 };
+  let attachmentsDeleted = 0, failures = 0;
+  const normalFiles = await expiredAttachments(tenantId, Number(settings.attachment_days), false);
+  const diagnostics = await expiredAttachments(tenantId, Number(settings.diagnostic_days), true);
+  attachmentsDeleted += normalFiles.deleted + diagnostics.deleted;
+  failures += normalFiles.failures + diagnostics.failures;
+  const conversations = await expiredConversations(tenantId, Number(settings.conversation_days));
+  attachmentsDeleted += conversations.attachments;
+  failures += conversations.failures;
+  let auditEventsDeleted = 0;
+  const auditDays = Number(settings.audit_days);
+  if (auditDays > 0) {
+    const cutoff = new Date(Date.now() - auditDays * 86400000).toISOString();
+    const removed = await rest("DELETE", `/rest/v1/chatbridge_staff_audit_events?tenant_id=eq.${tenantId}&created_at=lt.${encodeURIComponent(cutoff)}`, undefined, { Prefer: "return=representation" });
+    auditEventsDeleted = Array.isArray(removed) ? removed.length : 0;
+  }
+  await rest("POST", "/rest/v1/chatbridge_retention_runs", { tenant_id: tenantId, conversations_deleted: conversations.deleted, attachments_deleted: attachmentsDeleted, audit_events_deleted: auditEventsDeleted, failures }, { Prefer: "return=minimal" });
+  return { conversations_deleted: conversations.deleted, attachments_deleted: attachmentsDeleted, audit_events_deleted: auditEventsDeleted, failures };
+}
+
+async function runRetentionCleanup(tenantId?: string): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams({ select: "tenant_id", order: "tenant_id.asc" });
+  if (tenantId) params.set("tenant_id", `eq.${tenantId}`);
+  const rows = await rest("GET", `/rest/v1/chatbridge_retention_settings?${params}`);
+  const results = [];
+  for (const row of Array.isArray(rows) ? rows : []) results.push({ tenant_id: row.tenant_id, ...(await runRetentionForTenant(String(row.tenant_id))) });
+  return { tenants_processed: results.length, results };
+}
+
+async function internalRetentionCleanup(req: Request): Promise<Response> {
+  if (req.method !== "POST") return json({ error: { code: "method_not_allowed", message: "POST is required." } }, 405);
+  const supplied = req.headers.get("x-chatbridge-retention-secret") ?? "";
+  const expected = await rest("POST", "/rest/v1/rpc/chatbridge_get_retention_secret", {});
+  if (typeof expected !== "string" || !secureEquals(supplied, expected)) return json({ error: { code: "unauthorized", message: "The retention worker credential is invalid." } }, 401);
+  return json({ data: await runRetentionCleanup() });
+}
+
+async function staffRetentionSettings(req: Request, tenantId: string, cors: Record<string, string>, staff: { userId: string; role: string }): Promise<Response> {
+  const canManage = ["owner", "admin"].includes(staff.role);
+  if (req.method === "GET") {
+    const rows = await rest("GET", `/rest/v1/chatbridge_retention_settings?select=conversation_days,attachment_days,diagnostic_days,audit_days,updated_at&tenant_id=eq.${tenantId}&limit=1`);
+    const latest = await rest("GET", `/rest/v1/chatbridge_retention_runs?select=conversations_deleted,attachments_deleted,audit_events_deleted,failures,created_at&tenant_id=eq.${tenantId}&order=created_at.desc&limit=1`);
+    return json({ data: Array.isArray(rows) ? rows[0] ?? null : null, last_run: Array.isArray(latest) ? latest[0] ?? null : null, can_manage: canManage }, 200, cors);
+  }
+  if (req.method === "PATCH") {
+    if (!canManage) return errorResponse("admin_required", "Only tenant owners and admins can change data retention.", 403, cors);
+    const raw = await req.text();
+    if (raw.length > 5000) return errorResponse("payload_too_large", "The request is too large.", 413, cors);
+    let body: any;
+    try { body = JSON.parse(raw); } catch { return errorResponse("invalid_json", "Send a valid JSON object.", 400, cors); }
+    const fields = ["conversation_days", "attachment_days", "diagnostic_days", "audit_days"];
+    const update: Record<string, number | string> = { updated_by: staff.userId, updated_at: new Date().toISOString() };
+    for (const field of fields) {
+      const value = body[field];
+      if (!Number.isInteger(value) || value < 0 || value > 3650) return errorResponse("invalid_retention_period", "Each retention period must be a whole number from 0 to 3650 days. Use 0 to keep data indefinitely.", 422, cors);
+      update[field] = value;
+    }
+    const rows = await rest("PATCH", `/rest/v1/chatbridge_retention_settings?tenant_id=eq.${tenantId}`, update, { Prefer: "return=representation" });
+    return json({ data: Array.isArray(rows) ? rows[0] ?? null : null }, 200, cors);
+  }
+  return errorResponse("method_not_allowed", "Use GET or PATCH.", 405, cors);
+}
+
 async function staffConversationAudit(req: Request, tenantId: string, cors: Record<string, string>, conversationId: string): Promise<Response> {
   const url = new URL(req.url);
   const limitRaw = url.searchParams.get("limit") ?? "50";
@@ -532,6 +657,11 @@ async function staffUpdateConversation(req: Request, tenantId: string, cors: Rec
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (!PROJECT_URL || !SERVICE_KEY) return json({ error: { code: "not_configured", message: "The mock API is not configured." } }, 503);
+  const incomingUrl = new URL(req.url);
+  const functionMarker = "/functions/v1/chatbridge-mock-api";
+  const incomingRoute = incomingUrl.pathname.includes(functionMarker) ? incomingUrl.pathname.slice(incomingUrl.pathname.indexOf(functionMarker) + functionMarker.length) : "/";
+  if (incomingRoute === "/internal/retention-cleanup") return await internalRetentionCleanup(req);
+
   const origin = normalizeOrigin(req.headers.get("origin"));
   if (!origin) return errorResponse("origin_not_allowed", "A verified HTTPS website origin is required.", 403, {});
   let tenantId: string | null;
@@ -561,6 +691,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (detailMatch && ["GET", "POST"].includes(req.method)) {
         if (detailMatch[2] === "attachments" && req.method !== "GET") return errorResponse("method_not_allowed", "Attachments are read-only in the staff inbox.", 405, cors);
         return await staffConversationDetail(req, tenantId, cors, staff, detailMatch[1], detailMatch[2] as "messages" | "attachments");
+      }
+      if (route === "/staff/retention" && ["GET", "PATCH"].includes(req.method)) return await staffRetentionSettings(req, tenantId, cors, staff);
+      if (route === "/staff/retention/run" && req.method === "POST") {
+        if (!["owner", "admin"].includes(staff.role)) return errorResponse("admin_required", "Only tenant owners and admins can run data retention.", 403, cors);
+        return json({ data: await runRetentionCleanup(tenantId) }, 200, cors);
       }
       const auditMatch = route.match(/^\/staff\/conversations\/([0-9a-f-]{36})\/audit$/i);
       if (auditMatch && req.method === "GET") return await staffConversationAudit(req, tenantId, cors, auditMatch[1]);
