@@ -21,7 +21,7 @@
 - config.example.php — privacy, Meta onboarding and message-rate configuration.
 - database/schema.sql — fresh-install schema for all hardening tables.
 - public/api/health.php — checks the new tables, OpenSSL/PDO MySQL runtime, queue counts and request ID.
-- public/api/session.php / public/api/messages.php — structured failure events without raw exception messages.
+- public/api/session.php / public/api/messages.php — session/message API lifecycle and structured failure events without raw exception messages.
 - public/cron/process-outbox.php / public/cron/process-webhook-inbox.php / public/cron/retention.php — structured CLI failure events.
 - public/api/session.php — records explicit WhatsApp opt-in and creates the active identity link.
 - public/api/webhook.php — verifies, encrypts and durably queues before acknowledging Meta.
