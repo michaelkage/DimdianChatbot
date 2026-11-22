@@ -71,7 +71,7 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 1. Persistence contract and opt-in schema.
 2. MySQL/MariaDB repository implementation with transaction and isolation tests.
 3. Concrete authentication-provider integrations and fail-closed HTTP middleware using the provider-neutral assertion contract.
-4. Staff API endpoints: implemented for inbox list, assignment, notes, website replies, assignment history and audit history.
+4. Staff API endpoints: implemented for inbox list/search, assignment, owner-only role/status changes, notes, website replies, assignment history and audit history.
 5. Staff UI as a separate optional client, not code bundled into the visitor widget. (Implemented in the WordPress connector.)
 6. Export, retention, backup/restore and operational documentation.
 7. A separate PostgreSQL implementation only after the shared repository contract and acceptance tests are stable.
