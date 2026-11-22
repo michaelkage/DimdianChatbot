@@ -224,6 +224,8 @@ $secondConversationId = uuid_v4();
 $pdo->prepare(
     'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $secondGuestId]);
+$pdo->prepare('UPDATE guests SET display_name = :name WHERE id = :id')
+    ->execute([':name' => 'Unassigned Visitor', ':id' => $secondGuestId]);
 $pdo->prepare(
     'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
      VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -234,6 +236,8 @@ $thirdConversationId = uuid_v4();
 $pdo->prepare(
     'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $thirdGuestId]);
+$pdo->prepare('UPDATE guests SET display_name = :name WHERE id = :id')
+    ->execute([':name' => 'Owner Only Visitor', ':id' => $thirdGuestId]);
 $pdo->prepare(
     'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
      VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -316,6 +320,8 @@ staff_expect($wildcardSearch === [], 'conversation search treats SQL wildcard ch
 $agentServer = ['HTTP_AUTHORIZATION' => 'Bearer test-agent-token'];
 $ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
 $agentIdentity = $agentService->authenticate($agentServer);
+$agentSearchOwnerOnly = $agentService->listConversations($agentServer, 'open', 0, 50, 'Owner Only Visitor');
+staff_expect($agentSearchOwnerOnly === [], 'agent search cannot reveal a visitor assigned to another agent');
 $agentList = $agentService->listConversations($agentServer, 'open', 0, 50);
 staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides untrusted external role claims');
 staff_expect(count($agentList) === 2 && count(array_filter($agentList, static fn(array $row): bool => in_array($row['id'], [$conversationId, $secondConversationId], true))) === 2, 'agent inbox includes own assignments and unassigned conversations but excludes another agent’s assignments');
