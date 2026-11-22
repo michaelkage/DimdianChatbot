@@ -220,6 +220,7 @@ staff_expect(
         && $created['message']['sender_type'] === 'business'
         && $created['message']['delivery_status'] === 'web_only'
         && $replayed['inserted'] === false
+        && !array_key_exists('staff_author_id', $replayed['message'])
         && $author->fetchColumn() === $resolvedB
         && (int)$outbox->fetchColumn() === 0,
     'staff reply is idempotent, visitor-visible, attributed and website-only'
