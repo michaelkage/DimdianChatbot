@@ -452,6 +452,10 @@ staff_expect($unauthenticatedRejected, 'missing verified external identity fails
 $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'disabled', 'staff-test-disable');
 $disabledState = $repository->findStaffIdentityById($resolvedB);
 staff_expect(($disabledState['status'] ?? '') === 'disabled', 'owner can disable a staff identity');
+staff_expect(
+    $repository->getActiveAssignee($conversationId) === null,
+    'disabling a staff identity atomically releases its active conversation assignments'
+);
 $disabledRejected = false;
 try {
     $repository->addInternalNote(uuid_v4(), $conversationId, $resolvedB, 'Should not be accepted.');
