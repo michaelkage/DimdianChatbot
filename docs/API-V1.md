@@ -36,6 +36,8 @@ The widget's current API client appends endpoint filenames to the configured bas
 | GET | /api/v1/staff/history.php | — | Read assignment history |
 | GET | /api/v1/staff/audit.php | — | Read administrator-only audit events |
 
+The staff inbox list accepts `status` (open, closed or all), `after`, `limit` and an optional `search` string (maximum 100 Unicode characters). Search performs a contains match against visitor display name, phone number and message body; it does not expand an agent's assignment visibility.
+
 ## Authentication and security
 
 Conversation endpoints require the X-DIMDIAN-GUEST-TOKEN header. Session tokens are returned once at session creation and must never be placed in query strings.
