@@ -152,8 +152,16 @@ staff_expect((int)$assignmentState['total'] === 2 && (int)$assignmentState['acti
 
 $noteId = uuid_v4();
 $repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note');
+$repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note-retry');
 $notes = $repository->listInternalNotes($conversationId, 0, 20);
 $noteFound = count($notes) === 1 && $notes[0]['body'] === 'Internal-only note.';
+$noteConflict = false;
+try {
+    $repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Changed note content.', 'staff-test-note-conflict');
+} catch (ChatStorageConflict) {
+    $noteConflict = true;
+}
+staff_expect($noteConflict, 'note idempotency rejects reuse with different content');
 $messageCount = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE conversation_id = :conversation');
 $messageCount->execute([':conversation' => $conversationId]);
 staff_expect($noteFound && (int)$messageCount->fetchColumn() === 0, 'internal notes are stored separately from visitor-visible messages');
