@@ -18,7 +18,7 @@ The planned module contains:
 
 - Staff identities mapped from a trusted external authentication provider.
 - Roles and authorization policy: owner, admin and agent.
-- Conversation list and search.
+- Conversation list with search across visitor name, phone number and message body.
 - One active assignee per conversation, with full assignment history.
 - Private, immutable internal notes.
 - Staff replies that appear as ordinary business messages to the visitor.
@@ -78,9 +78,9 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 
 ## Current implementation status
 
-The optional schema, repository interface, MySQL/MariaDB PDO adapter, HMAC-signed server assertion adapter, local role/assignment authorization service, versioned staff API routes, WordPress server-side proxy, separate WordPress admin inbox UI and integration suites are implemented. Assertions bind the HTTP method, exact request target (including query string), SHA-256 request-body digest, short expiry and one-time nonce. The WordPress connector keeps the shared secret server-side and requires a logged-in user with the inbox capability. New external identities default to the local agent role; an operator must explicitly provision the first owner with php bin/set-staff-role.php wordpress user:<WORDPRESS_USER_ID> owner after that administrator signs in once. Local roles are not copied from browser claims or external profile fields.
+The optional schema, repository interface, MySQL/MariaDB PDO adapter, HMAC-signed server assertion adapter, local role/assignment authorization service, versioned staff API routes, WordPress server-side proxy, separate WordPress admin inbox UI, conversation search and owner-only role administration are implemented. Assertions bind the HTTP method, exact request target (including query string), SHA-256 request-body digest, short expiry and one-time nonce. The WordPress connector keeps the shared secret server-side and requires a logged-in user with the inbox capability. New external identities default to the local agent role; an operator must explicitly provision the first owner with php bin/set-staff-role.php wordpress user:<WORDPRESS_USER_ID> owner after that administrator signs in once. Local roles are not copied from browser claims or external profile fields.
 
-The core workflow is implemented, but the module is not yet a complete support-desk product: conversation search, in-product staff role management, export/restore procedures and broader end-to-end security coverage remain future work. The optional tables are excluded from default installs, and the current PHP schema assumes one business per database.
+The core workflow now includes conversation search across visitor name, phone number and message body, plus an owner-only staff access panel. Owners can promote/demote staff and disable/re-enable identities; the repository serializes owner changes and prevents removal of the last active owner. Export/restore procedures and broader end-to-end security coverage remain future work. The optional tables are excluded from default installs, and the current PHP schema assumes one business per database.
 
 
 ## Assignment authorization and concurrency
