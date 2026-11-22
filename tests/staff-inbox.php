@@ -47,11 +47,37 @@ function staff_expect(bool $condition, string $label): void
     global $passed, $failed;
     if ($condition) {
         $passed++;
-        fwrite(STDOUT, "PASS {$label}\n");
+        fwrite(STDOUT, "PASS {$label}\\n");
     } else {
         $failed++;
-        fwrite(STDERR, "FAIL {$label}\n");
+        fwrite(STDERR, "FAIL {$label}\\n");
     }
+}
+
+/** @return array{status:int,stdout:string,stderr:string} */
+function staff_run_cli(array $arguments): array
+{
+    $command = array_merge([PHP_BINARY], $arguments);
+    $pipes = [];
+    $process = proc_open(
+        $command,
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        dirname(__DIR__)
+    );
+    if (!is_resource($process)) {
+        throw new RuntimeException('Could not start CLI role-provisioning test process.');
+    }
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    return [
+        'status' => proc_close($process),
+        'stdout' => is_string($stdout) ? $stdout : '',
+        'stderr' => is_string($stderr) ? $stderr : '',
+    ];
 }
 
 $guestId = uuid_v4();
@@ -492,6 +518,50 @@ staff_expect($disabledRejected, 'disabled staff identities cannot create private
 $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'active', 'staff-test-enable');
 $reenabled = $repository->findStaffIdentityById($resolvedB);
 staff_expect(($reenabled['status'] ?? '') === 'active', 'owner can re-enable a disabled staff identity');
+
+// Exercise the actual CLI entry points against the same disposable MySQL database.
+$setRoleScript = dirname(__DIR__) . '/bin/set-staff-role.php';
+$legacyProvisionScript = dirname(__DIR__) . '/bin/provision-staff.php';
+$setRoleLastOwner = staff_run_cli([$setRoleScript, 'test-idp', 'staff-subject-a', 'agent']);
+$afterSetRoleGuard = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $setRoleLastOwner['status'] === 1 && ($afterSetRoleGuard['role'] ?? '') === 'owner',
+    'set-staff-role CLI refuses to demote the final active owner'
+);
+
+$legacyLastOwner = staff_run_cli([
+    $legacyProvisionScript,
+    '--provider=test-idp',
+    '--subject=staff-subject-a',
+    '--role=agent',
+]);
+$afterLegacyGuard = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $legacyLastOwner['status'] === 1 && ($afterLegacyGuard['role'] ?? '') === 'owner',
+    'legacy provision-staff CLI refuses to demote the final active owner'
+);
+
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'owner', 'active', 'staff-test-cli-second-owner');
+$setRoleSuccess = staff_run_cli([$setRoleScript, 'test-idp', 'staff-subject-a', 'agent']);
+$afterSetRoleSuccess = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $setRoleSuccess['status'] === 0 && ($afterSetRoleSuccess['role'] ?? '') === 'agent',
+    'set-staff-role CLI permits demotion when another active owner remains'
+);
+
+$pdo->prepare('UPDATE staff_identities SET role = "owner", updated_at = UTC_TIMESTAMP() WHERE id = :id')
+    ->execute([':id' => $resolvedA]);
+$legacySuccess = staff_run_cli([
+    $legacyProvisionScript,
+    '--provider=test-idp',
+    '--subject=staff-subject-b',
+    '--role=agent',
+]);
+$afterLegacySuccess = $repository->findStaffIdentityById($resolvedB);
+staff_expect(
+    $legacySuccess['status'] === 0 && ($afterLegacySuccess['role'] ?? '') === 'agent',
+    'legacy provision-staff CLI permits demotion when another active owner remains'
+);
 
 fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
 exit($failed === 0 ? 0 : 1);
