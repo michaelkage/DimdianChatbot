@@ -244,6 +244,8 @@ $ownerService = new StaffInboxService(new StaffTestIdentityProvider([
     'display_name' => 'Agent A',
     'email' => 'agent-a@example.test',
 ]), $repository);
+$agentServer = ['HTTP_AUTHORIZATION' => 'Bearer test-agent-token'];
+$ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
 $agentCannotManageRoles = false;
 try {
     $agentService->updateStaffIdentityAccess($agentServer, $resolvedA, 'admin', 'active');
