@@ -398,13 +398,13 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $body,
         ?string $requestId = null,
         bool $requireAssignment = false
-    ): void {
+    ): bool {
         $body = trim($body);
         if (!self::isUuid($id) || $body === '' || self::characterLength($body) > 10000) {
             throw new InvalidArgumentException('Internal note ID or body is invalid.');
         }
 
-        $this->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId, $requireAssignment): void {
+        return $this->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId, $requireAssignment): bool {
             $this->requireActiveStaff($authorStaffId);
             $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
             $conversation->execute([':id' => $conversationId]);
@@ -422,7 +422,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                     || !hash_equals((string)$prior['body'], $body)) {
                     throw new ChatStorageConflict('The note ID was already used for different content.');
                 }
-                return;
+                return false;
             }
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_internal_notes
@@ -436,6 +436,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                 ':body' => $body,
             ]);
             $this->recordAudit($authorStaffId, $conversationId, 'note.created', null, ['note_id' => $id], $requestId);
+            return true;
         });
     }
 
