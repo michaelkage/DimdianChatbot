@@ -107,6 +107,12 @@
         option.value = agent.id;
         select.appendChild(option);
       });
+      if (conversation.assigned_staff_id && !state.agents.some((agent) => agent.id === conversation.assigned_staff_id)) {
+        const disabledAssignee = element('option', '', (conversation.assigned_staff_name || 'Former staff') + ' (inactive)');
+        disabledAssignee.value = conversation.assigned_staff_id;
+        disabledAssignee.disabled = true;
+        select.appendChild(disabledAssignee);
+      }
       select.value = conversation.assigned_staff_id || '';
     } else if (!conversation.assigned_staff_id) {
       selfAssign.hidden = false;
