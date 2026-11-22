@@ -40,7 +40,7 @@
 - public/api/webhook.php — signature verification, encrypted durable queueing before Meta acknowledgement.
 - public/cron/process-outbox.php — encrypted Embedded Signup credentials and structured worker logs.
 - public/widget.js / public/widget.css — post-session WhatsApp opt-out control, including access for pre-upgrade sessions.
-- wordpress-plugin/chatbridge-widget/chatbridge-widget.php — version 0.4.0, safe remote health request, private non-autoloaded Meta key storage, server-side Meta proxy and optional staff inbox integration.
+- wordpress-plugin/chatbridge-widget/chatbridge-widget.php — version 0.5.1, safe remote health request, private non-autoloaded Meta key storage, server-side Meta proxy and optional staff inbox integration.
 - wordpress-plugin/chatbridge-widget/readme.txt — plugin stable version and changelog.
 - tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle, staff persistence and private admin-key regression coverage.
 - .github/workflows/tests.yml — imports the opt-in staff schema only in the disposable CI database and runs staff inbox integration tests.
@@ -50,7 +50,7 @@
 - supabase/README.md — diagnostic data minimization and existing service-role-only RLS boundary.
 
 ## Deliberately not included / external gates
-- The optional staff inbox core is implemented: opt-in schema, HMAC assertion authentication, local role/assignment authorization, versioned API, WordPress server-side proxy and separate admin UI. Initial owner provisioning is CLI-only. Conversation search, in-product role management, export/restore and shared-database multi-tenant isolation remain incomplete. Its schema is opt-in and is not part of the default deployment.
+- The optional staff inbox core is implemented: opt-in schema, HMAC assertion authentication, local role/assignment authorization, versioned API, WordPress server-side proxy and separate admin UI. Initial owner provisioning is CLI-only; owners then manage staff roles and account status in-product. Conversation search is bounded to visitor name, phone and message body. Export/restore and shared-database multi-tenant isolation remain incomplete. Its schema is opt-in and is not part of the default deployment.
 - No media/voice-note/reaction/edit/delete synchronization; WhatsApp sync is text and delivery-status scoped.
 - Meta token renewal is attempted automatically within the final seven days; operator reconnection is still required after an unrecoverable expiry.
 - Meta business verification, app review and Partner/Solution eligibility must be completed by the business in Meta.
