@@ -237,6 +237,12 @@
         row.appendChild(element('small', 'cb-staff-self-lockout', 'Your own owner access cannot be changed here.'));
       }
       save.addEventListener('click', async () => {
+        const disabling = person.status === 'active' && status.value === 'disabled';
+        const demotingOwner = person.role === 'owner' && role.value !== 'owner';
+        if ((disabling || demotingOwner)
+            && !window.confirm('Change access for ' + person.display_name + '? This may remove their ability to use the inbox.')) {
+          return;
+        }
         try {
           save.disabled = true;
           await request('chatbridge_staff_role_update', {
