@@ -137,11 +137,18 @@ staff_http_expect(
     'signed staff API returns the authenticated owner inbox'
 );
 
-[$noteStatus, $noteBody] = staff_http_request('POST', '/api/v1/staff/notes.php', [
+$noteId = uuid_v4();
+$notePayload = [
+    'id' => $noteId,
     'conversation_id' => $conversationId,
     'body' => 'Private note through HTTP.',
-]);
-staff_http_expect($noteStatus === 200 && ($noteBody['data']['created'] ?? false) === true, 'staff notes endpoint persists a private note');
+];
+[$noteStatus, $noteBody] = staff_http_request('POST', '/api/v1/staff/notes.php', $notePayload);
+[$noteRetryStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $notePayload);
+staff_http_expect(
+    $noteStatus === 200 && ($noteBody['data']['created'] ?? false) === true && $noteRetryStatus === 200,
+    'staff notes endpoint safely accepts an idempotent retry'
+);
 
 [$notesStatus, $notesBody] = staff_http_request('GET', '/api/v1/staff/notes.php?conversation_id=' . $conversationId);
 staff_http_expect(
