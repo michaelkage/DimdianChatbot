@@ -34,14 +34,14 @@ function staff_http_b64url(string $value): string
     return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
 }
 
-function staff_http_assertion(string $method, string $path, string $body = ''): string
+function staff_http_assertion(string $method, string $path, string $body = '', string $externalSubject = 'staff-http-owner'): string
 {
     global $secret;
     $payload = [
         'auth_provider' => 'http-test',
-        'external_subject' => 'staff-http-owner',
-        'display_name' => 'HTTP Staff Owner',
-        'email' => 'http-staff@example.test',
+        'external_subject' => $externalSubject,
+        'display_name' => $externalSubject === 'staff-http-owner' ? 'HTTP Staff Owner' : 'HTTP Staff Agent',
+        'email' => $externalSubject === 'staff-http-owner' ? 'http-staff@example.test' : 'http-agent@example.test',
         'iat' => time(),
         'nonce' => staff_http_b64url(random_bytes(32)),
         'method' => strtoupper($method),
@@ -52,7 +52,7 @@ function staff_http_assertion(string $method, string $path, string $body = ''): 
     return $encoded . '.' . staff_http_b64url(hash_hmac('sha256', $encoded, $secret, true));
 }
 
-function staff_http_request(string $method, string $path, ?array $body = null, bool $signed = true): array
+function staff_http_request(string $method, string $path, ?array $body = null, bool $signed = true, string $externalSubject = 'staff-http-owner'): array
 {
     global $base;
     $headers = ['Accept: application/json'];
@@ -61,7 +61,7 @@ function staff_http_request(string $method, string $path, ?array $body = null, b
         $headers[] = 'Content-Type: application/json';
         $content = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
-    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content);
+    if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content, $externalSubject);
     $context = stream_context_create(['http' => [
         'method' => $method,
         'header' => implode("\r\n", $headers),
@@ -122,6 +122,16 @@ staff_http_expect(
         && ($roleUpdateBody['data']['updated'] ?? false) === true
         && ($targetAfterRoleUpdate['role'] ?? '') === 'admin',
     'owner can update staff roles through the signed role-management endpoint'
+);
+[$adminRoleUpdateStatus] = staff_http_request('POST', '/api/v1/staff/roles.php', [
+    'staff_identity_id' => $staffId,
+    'role' => 'agent',
+    'status' => 'active',
+], true, 'staff-http-agent');
+$ownerAfterDeniedUpdate = $repository->findStaffIdentityById($staffId);
+staff_http_expect(
+    $adminRoleUpdateStatus === 403 && ($ownerAfterDeniedUpdate['role'] ?? '') === 'owner',
+    'administrator cannot change staff roles through the owner-only endpoint'
 );
 
 [$agentsStatus, $agentsBody] = staff_http_request('GET', '/api/v1/staff/agents.php');
