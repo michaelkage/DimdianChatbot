@@ -114,6 +114,26 @@ $verifiedAssertion = $hmacProvider->authenticate($assertionServer);
 staff_expect(is_array($verifiedAssertion) && $verifiedAssertion['external_subject'] === 'hmac-staff-01', 'valid server-signed staff assertion is accepted');
 staff_expect($hmacProvider->authenticate($assertionServer) === null, 'signed staff assertion nonce cannot be replayed');
 
+$wideSkewProvider = new HmacStaffIdentityProvider($assertionSecret, $repository, 300);
+$futureIssuedAt = time() + 240;
+$futureNonce = staff_base64url(random_bytes(32));
+$futurePayload = array_merge($assertionPayload, [
+    'iat' => $futureIssuedAt,
+    'nonce' => $futureNonce,
+]);
+$futureServer = $assertionServer;
+$futureServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($futurePayload, $assertionSecret);
+$futureAccepted = $wideSkewProvider->authenticate($futureServer);
+$futureNonceQuery = $pdo->prepare('SELECT expires_at FROM staff_auth_nonces WHERE nonce_sha256 = :nonce');
+$futureNonceQuery->execute([':nonce' => hash('sha256', $futureNonce)]);
+$futureNonceExpiry = $futureNonceQuery->fetchColumn();
+staff_expect(
+    is_array($futureAccepted) && is_string($futureNonceExpiry)
+        && strtotime($futureNonceExpiry . ' UTC') >= $futureIssuedAt + 300,
+    'assertion nonce retention covers the full future clock-skew acceptance window'
+);
+staff_expect($wideSkewProvider->authenticate($futureServer) === null, 'future-dated accepted assertion remains non-replayable');
+
 $wrongPathPayload = array_merge($assertionPayload, ['nonce' => staff_base64url(random_bytes(32)), 'target' => '/api/v1/staff/notes.php?status=open']);
 $wrongPathServer = $assertionServer;
 $wrongPathServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($wrongPathPayload, $assertionSecret);
