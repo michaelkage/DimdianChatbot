@@ -47,10 +47,10 @@ function staff_expect(bool $condition, string $label): void
     global $passed, $failed;
     if ($condition) {
         $passed++;
-        fwrite(STDOUT, "PASS {$label}\\n");
+        fwrite(STDOUT, "PASS {$label}\n");
     } else {
         $failed++;
-        fwrite(STDERR, "FAIL {$label}\\n");
+        fwrite(STDERR, "FAIL {$label}\n");
     }
 }
 
