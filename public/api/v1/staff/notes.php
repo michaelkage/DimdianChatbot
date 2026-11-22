@@ -25,8 +25,8 @@ if ($method === 'POST') {
         $body = staff_inbox_required_string($input, 'body', 10000);
         $id = isset($input['id']) && is_string($input['id']) ? trim($input['id']) : uuid_v4();
         if (!staff_inbox_is_uuid($id)) throw new InvalidArgumentException('id must be a UUID.');
-        $service->addInternalNote($_SERVER, $id, $conversationId, $body, app_request_id());
-        return ['id' => $id, 'created' => true];
+        $created = $service->addInternalNote($_SERVER, $id, $conversationId, $body, app_request_id());
+        return ['id' => $id, 'created' => $created];
     });
 }
 header('Allow: GET, POST');
