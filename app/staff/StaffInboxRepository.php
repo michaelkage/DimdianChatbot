@@ -26,10 +26,6 @@ interface StaffInboxRepository
     /** Atomically consume a one-time authentication nonce until its expiry. */
     public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool;
 
-    /**
-     * List conversations for the staff inbox.
-     * Status is one of open, closed or all; cursor is a message sequence cursor.
-     */
     /** @return list<array<string,mixed>> */
     public function listStaffIdentities(): array;
 
@@ -45,6 +41,12 @@ interface StaffInboxRepository
     /** @return list<array<string,mixed>> */
     public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array;
 
+    /**
+     * List conversations for the staff inbox.
+     * Status is one of open, closed or all; cursor is a message sequence cursor.
+     *
+     * @return list<array<string,mixed>>
+     */
     public function listConversations(
         string $status,
         ?string $assignedStaffId,
