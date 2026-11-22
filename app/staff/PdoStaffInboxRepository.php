@@ -490,13 +490,19 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             if ($requireAssignment) $this->requireActiveAssignment($conversationId, $staffIdentityId);
 
             $existing = $this->pdo->prepare(
-                'SELECT id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, sequence_id
-                 FROM messages WHERE conversation_id = :conversation AND client_message_id = :client_id LIMIT 1'
+                'SELECT m.id, m.conversation_id, m.client_message_id, m.sender_type, m.body,
+                        m.delivery_status, m.sent_at, m.sequence_id,
+                        author.staff_identity_id AS staff_author_id
+                 FROM messages m
+                 LEFT JOIN staff_message_authors author ON author.message_id = m.id
+                 WHERE m.conversation_id = :conversation AND m.client_message_id = :client_id LIMIT 1'
             );
             $existing->execute([':conversation' => $conversationId, ':client_id' => $clientMessageId]);
             $prior = $existing->fetch();
             if (is_array($prior)) {
-                if ($prior['sender_type'] !== 'business' || !hash_equals((string)$prior['body'], $body)) {
+                if ($prior['sender_type'] !== 'business'
+                    || $prior['staff_author_id'] !== $staffIdentityId
+                    || !hash_equals((string)$prior['body'], $body)) {
                     throw new ChatStorageConflict('The client message ID was already used for different content.');
                 }
                 return ['message' => $prior, 'inserted' => false, 'transport' => 'web_only'];
