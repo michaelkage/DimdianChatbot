@@ -25,9 +25,10 @@ function staff_inbox_service(): StaffInboxService
     if (!is_string($secret) || strlen($secret) < 32) {
         throw new RuntimeException('Staff inbox assertion secret is not configured.');
     }
+    $repository = new PdoStaffInboxRepository(database());
     return new StaffInboxService(
-        new HmacStaffIdentityProvider($secret, new PdoStaffInboxRepository(database())),
-        new PdoStaffInboxRepository(database())
+        new HmacStaffIdentityProvider($secret, $repository),
+        $repository
     );
 }
 
