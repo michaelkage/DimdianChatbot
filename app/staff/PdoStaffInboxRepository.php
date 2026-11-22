@@ -137,6 +137,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             if ($targetStaffId === $actorStaffId && ($role !== 'owner' || $status !== 'active')) {
                 throw new RuntimeException('An owner cannot demote or disable their own account. Use another active owner account.');
             }
+            if ($targetRow['role'] === $role && $targetRow['status'] === $status) {
+                return;
+            }
 
             $removingOwner = $targetRow['role'] === 'owner'
                 && $targetRow['status'] === 'active'
