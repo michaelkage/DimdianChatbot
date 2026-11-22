@@ -251,7 +251,7 @@ check(($staffAssertionPayload['method'] ?? '') === 'GET'
     && ($staffAssertionPayload['body_sha256'] ?? '') === hash('sha256', ''),
     'WordPress staff assertion binds method, query string and empty request body');
 check(($staffAssertionParts[1] ?? '') === $expectedStaffSignature, 'WordPress staff assertion uses the private HMAC secret');
-check(!str_contains(json_encode($staffProxyRequest['args']['headers']), $staffSecret), 'WordPress staff assertion secret is not sent in request headers');
+check(strpos((string) json_encode($staffProxyRequest['args']['headers']), $staffSecret) === false, 'WordPress staff assertion secret is not sent in request headers');
 
 $GLOBALS['chatbridge_remote_response'] = [
     'status' => 403,
