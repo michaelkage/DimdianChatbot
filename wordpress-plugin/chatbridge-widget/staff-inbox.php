@@ -152,7 +152,8 @@ add_action('wp_ajax_chatbridge_staff_inbox', static function (): void {
     $status = isset($_POST['status']) ? sanitize_key(wp_unslash($_POST['status'])) : 'open';
     $after = isset($_POST['after']) ? absint($_POST['after']) : 0;
     $limit = isset($_POST['limit']) ? min(100, max(1, absint($_POST['limit']))) : 50;
-    chatbridge_staff_ajax_forward('GET', 'inbox.php', [], ['status' => $status, 'after' => $after, 'limit' => $limit]);
+    $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
+    chatbridge_staff_ajax_forward('GET', 'inbox.php', [], ['status' => $status, 'after' => $after, 'limit' => $limit, 'search' => $search]);
 });
 add_action('wp_ajax_chatbridge_staff_agents', static function (): void {
     chatbridge_staff_ajax_forward('GET', 'agents.php');
@@ -191,6 +192,16 @@ add_action('wp_ajax_chatbridge_staff_assign', static function (): void {
     if ($action === 'assign') $payload['staff_identity_id'] = $staffId;
     chatbridge_staff_ajax_forward('POST', 'assignments.php', $payload);
 });
+add_action('wp_ajax_chatbridge_staff_role_update', static function (): void {
+    $staffId = isset($_POST['staff_identity_id']) ? sanitize_text_field(wp_unslash($_POST['staff_identity_id'])) : '';
+    $role = isset($_POST['role']) ? sanitize_key(wp_unslash($_POST['role'])) : '';
+    $status = isset($_POST['status']) ? sanitize_key(wp_unslash($_POST['status'])) : '';
+    chatbridge_staff_ajax_forward('POST', 'roles.php', [
+        'staff_identity_id' => $staffId,
+        'role' => $role,
+        'status' => $status,
+    ]);
+});
 add_action('wp_ajax_chatbridge_staff_audit', static function (): void {
     $conversation = isset($_POST['conversation_id']) ? sanitize_text_field(wp_unslash($_POST['conversation_id'])) : '';
     chatbridge_staff_ajax_forward('GET', 'audit.php', [], ['conversation_id' => $conversation, 'after' => 0, 'limit' => 50]);
@@ -227,8 +238,14 @@ function chatbridge_staff_inbox_render_page(): void
             <div class="notice notice-warning"><p><?php esc_html_e('The staff inbox is not configured. Enable it and save the shared assertion secret under Settings → ChatBridge Widget, then enable the optional schema and staff inbox on your ChatBridge service.', 'chatbridge-widget'); ?></p></div>
         <?php endif; ?>
         <div id="chatbridge-staff-inbox" class="cb-staff-app">
+            <section id="cb-staff-role-panel" class="cb-staff-role-panel" hidden>
+                <h2><?php esc_html_e('Staff access', 'chatbridge-widget'); ?></h2>
+                <p><?php esc_html_e('Only the owner can change staff roles or disable accounts. New identities start as agents.', 'chatbridge-widget'); ?></p>
+                <div id="cb-staff-role-list"><p class="cb-staff-empty"><?php esc_html_e('Loading staff…', 'chatbridge-widget'); ?></p></div>
+            </section>
             <div class="cb-staff-toolbar">
                 <label for="cb-staff-status"><?php esc_html_e('Conversations', 'chatbridge-widget'); ?></label>
+                <input type="search" id="cb-staff-search" maxlength="100" placeholder="<?php esc_attr_e('Search name, phone or message…', 'chatbridge-widget'); ?>" />
                 <select id="cb-staff-status">
                     <option value="open"><?php esc_html_e('Open', 'chatbridge-widget'); ?></option>
                     <option value="closed"><?php esc_html_e('Closed', 'chatbridge-widget'); ?></option>
