@@ -295,13 +295,11 @@
 
   $('cb-staff-refresh').addEventListener('click', refresh);
   $('cb-staff-status').addEventListener('change', () => {
-    state.activeId = null;
     refresh();
   });
   $('cb-staff-search').addEventListener('input', () => {
     window.clearTimeout(state.searchTimer);
     state.searchTimer = window.setTimeout(() => {
-      state.activeId = null;
       refresh();
     }, 250);
   });
