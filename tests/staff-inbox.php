@@ -332,6 +332,8 @@ staff_expect(
     count(array_filter($searchResults, static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
     'conversation search finds conversations by message body'
 );
+$privateNoteSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'Internal-only note.');
+staff_expect($privateNoteSearch === [], 'conversation search never indexes private internal-note bodies');
 $nameSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'Search Visitor');
 $phoneSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, '+2348012345678');
 $wildcardSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, '%');
