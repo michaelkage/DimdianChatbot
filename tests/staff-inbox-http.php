@@ -178,7 +178,7 @@ staff_http_expect($conflictingNoteStatus === 409, 'staff notes endpoint rejects 
 $longNotePayload = [
     'id' => uuid_v4(),
     'conversation_id' => $conversationId,
-    'body' => str_repeat("\\u{1F600}", 1500),
+    'body' => str_repeat("\u{1F600}", 1500),
 ];
 [$longNoteStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $longNotePayload);
 staff_http_expect($longNoteStatus === 200, 'notes endpoint accepts multi-byte text within its character limit');
@@ -215,7 +215,7 @@ staff_http_expect(
 
 $longReplyPayload = [
     'conversation_id' => $conversationId,
-    'message' => str_repeat("\\u{1F600}", 1000),
+    'message' => str_repeat("\u{1F600}", 1000),
     'client_message_id' => uuid_v4(),
 ];
 [$longReplyStatus] = staff_http_request('POST', '/api/v1/staff/replies.php', $longReplyPayload);
