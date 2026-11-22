@@ -75,11 +75,11 @@ final class StaffInboxService
     }
 
     /** @return list<array<string,mixed>> */
-    public function listConversations(array $server, string $status, int $afterSequence, int $limit): array
+    public function listConversations(array $server, string $status, int $afterSequence, int $limit, string $search = ''): array
     {
         $actor = $this->authenticate($server);
         $assignedTo = self::isAdministrator($actor) ? null : (string)$actor['id'];
-        return $this->repository->listConversations($status, $assignedTo, $afterSequence, $limit, !self::isAdministrator($actor));
+        return $this->repository->listConversations($status, $assignedTo, $afterSequence, $limit, !self::isAdministrator($actor), $search);
     }
 
     public function assignConversation(
@@ -117,6 +117,22 @@ final class StaffInboxService
     }
 
     /** @return list<array<string,mixed>> */
+    public function updateStaffIdentityAccess(
+        array $server,
+        string $targetStaffId,
+        string $role,
+        string $status,
+        ?string $requestId = null
+    ): void {
+        $actor = $this->authenticate($server);
+        if (($actor['role'] ?? '') !== 'owner') {
+            throw new StaffInboxAuthorizationException('Only the owner can manage staff roles and access.');
+        }
+        $this->repository->updateStaffIdentityAccess(
+            $targetStaffId, (string)$actor['id'], $role, $status, $requestId
+        );
+    }
+
     public function listStaffIdentities(array $server): array
     {
         $actor = $this->authenticate($server);
