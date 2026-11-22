@@ -272,6 +272,26 @@ try {
 $stillOwner = $repository->findStaffIdentityById($resolvedA);
 staff_expect($lastOwnerProtected && ($stillOwner['role'] ?? '') === 'owner', 'last active owner cannot be demoted');
 
+$selfDemotionRejected = false;
+try {
+    $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedA, 'agent', 'active', 'staff-test-self-demotion');
+} catch (RuntimeException) {
+    $selfDemotionRejected = true;
+}
+$selfDisableRejected = false;
+try {
+    $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedA, 'owner', 'disabled', 'staff-test-self-disable');
+} catch (RuntimeException) {
+    $selfDisableRejected = true;
+}
+$selfStillOwner = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $selfDemotionRejected && $selfDisableRejected
+        && ($selfStillOwner['role'] ?? '') === 'owner'
+        && ($selfStillOwner['status'] ?? '') === 'active',
+    'owner cannot accidentally demote or disable their own active account'
+);
+
 $searchResults = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'A reply from the staff inbox.');
 staff_expect(
     count(array_filter($searchResults, static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
