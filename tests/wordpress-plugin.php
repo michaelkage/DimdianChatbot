@@ -8,6 +8,23 @@ declare(strict_types=1);
 define('ABSPATH', __DIR__ . '/');
 define('MINUTE_IN_SECONDS', 60);
 
+final class WP_Error
+{
+    private string $code;
+    private string $message;
+    private $data;
+
+    public function __construct(string $code, string $message = '', $data = null)
+    {
+        $this->code = $code;
+        $this->message = $message;
+        $this->data = $data;
+    }
+    public function get_error_code(): string { return $this->code; }
+    public function get_error_message(): string { return $this->message; }
+    public function get_error_data() { return $this->data; }
+}
+
 final class WP_REST_Server
 {
     public const READABLE = 'GET';
@@ -87,6 +104,8 @@ $GLOBALS['chatbridge_options'] = [];
 $GLOBALS['chatbridge_wc_args'] = null;
 $GLOBALS['chatbridge_wc_queries'] = [];
 $GLOBALS['chatbridge_store_api_params'] = [];
+$GLOBALS['chatbridge_remote_response'] = ['status' => 200, 'body' => '{"data":[]}'];
+$GLOBALS['chatbridge_remote_request'] = null;
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
 {
@@ -96,6 +115,18 @@ function register_rest_route(string $namespace, string $route, array $args): voi
 {
     $GLOBALS['chatbridge_routes'][$namespace . $route] = $args;
 }
+function __ (string $text, string $domain = ''): string { return $text; }
+function wp_json_encode($value) { return json_encode($value); }
+function wp_get_current_user() {
+    return (object) ['ID' => 7, 'display_name' => 'Test Staff', 'user_login' => 'test-staff', 'user_email' => 'staff@example.test'];
+}
+function wp_safe_remote_request(string $url, array $args) {
+    $GLOBALS['chatbridge_remote_request'] = ['url' => $url, 'args' => $args];
+    return $GLOBALS['chatbridge_remote_response'];
+}
+function wp_remote_retrieve_response_code(array $response): int { return (int) ($response['status'] ?? 0); }
+function wp_remote_retrieve_body(array $response): string { return (string) ($response['body'] ?? ''); }
+function is_wp_error($value): bool { return $value instanceof WP_Error; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
 function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_option_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
@@ -198,6 +229,53 @@ check(!array_key_exists('staff_assertion_secret', $staffSettings), 'staff assert
 $GLOBALS['chatbridge_options']['chatbridge_widget_settings'] = $staffSettings;
 check(chatbridge_staff_inbox_is_configured(), 'staff inbox becomes configured only with enabled flag, HTTPS API and private secret');
 
+$GLOBALS['chatbridge_remote_response'] = ['status' => 200, 'body' => json_encode(['data' => ['items' => []]])];
+$staffProxyResult = chatbridge_staff_proxy_request('GET', 'inbox.php', [], ['status' => 'open', 'search' => 'a+b']);
+$staffProxyRequest = $GLOBALS['chatbridge_remote_request'];
+$staffAssertion = $staffProxyRequest['args']['headers']['X-ChatBridge-Staff-Assertion'] ?? '';
+$staffAssertionParts = explode('.', $staffAssertion);
+$staffAssertionPayload = [];
+if (count($staffAssertionParts) === 2) {
+    $payloadEncoded = strtr($staffAssertionParts[0], '-_', '+/');
+    $payloadEncoded .= str_repeat('=', (4 - strlen($payloadEncoded) % 4) % 4);
+    $staffAssertionPayload = json_decode((string) base64_decode($payloadEncoded, true), true) ?: [];
+}
+$staffSecret = str_repeat('staff-secret-', 4);
+$expectedStaffSignature = count($staffAssertionParts) === 2
+    ? rtrim(strtr(base64_encode(hash_hmac('sha256', $staffAssertionParts[0], $staffSecret, true)), '+/', '-_'), '=')
+    : '';
+check(is_array($staffProxyResult) && ($staffProxyResult['items'] ?? null) === [], 'WordPress staff proxy returns successful API data');
+check(($staffProxyRequest['url'] ?? '') === 'https://chat.example.test/api/v1/staff/inbox.php?status=open&search=a%2Bb', 'WordPress staff proxy preserves the exact signed request target');
+check(($staffAssertionPayload['method'] ?? '') === 'GET'
+    && ($staffAssertionPayload['target'] ?? '') === '/api/v1/staff/inbox.php?status=open&search=a%2Bb'
+    && ($staffAssertionPayload['body_sha256'] ?? '') === hash('sha256', ''),
+    'WordPress staff assertion binds method, query string and empty request body');
+check(($staffAssertionParts[1] ?? '') === $expectedStaffSignature, 'WordPress staff assertion uses the private HMAC secret');
+check(!str_contains(json_encode($staffProxyRequest['args']['headers']), $staffSecret), 'WordPress staff assertion secret is not sent in request headers');
+
+$GLOBALS['chatbridge_remote_response'] = [
+    'status' => 403,
+    'body' => json_encode(['error' => ['code' => 'forbidden', 'message' => 'Owner access required.']]),
+];
+$staffProxyForbidden = chatbridge_staff_proxy_request('POST', 'roles.php', ['role' => 'owner']);
+check(is_wp_error($staffProxyForbidden)
+    && ($staffProxyForbidden->get_error_data()['status'] ?? 0) === 403,
+    'WordPress staff proxy preserves upstream authorization status');
+
+$GLOBALS['chatbridge_remote_response'] = ['status' => 200, 'body' => json_encode(['data' => ['created' => true]])];
+$staffProxyPost = chatbridge_staff_proxy_request('POST', 'notes.php', ['body' => 'Private note']);
+$staffPostRequest = $GLOBALS['chatbridge_remote_request'];
+$staffPostParts = explode('.', $staffPostRequest['args']['headers']['X-ChatBridge-Staff-Assertion'] ?? '');
+$staffPostPayload = [];
+if (count($staffPostParts) === 2) {
+    $postEncoded = strtr($staffPostParts[0], '-_', '+/');
+    $postEncoded .= str_repeat('=', (4 - strlen($postEncoded) % 4) % 4);
+    $staffPostPayload = json_decode((string) base64_decode($postEncoded, true), true) ?: [];
+}
+check(is_array($staffProxyPost) && ($staffProxyPost['created'] ?? false) === true
+    && ($staffPostPayload['method'] ?? '') === 'POST'
+    && ($staffPostPayload['body_sha256'] ?? '') === hash('sha256', $staffPostRequest['args']['body'] ?? ''),
+    'WordPress staff proxy signs the exact JSON request body');
 
 $disabled = chatbridge_widget_search_products(new WP_REST_Request(['search' => 'brake']));
 check($disabled->get_status() === 403, 'public endpoint respects the administrator product-search toggle');
