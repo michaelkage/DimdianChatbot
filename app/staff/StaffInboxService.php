@@ -170,10 +170,10 @@ final class StaffInboxService
         string $conversationId,
         string $body,
         ?string $requestId = null
-    ): void {
+    ): bool {
         $actor = $this->authenticate($server);
         try {
-            $this->repository->addInternalNote(
+            return $this->repository->addInternalNote(
                 $id, $conversationId, (string)$actor['id'], $body, $requestId, !self::isAdministrator($actor)
             );
         } catch (StaffInboxAssignmentException) {
