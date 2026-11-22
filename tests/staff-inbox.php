@@ -244,6 +244,36 @@ $ownerService = new StaffInboxService(new StaffTestIdentityProvider([
     'display_name' => 'Agent A',
     'email' => 'agent-a@example.test',
 ]), $repository);
+$agentCannotManageRoles = false;
+try {
+    $agentService->updateStaffIdentityAccess($agentServer, $resolvedA, 'admin', 'active');
+} catch (StaffInboxAuthorizationException) {
+    $agentCannotManageRoles = true;
+}
+staff_expect($agentCannotManageRoles, 'agents cannot manage staff roles or account status');
+
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'admin', 'active', 'staff-test-promote');
+$promoted = $repository->findStaffIdentityById($resolvedB);
+staff_expect(($promoted['role'] ?? '') === 'admin', 'owner can promote a staff identity in product policy');
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'active', 'staff-test-demote');
+$restored = $repository->findStaffIdentityById($resolvedB);
+staff_expect(($restored['role'] ?? '') === 'agent', 'owner can change a staff identity back to agent');
+
+$lastOwnerProtected = false;
+try {
+    $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedA, 'admin', 'active', 'staff-test-last-owner');
+} catch (RuntimeException) {
+    $lastOwnerProtected = true;
+}
+$stillOwner = $repository->findStaffIdentityById($resolvedA);
+staff_expect($lastOwnerProtected && ($stillOwner['role'] ?? '') === 'owner', 'last active owner cannot be demoted');
+
+$searchResults = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'A reply from the staff inbox.');
+staff_expect(
+    count(array_filter($searchResults, static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
+    'conversation search finds conversations by message body'
+);
+
 $agentServer = ['HTTP_AUTHORIZATION' => 'Bearer test-agent-token'];
 $ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
 $agentIdentity = $agentService->authenticate($agentServer);
