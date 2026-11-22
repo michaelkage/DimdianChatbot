@@ -150,6 +150,36 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                  WHERE id = :id'
             );
             $update->execute([':role' => $role, ':status' => $status, ':id' => $targetStaffId]);
+
+            if ($status === 'disabled' && $targetRow['status'] === 'active') {
+                // Release current work atomically with account deactivation. Do not
+                // lock conversation rows here: assignment writers lock conversations
+                // before staff rows, so this avoids reversing their lock order.
+                $activeAssignments = $this->pdo->prepare(
+                    'SELECT id, conversation_id FROM staff_conversation_assignments
+                     WHERE staff_identity_id = :staff AND ended_at IS NULL ORDER BY id FOR UPDATE'
+                );
+                $activeAssignments->execute([':staff' => $targetStaffId]);
+                $endAssignment = $this->pdo->prepare(
+                    'UPDATE staff_conversation_assignments
+                     SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
+                     WHERE id = :id AND ended_at IS NULL'
+                );
+                foreach ($activeAssignments->fetchAll() as $assignment) {
+                    $endAssignment->execute([':id' => $assignment['id']]);
+                    if ($endAssignment->rowCount() === 1) {
+                        $this->recordAudit(
+                            $actorStaffId,
+                            (string)$assignment['conversation_id'],
+                            'conversation.unassigned',
+                            $targetStaffId,
+                            ['reason' => 'staff_disabled'],
+                            $requestId
+                        );
+                    }
+                }
+            }
+
             $this->recordAudit(
                 $actorStaffId,
                 null,
@@ -549,7 +579,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
     private function requireActiveStaff(string $staffIdentityId): void
     {
         $query = $this->pdo->prepare(
-            'SELECT status FROM staff_identities WHERE id = :id LIMIT 1'
+            'SELECT status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
         );
         $query->execute([':id' => $staffIdentityId]);
         if ($query->fetchColumn() !== 'active') {
