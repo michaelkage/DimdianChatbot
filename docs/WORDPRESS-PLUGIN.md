@@ -80,7 +80,7 @@ This adapter runs on the WordPress site itself. The remote chat backend does not
 
 ## Meta Embedded Signup v4 (administrator only)
 
-Plugin version 0.4.0 adds an operator-only Embedded Signup section to Settings → ChatBridge Widget. Save the PHP service's private Meta admin API key and the Partner Solution ID, then use **Connect WhatsApp Business account**. The plugin requests a one-time state from the PHP service, loads the Meta JavaScript SDK, and calls the backend through authenticated WordPress AJAX handlers. The admin key stays in a separate non-autoloaded WordPress option and is never sent to the browser.
+Plugin version 0.5.1 adds an operator-only Embedded Signup section and the optional staff inbox integration to Settings → ChatBridge Widget. Save the PHP service's private Meta admin API key and the Partner Solution ID, then use **Connect WhatsApp Business account**. The plugin requests a one-time state from the PHP service, loads the Meta JavaScript SDK, and calls the backend through authenticated WordPress AJAX handlers. The admin key stays in a separate non-autoloaded WordPress option and is never sent to the browser.
 
 Meta returns the authorization code and a WhatsApp signup completion event. The plugin forwards the code, WABA ID and Phone Number ID to the PHP service over HTTPS. If Meta does not include an identifier, an administrator can enter it in the two manual ID fields. The backend exchanges the code, stores the access token encrypted and subscribes the WABA to webhooks. If subscription fails, use **Retry webhook subscription** after checking Meta app permissions.
 
