@@ -31,6 +31,7 @@
   border-top: 1px solid var(--cb-border);
 }
 .cb-staff-role-name { flex: 1; min-width: 180px; overflow-wrap: anywhere; }
+.cb-staff-self-lockout { flex: 1 1 100%; color: var(--cb-muted); font-size: 12px; }
 .cb-staff-role-row select { max-width: 130px; }
 #cb-staff-status-text { color: var(--cb-muted); margin-left: auto; }
 #cb-staff-status-text.is-error { color: #b32d2e; }
