@@ -4,7 +4,7 @@ Tags: chat, whatsapp, customer-support, live-chat
 Requires at least: 6.3
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,13 @@ The plugin sends a visitor's browser to the configured ChatBridge service to loa
 The admin health-check button makes a server-side HTTPS request from WordPress to the configured API's `/health.php` endpoint. It sends no WhatsApp token or customer conversation data.
 
 == Changelog ==
+
+= 0.5.1 =
+* Add optional ChatBridge Inbox with conversation search, assignment controls, private notes and website-only replies.
+* Add owner-managed staff roles and account disable/re-enable controls.
+* Keep the HMAC assertion secret server-side and outside autoloaded options.
+* Make staff replies and private-note retries idempotent in the service.
+
 
 = 0.4.0 =
 * Add optional read-only WooCommerce product search and SKU lookup.
