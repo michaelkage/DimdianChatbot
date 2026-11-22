@@ -9,6 +9,7 @@ staff_inbox_dispatch(static function (): array {
     $after = staff_inbox_query_int('after', 0, 0, PHP_INT_MAX);
     $limit = staff_inbox_query_int('limit', 50, 1, 100);
     $search = isset($_GET['search']) && is_string($_GET['search']) ? trim($_GET['search']) : '';
-    if (strlen($search) > 100) throw new InvalidArgumentException('search must be 100 characters or fewer.');
+    $searchLength = preg_match_all('/./us', $search);
+    if ($searchLength === false || $searchLength > 100) throw new InvalidArgumentException('search must be 100 characters or fewer.');
     return ['items' => staff_inbox_service()->listConversations($_SERVER, $status, $after, $limit, $search)];
 });
