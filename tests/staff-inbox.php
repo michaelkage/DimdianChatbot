@@ -151,8 +151,9 @@ $assignmentState = $assignmentCounts->fetch();
 staff_expect((int)$assignmentState['total'] === 2 && (int)$assignmentState['active'] === 1, 'reassignment retains history and enforces one active assignee');
 
 $noteId = uuid_v4();
-$repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note');
-$repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note-retry');
+$firstNoteCreated = $repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note');
+$retryNoteCreated = $repository->addInternalNote($noteId, $conversationId, $resolvedA, 'Internal-only note.', 'staff-test-note-retry');
+staff_expect($firstNoteCreated && !$retryNoteCreated, 'note repository distinguishes first insert from an idempotent replay');
 $notes = $repository->listInternalNotes($conversationId, 0, 20);
 $noteFound = count($notes) === 1 && $notes[0]['body'] === 'Internal-only note.';
 $noteConflict = false;
