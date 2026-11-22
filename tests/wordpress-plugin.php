@@ -274,6 +274,7 @@ if (count($staffPostParts) === 2) {
 }
 check(is_array($staffProxyPost) && ($staffProxyPost['created'] ?? false) === true
     && ($staffPostPayload['method'] ?? '') === 'POST'
+    && ($staffPostPayload['target'] ?? '') === '/api/v1/staff/notes.php'
     && ($staffPostPayload['body_sha256'] ?? '') === hash('sha256', $staffPostRequest['args']['body'] ?? ''),
     'WordPress staff proxy signs the exact JSON request body');
 
