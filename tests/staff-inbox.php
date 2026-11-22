@@ -404,7 +404,9 @@ try {
 }
 staff_expect($unauthenticatedRejected, 'missing verified external identity fails closed');
 
-$pdo->prepare('UPDATE staff_identities SET status = "disabled" WHERE id = :id')->execute([':id' => $resolvedB]);
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'disabled', 'staff-test-disable');
+$disabledState = $repository->findStaffIdentityById($resolvedB);
+staff_expect(($disabledState['status'] ?? '') === 'disabled', 'owner can disable a staff identity');
 $disabledRejected = false;
 try {
     $repository->addInternalNote(uuid_v4(), $conversationId, $resolvedB, 'Should not be accepted.');
@@ -412,6 +414,9 @@ try {
     $disabledRejected = true;
 }
 staff_expect($disabledRejected, 'disabled staff identities cannot create private notes');
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'active', 'staff-test-enable');
+$reenabled = $repository->findStaffIdentityById($resolvedB);
+staff_expect(($reenabled['status'] ?? '') === 'active', 'owner can re-enable a disabled staff identity');
 
 fwrite(STDOUT, "\n{$passed} passed; {$failed} failed.\n");
 exit($failed === 0 ? 0 : 1);
