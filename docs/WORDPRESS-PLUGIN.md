@@ -89,7 +89,7 @@ This screen is available only to WordPress users with manage_options and uses a 
 
 ## Optional staff inbox
 
-The WordPress connector includes a separate **ChatBridge Inbox** admin page. It is disabled by default and is independent of the visitor-facing widget. When deliberately enabled, authorized WordPress users can view conversations, assign or self-assign work, add private internal notes and send website-only replies. Internal notes are stored separately from customer messages. Replies from this inbox do not automatically go to WhatsApp.
+The WordPress connector includes a separate **ChatBridge Inbox** admin page. It is disabled by default and is independent of the visitor-facing widget. When deliberately enabled, authorized WordPress users can view and search conversations by visitor name, phone number or message content, assign or self-assign work, add private internal notes and send website-only replies. Owners can manage staff roles and disable/re-enable accounts from the inbox. Internal notes are stored separately from customer messages. Replies from this inbox do not automatically go to WhatsApp.
 
 ### Enablement
 
@@ -104,10 +104,10 @@ The WordPress connector includes a separate **ChatBridge Inbox** admin page. It 
    ```
 
    Replace `123` with the actual WordPress user ID. The script is CLI-only and only updates an already-provisioned active identity. It does not create an identity or accept a browser-supplied role.
-6. Sign in to the inbox again. The owner can view all conversations and assign work. Other identities are agents by default; operators can provision `admin` or `agent` roles with the same CLI command.
+6. Sign in to the inbox again. The owner can view all conversations, assign work and manage staff roles/status from the inbox. Other identities are agents by default; operators can still provision `admin` or `agent` roles with the same CLI command. Owners cannot demote or disable the last active owner, and cannot accidentally disable their own active account.
 
 The WordPress AJAX proxy checks the current WordPress login, capability and nonce, then signs the exact HTTP method, request target (including query string), request-body digest and a one-time nonce. The ChatBridge service verifies that assertion and applies its own local role and assignment policy. Use HTTPS end-to-end and keep both server clocks synchronized. The optional schema is currently for one business per database; it is not a shared multi-tenant database design.
 
 To disable the feature, set `staff_inbox.enabled = false` on the service and disable the WordPress setting. Disabling it stops API access but does not delete staff records or conversation history. Retention cleanup removes staff notes, assignments, message-author links, audit rows and expired auth nonces for old closed conversations when the module is enabled.
 
-This is the core staff-inbox workflow, not a full helpdesk: conversation search, in-product role administration, export tooling and multi-tenant shared-database isolation are not included yet.
+This is the core staff-inbox workflow, not a full helpdesk: export/restore tooling and shared-database multi-tenant isolation are not included. Search is bounded substring matching over visitor name, phone and message bodies, not a dedicated full-text index. Staff reply and note writes use client-generated IDs so safe retries do not create duplicate records.
