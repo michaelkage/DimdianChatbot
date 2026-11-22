@@ -505,6 +505,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                     || !hash_equals((string)$prior['body'], $body)) {
                     throw new ChatStorageConflict('The client message ID was already used for different content.');
                 }
+                unset($prior['staff_author_id']);
                 return ['message' => $prior, 'inserted' => false, 'transport' => 'web_only'];
             }
 
