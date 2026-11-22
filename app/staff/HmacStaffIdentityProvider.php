@@ -74,7 +74,7 @@ final class HmacStaffIdentityProvider implements StaffIdentityProvider
             return null;
         }
 
-        $expiresAt = gmdate('Y-m-d H:i:s', time() + 120);
+        $expiresAt = gmdate('Y-m-d H:i:s', max(time(), $issuedAt) + $this->clockSkewSeconds + 1);
         if (!$this->repository->consumeStaffAuthNonce(hash('sha256', $nonce), $expiresAt)) {
             return null;
         }
