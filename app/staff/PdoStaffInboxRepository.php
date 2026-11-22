@@ -410,6 +410,20 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $conversation->execute([':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) throw new RuntimeException('Conversation does not exist.');
             if ($requireAssignment) $this->requireActiveAssignment($conversationId, $authorStaffId);
+            $existing = $this->pdo->prepare(
+                'SELECT conversation_id, author_staff_id, body
+                 FROM staff_internal_notes WHERE id = :id LIMIT 1'
+            );
+            $existing->execute([':id' => $id]);
+            $prior = $existing->fetch();
+            if (is_array($prior)) {
+                if ($prior['conversation_id'] !== $conversationId
+                    || $prior['author_staff_id'] !== $authorStaffId
+                    || !hash_equals((string)$prior['body'], $body)) {
+                    throw new ChatStorageConflict('The note ID was already used for different content.');
+                }
+                return;
+            }
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_internal_notes
                     (id, conversation_id, author_staff_id, body, created_at)
