@@ -5,7 +5,7 @@
   if (!root || !window.ChatBridgeStaffInbox) return;
 
   const $ = (id) => document.getElementById(id);
-  const state = { me: null, conversations: [], activeId: null, agents: [], staff: [], searchTimer: null, inboxRequestId: 0 };
+  const state = { me: null, conversations: [], activeId: null, agents: [], staff: [], searchTimer: null, inboxRequestId: 0, threadRequestId: 0, pendingReply: null, pendingNote: null };
   const statusText = $('cb-staff-status-text');
 
   function setStatus(message, isError) {
@@ -161,7 +161,8 @@
 
   async function loadConversation(id) {
     const conversation = state.conversations.find((item) => item.id === id);
-    if (!conversation) return;
+    if (!conversation) return false;
+    const requestId = ++state.threadRequestId;
     state.activeId = id;
     $('cb-staff-thread-title').textContent = conversation.visitor_name || 'Website visitor';
     $('cb-staff-thread-subtitle').textContent =
@@ -172,8 +173,10 @@
       request('chatbridge_staff_messages', { conversation_id: id, after: 0 }),
       request('chatbridge_staff_notes', { conversation_id: id, after: 0 })
     ]);
+    if (requestId !== state.threadRequestId || state.activeId !== id) return false;
     renderMessages(messages.items || []);
     renderNotes(notes.items || []);
+    return true;
   }
 
   async function selectConversation(id) {
@@ -306,35 +309,53 @@
   $('cb-staff-send').addEventListener('click', async () => {
     const conversation = currentConversation();
     const message = $('cb-staff-reply').value.trim();
-    if (!conversation || !message) return;
+    const button = $('cb-staff-send');
+    if (!conversation || !message || button.disabled) return;
+    if (!state.pendingReply || state.pendingReply.conversationId !== conversation.id || state.pendingReply.body !== message) {
+      state.pendingReply = { conversationId: conversation.id, body: message, id: uuidV4() };
+    }
+    const clientMessageId = state.pendingReply.id;
+    button.disabled = true;
     try {
       setStatus('Sending website reply…', false);
       await request('chatbridge_staff_reply', {
         conversation_id: conversation.id,
         message: message,
-        client_message_id: uuidV4()
+        client_message_id: clientMessageId
       });
-      $('cb-staff-reply').value = '';
+      state.pendingReply = null;
+      if ($('cb-staff-reply').value.trim() === message) $('cb-staff-reply').value = '';
       await loadConversation(conversation.id);
       setStatus('Reply sent to the website conversation.', false);
     } catch (error) {
       setStatus(error.message, true);
+    } finally {
+      button.disabled = false;
     }
   });
 
   $('cb-staff-add-note').addEventListener('click', async () => {
     const conversation = currentConversation();
     const body = $('cb-staff-note').value.trim();
-    if (!conversation || !body) return;
+    const button = $('cb-staff-add-note');
+    if (!conversation || !body || button.disabled) return;
+    if (!state.pendingNote || state.pendingNote.conversationId !== conversation.id || state.pendingNote.body !== body) {
+      state.pendingNote = { conversationId: conversation.id, body: body, id: uuidV4() };
+    }
+    const noteId = state.pendingNote.id;
+    button.disabled = true;
     try {
       setStatus('Saving private note…', false);
-      await request('chatbridge_staff_note_create', { conversation_id: conversation.id, body: body });
-      $('cb-staff-note').value = '';
+      await request('chatbridge_staff_note_create', { conversation_id: conversation.id, body: body, id: noteId });
+      state.pendingNote = null;
+      if ($('cb-staff-note').value.trim() === body) $('cb-staff-note').value = '';
       const notes = await request('chatbridge_staff_notes', { conversation_id: conversation.id, after: 0 });
-      renderNotes(notes.items || []);
+      if (state.activeId === conversation.id) renderNotes(notes.items || []);
       setStatus('Private note saved. It is not visible to the customer.', false);
     } catch (error) {
       setStatus(error.message, true);
+    } finally {
+      button.disabled = false;
     }
   });
 
