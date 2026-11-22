@@ -61,6 +61,8 @@ $staffB = uuid_v4();
 $pdo->prepare(
     'INSERT INTO guests (id, created_at, updated_at) VALUES (:id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $guestId]);
+$pdo->prepare('UPDATE guests SET display_name = :name, phone = :phone WHERE id = :id')
+    ->execute([':name' => 'Search Visitor', ':phone' => '+2348012345678', ':id' => $guestId]);
 $pdo->prepare(
     'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
      VALUES (:id, :guest, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -275,6 +277,12 @@ staff_expect(
     count(array_filter($searchResults, static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
     'conversation search finds conversations by message body'
 );
+$nameSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'Search Visitor');
+$phoneSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, '+2348012345678');
+$wildcardSearch = $ownerService->listConversations($ownerServer, 'open', 0, 50, '%');
+staff_expect(count(array_filter($nameSearch, static fn(array $row): bool => $row['id'] === $conversationId)) === 1, 'conversation search finds visitor names');
+staff_expect(count(array_filter($phoneSearch, static fn(array $row): bool => $row['id'] === $conversationId)) === 1, 'conversation search finds visitor phone numbers');
+staff_expect($wildcardSearch === [], 'conversation search treats SQL wildcard characters literally');
 
 $agentServer = ['HTTP_AUTHORIZATION' => 'Bearer test-agent-token'];
 $ownerServer = ['HTTP_AUTHORIZATION' => 'Bearer test-owner-token'];
