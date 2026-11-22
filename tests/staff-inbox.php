@@ -197,6 +197,13 @@ $reply = [
 ];
 $created = $repository->createStaffReply($reply, $resolvedB, 'staff-test-reply');
 $replayed = $repository->createStaffReply(array_merge($reply, ['id' => uuid_v4()]), $resolvedB, 'staff-test-reply-replay');
+$crossAuthorReplayRejected = false;
+try {
+    $repository->createStaffReply(array_merge($reply, ['id' => uuid_v4()]), $resolvedA, 'staff-test-cross-author-replay');
+} catch (ChatStorageConflict) {
+    $crossAuthorReplayRejected = true;
+}
+staff_expect($crossAuthorReplayRejected, 'staff reply idempotency keys cannot be replayed by another staff author');
 $author = $pdo->prepare('SELECT staff_identity_id FROM staff_message_authors WHERE message_id = :id');
 $author->execute([':id' => $created['message']['id']]);
 $outbox = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = :id');
