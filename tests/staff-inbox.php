@@ -283,8 +283,9 @@ try {
     $lastOwnerProtected = true;
 }
 $stillOwner = $repository->findStaffIdentityById($resolvedA);
-staff_expect($lastOwnerProtected && ($stillOwner['role'] ?? '') === 'owner', 'last active owner cannot be demoted');
+staff_expect($lastOwnerProtected && ($stillOwner['role'] ?? '') === 'owner', 'only active owner cannot remove its own owner access');
 
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'owner', 'active', 'staff-test-second-owner');
 $selfDemotionRejected = false;
 try {
     $ownerService->updateStaffIdentityAccess($ownerServer, $resolvedA, 'agent', 'active', 'staff-test-self-demotion');
@@ -302,8 +303,9 @@ staff_expect(
     $selfDemotionRejected && $selfDisableRejected
         && ($selfStillOwner['role'] ?? '') === 'owner'
         && ($selfStillOwner['status'] ?? '') === 'active',
-    'owner cannot accidentally demote or disable their own active account'
+    'owner cannot demote or disable its own account even when another owner exists'
 );
+$ownerService->updateStaffIdentityAccess($ownerServer, $resolvedB, 'agent', 'active', 'staff-test-remove-second-owner');
 
 $searchResults = $ownerService->listConversations($ownerServer, 'open', 0, 50, 'A reply from the staff inbox.');
 staff_expect(
