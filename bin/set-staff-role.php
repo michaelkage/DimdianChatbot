@@ -33,8 +33,16 @@ try {
     $pdo = database();
     $pdo->beginTransaction();
 
+    // Lock active owners in a stable order before changing any role. This
+    // mirrors the API invariant and prevents the CLI from removing the final owner.
+    $owners = $pdo->query(
+        'SELECT id FROM staff_identities
+         WHERE role = "owner" AND status = "active"
+         ORDER BY id FOR UPDATE'
+    )->fetchAll(PDO::FETCH_COLUMN);
+
     $lookup = $pdo->prepare(
-        'SELECT id, display_name, status FROM staff_identities
+        'SELECT id, display_name, role, status FROM staff_identities
          WHERE auth_provider = :provider AND external_subject = :subject
          LIMIT 1 FOR UPDATE'
     );
@@ -47,11 +55,24 @@ try {
         exit(1);
     }
 
+    if (($identity['role'] ?? '') === 'owner' && $role !== 'owner' && count($owners) <= 1) {
+        $pdo->rollBack();
+        fwrite(STDERR, "The last active owner cannot be demoted. Provision another active owner first.\\n");
+        exit(1);
+    }
+
     $update = $pdo->prepare(
         'UPDATE staff_identities SET role = :role, updated_at = UTC_TIMESTAMP() WHERE id = :id'
     );
     $update->execute([':role' => $role, ':id' => $identity['id']]);
     $pdo->commit();
+
+    app_log_event('staff_inbox.role_provisioned', [
+        'endpoint' => 'staff_role_provision',
+        'staff_identity_id' => (string)$identity['id'],
+        'previous_role' => (string)$identity['role'],
+        'new_role' => $role,
+    ]);
 
     fwrite(STDOUT, json_encode([
         'staff_identity_id' => $identity['id'],
