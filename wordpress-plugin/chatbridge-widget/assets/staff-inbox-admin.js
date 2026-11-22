@@ -5,7 +5,7 @@
   if (!root || !window.ChatBridgeStaffInbox) return;
 
   const $ = (id) => document.getElementById(id);
-  const state = { me: null, conversations: [], activeId: null, agents: [], staff: [], searchTimer: null };
+  const state = { me: null, conversations: [], activeId: null, agents: [], staff: [], searchTimer: null, inboxRequestId: 0 };
   const statusText = $('cb-staff-status-text');
 
   function setStatus(message, isError) {
@@ -45,9 +45,11 @@
 
   function uuidV4() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
+      throw new Error('A secure browser random-number generator is required.');
+    }
     const bytes = new Uint8Array(16);
-    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
-    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    window.crypto.getRandomValues(bytes);
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
@@ -184,12 +186,6 @@
     }
   }
 
-  async function loadAgents() {
-    if (!state.me || !['owner', 'admin'].includes(state.me.role)) return;
-    const result = await request('chatbridge_staff_agents', {});
-    state.agents = result.items || [];
-  }
-
   async function loadStaffDirectory() {
     if (!state.me || !['owner', 'admin'].includes(state.me.role)) return;
     const result = await request('chatbridge_staff_agents', {});
@@ -219,6 +215,8 @@
         role.appendChild(option);
       });
       role.value = person.role;
+      const isSelf = person.id === state.me.id;
+      if (isSelf) role.disabled = true;
       const status = document.createElement('select');
       status.setAttribute('aria-label', 'Status for ' + person.display_name);
       [['active', 'Active'], ['disabled', 'Disabled']].forEach(([value, label]) => {
@@ -227,8 +225,14 @@
         status.appendChild(option);
       });
       status.value = person.status;
+      if (isSelf) status.disabled = true;
       const save = element('button', 'button', 'Save');
       save.type = 'button';
+      if (isSelf) {
+        save.disabled = true;
+        save.title = 'Use another active owner account to change this account.';
+        row.appendChild(element('small', 'cb-staff-self-lockout', 'Your own owner access cannot be changed here.'));
+      }
       save.addEventListener('click', async () => {
         try {
           save.disabled = true;
@@ -252,12 +256,14 @@
   }
 
   async function loadConversations() {
+    const requestId = ++state.inboxRequestId;
     const result = await request('chatbridge_staff_inbox', {
       status: $('cb-staff-status').value,
       after: 0,
       limit: 100,
       search: $('cb-staff-search').value.trim()
     });
+    if (requestId !== state.inboxRequestId) return false;
     state.conversations = result.items || [];
     renderConversations();
     if (state.activeId && state.conversations.some((item) => item.id === state.activeId)) {
@@ -270,12 +276,13 @@
       $('cb-staff-note-list').replaceChildren();
       renderAssignmentControls();
     }
+    return true;
   }
 
   async function refresh() {
     try {
       setStatus('Refreshing…', false);
-      await loadConversations();
+      if (!await loadConversations()) return;
       if (state.activeId) await loadConversation(state.activeId);
       setStatus('Updated just now.', false);
     } catch (error) {
