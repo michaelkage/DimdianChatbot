@@ -45,21 +45,21 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     $apiBase = untrailingslashit((string)($settings['api_base'] ?? ''));
     $secret = (string)($settings['staff_assertion_secret'] ?? '');
     if ($apiBase === '' || !wp_http_validate_url($apiBase) || wp_parse_url($apiBase, PHP_URL_SCHEME) !== 'https') {
-        return new WP_Error('chatbridge_staff_api_url', __('Configure a valid HTTPS Chat API address first.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_api_url', __('Configure a valid HTTPS Chat API address first.', 'chatbridge-widget'), ['status' => 503]);
     }
     if (empty($settings['staff_inbox_enabled']) || strlen($secret) < 32) {
-        return new WP_Error('chatbridge_staff_not_configured', __('Enable the staff inbox and save its private assertion secret first.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_not_configured', __('Enable the staff inbox and save its private assertion secret first.', 'chatbridge-widget'), ['status' => 503]);
     }
 
     $user = wp_get_current_user();
     if (!$user || (int)$user->ID < 1) {
-        return new WP_Error('chatbridge_staff_identity', __('A signed-in WordPress staff account is required.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_identity', __('A signed-in WordPress staff account is required.', 'chatbridge-widget'), ['status' => 401]);
     }
 
     $method = strtoupper($method);
     $endpoint = trim($endpoint, '/');
     if (!preg_match('/^[a-z-]+\.php$/', $endpoint)) {
-        return new WP_Error('chatbridge_staff_endpoint', __('Invalid staff endpoint.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_endpoint', __('Invalid staff endpoint.', 'chatbridge-widget'), ['status' => 400]);
     }
 
     $basePath = (string)wp_parse_url($apiBase, PHP_URL_PATH);
@@ -71,7 +71,7 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
     if ($method !== 'GET') {
         $encodedBody = wp_json_encode($payload);
         if (!is_string($encodedBody)) {
-            return new WP_Error('chatbridge_staff_payload', __('The staff request could not be encoded.', 'chatbridge-widget'));
+            return new WP_Error('chatbridge_staff_payload', __('The staff request could not be encoded.', 'chatbridge-widget'), ['status' => 400]);
         }
         $requestBody = $encodedBody;
     }
@@ -110,7 +110,7 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
 
     $response = wp_safe_remote_request($url, $args);
     if (is_wp_error($response)) {
-        return new WP_Error('chatbridge_staff_transport', __('The ChatBridge service could not be reached securely.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_transport', __('The ChatBridge service could not be reached securely.', 'chatbridge-widget'), ['status' => 502]);
     }
     $status = (int)wp_remote_retrieve_response_code($response);
     $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -119,7 +119,7 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
         if ($status === 401) $message = __('Staff authentication failed. Check the shared assertion secret and server clock.', 'chatbridge-widget');
         elseif ($status === 403) $message = __('Your ChatBridge staff role does not allow this operation.', 'chatbridge-widget');
         elseif ($status === 404 || $status === 503) $message = __('The staff inbox is not enabled or configured on the ChatBridge service.', 'chatbridge-widget');
-        return new WP_Error('chatbridge_staff_request_failed', $message !== '' ? sanitize_text_field($message) : __('The staff request was rejected.', 'chatbridge-widget'));
+        return new WP_Error('chatbridge_staff_request_failed', $message !== '' ? sanitize_text_field($message) : __('The staff request was rejected.', 'chatbridge-widget'), ['status' => $status >= 400 && $status <= 599 ? $status : 502]);
     }
     return $body['data'];
 }
@@ -140,7 +140,10 @@ function chatbridge_staff_ajax_forward(string $method, string $endpoint, array $
     chatbridge_staff_ajax_guard();
     $result = chatbridge_staff_proxy_request($method, $endpoint, $payload, $query);
     if (is_wp_error($result)) {
-        wp_send_json_error(['message' => $result->get_error_message()], 400);
+        $errorData = $result->get_error_data();
+        $status = is_array($errorData) && isset($errorData['status']) ? absint($errorData['status']) : 502;
+        if ($status < 400 || $status > 599) $status = 502;
+        wp_send_json_error(['message' => $result->get_error_message()], $status);
     }
     wp_send_json_success($result);
 }
