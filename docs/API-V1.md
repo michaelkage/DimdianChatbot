@@ -60,7 +60,7 @@ This reference implementation assumes one business per database installation. It
 
 - Timestamps are UTC ISO-8601 strings.
 - Message submission accepts a client_message_id UUID for idempotency.
-- Staff note creation accepts an optional `id` UUID; clients should retain and reuse it when retrying an uncertain request. Reusing the same note ID, author, conversation and body returns success without creating a duplicate; reusing it for different content returns HTTP 409.
+- Staff note creation accepts an optional `id` UUID; clients should retain and reuse it when retrying an uncertain request. Reusing the same note ID, author, conversation and body returns `created: false` without creating a duplicate; reusing it for different content returns HTTP 409. The WordPress inbox retains the pending note/reply ID after an uncertain request so retrying the same draft is safe.
 - Repeating an identical message ID and body in the same conversation returns the original record.
 - Reusing the same message ID with different content returns HTTP 409.
 - Polling uses an ascending sequence_id cursor.
