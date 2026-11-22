@@ -246,7 +246,7 @@ function chatbridge_staff_inbox_render_page(): void
         <div id="chatbridge-staff-inbox" class="cb-staff-app">
             <section id="cb-staff-role-panel" class="cb-staff-role-panel" hidden>
                 <h2><?php esc_html_e('Staff access', 'chatbridge-widget'); ?></h2>
-                <p><?php esc_html_e('Only the owner can change staff roles or disable accounts. New identities start as agents.', 'chatbridge-widget'); ?></p>
+                <p><?php esc_html_e('Only the owner can change staff roles or disable accounts. New identities start as agents. Disabling an account does not delete assignment history; reassign its active conversations to another agent.', 'chatbridge-widget'); ?></p>
                 <div id="cb-staff-role-list"><p class="cb-staff-empty"><?php esc_html_e('Loading staff…', 'chatbridge-widget'); ?></p></div>
             </section>
             <div class="cb-staff-toolbar">
