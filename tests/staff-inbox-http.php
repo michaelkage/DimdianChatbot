@@ -95,6 +95,14 @@ $staffId = $repository->upsertStaffIdentity([
 ]);
 $pdo->prepare('UPDATE staff_identities SET role = "owner" WHERE id = :id')->execute([':id' => $staffId]);
 $repository->assignConversation($conversationId, $staffId, $staffId, 'staff-http-assign');
+$targetStaffId = $repository->upsertStaffIdentity([
+    'id' => uuid_v4(),
+    'auth_provider' => 'http-test',
+    'external_subject' => 'staff-http-agent',
+    'display_name' => 'HTTP Staff Agent',
+    'email' => 'http-agent@example.test',
+]);
+
 
 [$missingAuthStatus] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open', null, false);
 staff_http_expect($missingAuthStatus === 401, 'staff API rejects requests without a signed identity assertion');
@@ -102,6 +110,19 @@ staff_http_expect($missingAuthStatus === 401, 'staff API rejects requests withou
 [$inboxStatus, $inboxBody] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open');
 [$meStatus, $meBody] = staff_http_request('GET', '/api/v1/staff/me.php');
 staff_http_expect($meStatus === 200 && ($meBody['data']['role'] ?? '') === 'owner', 'staff identity endpoint returns the local role');
+
+[$roleUpdateStatus, $roleUpdateBody] = staff_http_request('POST', '/api/v1/staff/roles.php', [
+    'staff_identity_id' => $targetStaffId,
+    'role' => 'admin',
+    'status' => 'active',
+]);
+$targetAfterRoleUpdate = $repository->findStaffIdentityById($targetStaffId);
+staff_http_expect(
+    $roleUpdateStatus === 200
+        && ($roleUpdateBody['data']['updated'] ?? false) === true
+        && ($targetAfterRoleUpdate['role'] ?? '') === 'admin',
+    'owner can update staff roles through the signed role-management endpoint'
+);
 
 [$agentsStatus, $agentsBody] = staff_http_request('GET', '/api/v1/staff/agents.php');
 staff_http_expect(
@@ -140,6 +161,13 @@ staff_http_expect(
         && ($replyBody['data']['message']['sender_type'] ?? '') === 'business'
         && ($replyBody['data']['message']['delivery_status'] ?? '') === 'web_only',
     'staff reply endpoint creates a website-only business message'
+);
+
+[$searchStatus, $searchBody] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open&search=Website%20reply%20through%20staff%20API');
+staff_http_expect(
+    $searchStatus === 200
+        && count(array_filter($searchBody['data']['items'] ?? [], static fn(array $row): bool => $row['id'] === $conversationId)) === 1,
+    'staff inbox HTTP endpoint searches conversation message content'
 );
 
 [$messagesStatus, $messagesBody] = staff_http_request('GET', '/api/v1/staff/messages.php?conversation_id=' . $conversationId);
