@@ -26,7 +26,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 ### What it does not do
 
-This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. An optional staff inbox provides staff accounts through a trusted WordPress identity bridge, assignment, private notes and website-only replies; it is not enabled in Dimdian's WhatsApp-first deployment. The WordPress plugin also has an optional read-only WooCommerce product catalogue adapter. The chat conversation itself currently synchronizes text messages only.
+This is a focused enquiry channel, not a full customer-management system. It does not provide AI replies, private WooCommerce order lookup, cart/checkout actions, inventory management, payments, CRM, attachments, voice notes or group chats. An optional staff inbox provides staff accounts through a trusted WordPress identity bridge, assignment, private notes, website-only replies, conversation search and owner-managed staff roles; it is not enabled in Dimdian's WhatsApp-first deployment. The WordPress plugin also has an optional read-only WooCommerce product catalogue adapter. The chat conversation itself currently synchronizes text messages only.
 
 ## 2. How a conversation works
 
