@@ -181,6 +181,9 @@ staff_http_expect(
     'staff reply endpoint creates a website-only business message'
 );
 
+[$malformedSearchStatus] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open&search%5B%5D=unexpected');
+staff_http_expect($malformedSearchStatus === 422, 'staff inbox rejects malformed array-valued search filters');
+
 [$searchStatus, $searchBody] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open&search=Website%20reply%20through%20staff%20API');
 staff_http_expect(
     $searchStatus === 200
