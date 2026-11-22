@@ -59,7 +59,7 @@ function staff_http_request(string $method, string $path, ?array $body = null, b
     $content = '';
     if ($body !== null) {
         $headers[] = 'Content-Type: application/json';
-        $content = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $content = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
     if ($signed) $headers[] = 'X-ChatBridge-Staff-Assertion: ' . staff_http_assertion($method, $path, $content, $externalSubject);
     $context = stream_context_create(['http' => [
@@ -175,10 +175,18 @@ $conflictingNotePayload['body'] = 'Different content under the same note ID.';
 [$conflictingNoteStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $conflictingNotePayload);
 staff_http_expect($conflictingNoteStatus === 409, 'staff notes endpoint rejects conflicting reuse of an idempotency key');
 
+$longNotePayload = [
+    'id' => uuid_v4(),
+    'conversation_id' => $conversationId,
+    'body' => str_repeat("\\u{1F600}", 1500),
+];
+[$longNoteStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $longNotePayload);
+staff_http_expect($longNoteStatus === 200, 'notes endpoint accepts multi-byte text within its character limit');
+
 [$notesStatus, $notesBody] = staff_http_request('GET', '/api/v1/staff/notes.php?conversation_id=' . $conversationId);
 staff_http_expect(
     $notesStatus === 200
-        && count($notesBody['data']['items'] ?? []) === 1
+        && count($notesBody['data']['items'] ?? []) === 2
         && ($notesBody['data']['items'][0]['body'] ?? '') === 'Private note through HTTP.',
     'staff notes endpoint returns private notes to authenticated staff'
 );
@@ -205,8 +213,16 @@ staff_http_expect(
     'staff inbox HTTP endpoint searches conversation message content'
 );
 
+$longReplyPayload = [
+    'conversation_id' => $conversationId,
+    'message' => str_repeat("\\u{1F600}", 1000),
+    'client_message_id' => uuid_v4(),
+];
+[$longReplyStatus] = staff_http_request('POST', '/api/v1/staff/replies.php', $longReplyPayload);
+staff_http_expect($longReplyStatus === 200, 'replies endpoint accepts multi-byte text within its character limit');
+
 [$messagesStatus, $messagesBody] = staff_http_request('GET', '/api/v1/staff/messages.php?conversation_id=' . $conversationId);
-staff_http_expect($messagesStatus === 200 && count($messagesBody['data']['items'] ?? []) === 1, 'staff messages endpoint returns the conversation thread');
+staff_http_expect($messagesStatus === 200 && count($messagesBody['data']['items'] ?? []) === 2, 'staff messages endpoint returns the conversation thread');
 
 [$historyStatus, $historyBody] = staff_http_request('GET', '/api/v1/staff/history.php?conversation_id=' . $conversationId);
 staff_http_expect($historyStatus === 200 && count($historyBody['data']['items'] ?? []) === 1, 'staff history endpoint returns assignment history');
