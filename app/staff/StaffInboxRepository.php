@@ -86,7 +86,7 @@ interface StaffInboxRepository
         string $body,
         ?string $requestId = null,
         bool $requireAssignment = false
-    ): void;
+    ): bool;
 
     /** @return list<array<string,mixed>> */
     public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array;
