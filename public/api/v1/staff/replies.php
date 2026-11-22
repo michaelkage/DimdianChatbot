@@ -4,7 +4,7 @@ require_once dirname(__DIR__, 4) . '/app/bootstrap.php';
 require_once dirname(__DIR__, 4) . '/app/staff/bootstrap.php';
 staff_inbox_guard_enabled();
 require_method('POST');
-$input = request_json(8192);
+$input = request_json(65536);
 staff_inbox_dispatch(static function () use ($input): array {
     $conversationId = staff_inbox_required_string($input, 'conversation_id', 36);
     if (!staff_inbox_is_uuid($conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
