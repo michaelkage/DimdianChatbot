@@ -160,6 +160,10 @@ staff_http_expect(
         && $noteRetryStatus === 200 && ($noteRetryBody['data']['created'] ?? true) === false,
     'staff notes endpoint safely accepts an idempotent retry'
 );
+$conflictingNotePayload = $notePayload;
+$conflictingNotePayload['body'] = 'Different content under the same note ID.';
+[$conflictingNoteStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $conflictingNotePayload);
+staff_http_expect($conflictingNoteStatus === 409, 'staff notes endpoint rejects conflicting reuse of an idempotency key');
 
 [$notesStatus, $notesBody] = staff_http_request('GET', '/api/v1/staff/notes.php?conversation_id=' . $conversationId);
 staff_http_expect(
