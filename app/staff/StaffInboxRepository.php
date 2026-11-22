@@ -33,6 +33,15 @@ interface StaffInboxRepository
     /** @return list<array<string,mixed>> */
     public function listStaffIdentities(): array;
 
+    /** Owner-only access change; implementation must protect the last active owner. */
+    public function updateStaffIdentityAccess(
+        string $targetStaffId,
+        string $actorStaffId,
+        string $role,
+        string $status,
+        ?string $requestId = null
+    ): void;
+
     /** @return list<array<string,mixed>> */
     public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array;
 
@@ -41,7 +50,8 @@ interface StaffInboxRepository
         ?string $assignedStaffId,
         int $afterSequence,
         int $limit,
-        bool $includeUnassigned = false
+        bool $includeUnassigned = false,
+        string $search = ''
     ): array;
 
     /** Assign an open conversation, replacing its prior active assignment atomically. */
