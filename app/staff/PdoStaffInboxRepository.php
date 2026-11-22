@@ -94,8 +94,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
     {
         $query = $this->pdo->query(
             'SELECT id, display_name, email, role, status
-             FROM staff_identities WHERE status = "active"
-             ORDER BY display_name ASC LIMIT 250'
+             FROM staff_identities
+             ORDER BY status ASC, display_name ASC LIMIT 250'
         );
         return $query->fetchAll();
     }
