@@ -25,19 +25,58 @@ if ((app_config('staff_inbox.enabled') ?? false) !== true) {
 
 try {
     $pdo = database();
-    $query = $pdo->prepare(
-        'UPDATE staff_identities
-         SET role = :role, updated_at = UTC_TIMESTAMP()
-         WHERE auth_provider = :provider AND external_subject = :subject AND status = "active"'
+    $pdo->beginTransaction();
+
+    // Match the API's owner invariant. Stable row ordering serializes concurrent CLI changes.
+    $owners = $pdo->query(
+        'SELECT id FROM staff_identities
+         WHERE role = "owner" AND status = "active"
+         ORDER BY id FOR UPDATE'
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    $lookup = $pdo->prepare(
+        'SELECT id, role FROM staff_identities
+         WHERE auth_provider = :provider AND external_subject = :subject AND status = "active"
+         LIMIT 1 FOR UPDATE'
     );
-    $query->execute([':role' => $role, ':provider' => $provider, ':subject' => $subject]);
-    if ($query->rowCount() !== 1) {
+    $lookup->execute([':provider' => $provider, ':subject' => $subject]);
+    $identity = $lookup->fetch();
+
+    if (!is_array($identity)) {
+        $pdo->rollBack();
         fwrite(STDERR, "No active staff identity matched. Have the user sign in to the inbox once first.\n");
         exit(1);
     }
+
+    if ($identity['role'] === 'owner' && $role !== 'owner' && count($owners) <= 1) {
+        $pdo->rollBack();
+        fwrite(STDERR, "The last active owner cannot be demoted. Provision another active owner first.\n");
+        exit(1);
+    }
+
+    if ($identity['role'] !== $role) {
+        $update = $pdo->prepare(
+            'UPDATE staff_identities SET role = :role, updated_at = UTC_TIMESTAMP() WHERE id = :id'
+        );
+        $update->execute([':role' => $role, ':id' => $identity['id']]);
+    }
+    $pdo->commit();
+
+    app_log_event('staff_inbox.role_provisioned', [
+        'endpoint' => 'provision-staff',
+        'staff_identity_id' => (string)$identity['id'],
+        'previous_role' => (string)$identity['role'],
+        'new_role' => $role,
+    ]);
     fwrite(STDOUT, "Staff role updated successfully.\n");
 } catch (Throwable $error) {
-    app_log_event('staff_inbox.provision_failed', ['endpoint' => 'provision-staff', 'exception_class' => get_class($error)]);
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    app_log_event('staff_inbox.provision_failed', [
+        'endpoint' => 'provision-staff',
+        'exception_class' => get_class($error),
+    ]);
     fwrite(STDERR, "Staff role update failed. Check the private server log.\n");
     exit(1);
 }
