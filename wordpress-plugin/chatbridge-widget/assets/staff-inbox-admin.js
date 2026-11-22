@@ -5,7 +5,7 @@
   if (!root || !window.ChatBridgeStaffInbox) return;
 
   const $ = (id) => document.getElementById(id);
-  const state = { me: null, conversations: [], activeId: null, agents: [] };
+  const state = { me: null, conversations: [], activeId: null, agents: [], staff: [], searchTimer: null };
   const statusText = $('cb-staff-status-text');
 
   function setStatus(message, isError) {
@@ -102,7 +102,7 @@
       const none = element('option', '', 'Unassigned');
       none.value = '';
       select.appendChild(none);
-      state.agents.forEach((agent) => {
+      state.agents.filter((agent) => agent.status === 'active').forEach((agent) => {
         const option = element('option', '', agent.display_name + ' (' + agent.role + ')');
         option.value = agent.id;
         select.appendChild(option);
@@ -184,11 +184,73 @@
     state.agents = result.items || [];
   }
 
+  async function loadStaffDirectory() {
+    if (!state.me || !['owner', 'admin'].includes(state.me.role)) return;
+    const result = await request('chatbridge_staff_agents', {});
+    state.staff = result.items || [];
+    state.agents = state.staff.filter((person) => person.status === 'active');
+    if (state.me.role === 'owner') renderStaffAccess();
+  }
+
+  function renderStaffAccess() {
+    const panel = $('cb-staff-role-panel');
+    const host = $('cb-staff-role-list');
+    if (!panel || !host || !state.me || state.me.role !== 'owner') return;
+    panel.hidden = false;
+    host.replaceChildren();
+    if (!state.staff.length) {
+      host.appendChild(element('p', 'cb-staff-empty', 'No staff identities have signed in yet.'));
+      return;
+    }
+    state.staff.forEach((person) => {
+      const row = element('div', 'cb-staff-role-row');
+      row.appendChild(element('strong', 'cb-staff-role-name', person.display_name + (person.email ? ' · ' + person.email : '')));
+      const role = document.createElement('select');
+      role.setAttribute('aria-label', 'Role for ' + person.display_name);
+      [['agent', 'Agent'], ['admin', 'Admin'], ['owner', 'Owner']].forEach(([value, label]) => {
+        const option = element('option', '', label);
+        option.value = value;
+        role.appendChild(option);
+      });
+      role.value = person.role;
+      const status = document.createElement('select');
+      status.setAttribute('aria-label', 'Status for ' + person.display_name);
+      [['active', 'Active'], ['disabled', 'Disabled']].forEach(([value, label]) => {
+        const option = element('option', '', label);
+        option.value = value;
+        status.appendChild(option);
+      });
+      status.value = person.status;
+      const save = element('button', 'button', 'Save');
+      save.type = 'button';
+      save.addEventListener('click', async () => {
+        try {
+          save.disabled = true;
+          await request('chatbridge_staff_role_update', {
+            staff_identity_id: person.id,
+            role: role.value,
+            status: status.value
+          });
+          setStatus('Staff access updated.', false);
+          await loadStaffDirectory();
+          await refresh();
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          save.disabled = false;
+        }
+      });
+      row.append(role, status, save);
+      host.appendChild(row);
+    });
+  }
+
   async function loadConversations() {
     const result = await request('chatbridge_staff_inbox', {
       status: $('cb-staff-status').value,
       after: 0,
-      limit: 100
+      limit: 100,
+      search: $('cb-staff-search').value.trim()
     });
     state.conversations = result.items || [];
     renderConversations();
@@ -219,6 +281,13 @@
   $('cb-staff-status').addEventListener('change', () => {
     state.activeId = null;
     refresh();
+  });
+  $('cb-staff-search').addEventListener('input', () => {
+    window.clearTimeout(state.searchTimer);
+    state.searchTimer = window.setTimeout(() => {
+      state.activeId = null;
+      refresh();
+    }, 250);
   });
 
   $('cb-staff-send').addEventListener('click', async () => {
@@ -304,7 +373,7 @@
   async function init() {
     try {
       state.me = await request('chatbridge_staff_me', {});
-      await loadAgents();
+      await loadStaffDirectory();
       await refresh();
       window.setInterval(() => {
         if (document.visibilityState === 'visible') refresh();
