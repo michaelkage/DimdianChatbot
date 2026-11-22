@@ -100,6 +100,64 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $query->fetchAll();
     }
 
+    public function updateStaffIdentityAccess(
+        string $targetStaffId,
+        string $actorStaffId,
+        string $role,
+        string $status,
+        ?string $requestId = null
+    ): void {
+        if (!in_array($role, ['owner', 'admin', 'agent'], true)
+            || !in_array($status, ['active', 'disabled'], true)) {
+            throw new InvalidArgumentException('Unsupported staff role or status.');
+        }
+
+        $this->transaction(function () use ($targetStaffId, $actorStaffId, $role, $status, $requestId): void {
+            // Serialize owner changes so two concurrent requests cannot remove the final owner.
+            $owners = $this->pdo->query(
+                'SELECT id FROM staff_identities WHERE role = "owner" AND status = "active" ORDER BY id FOR UPDATE'
+            )->fetchAll(PDO::FETCH_COLUMN);
+            $actor = $this->pdo->prepare(
+                'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
+            );
+            $actor->execute([':id' => $actorStaffId]);
+            $actorRow = $actor->fetch();
+            if (!is_array($actorRow) || $actorRow['role'] !== 'owner' || $actorRow['status'] !== 'active') {
+                throw new RuntimeException('Only an active owner may manage staff access.');
+            }
+
+            $target = $this->pdo->prepare(
+                'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
+            );
+            $target->execute([':id' => $targetStaffId]);
+            $targetRow = $target->fetch();
+            if (!is_array($targetRow)) {
+                throw new InvalidArgumentException('The selected staff identity does not exist.');
+            }
+
+            $removingOwner = $targetRow['role'] === 'owner'
+                && $targetRow['status'] === 'active'
+                && ($role !== 'owner' || $status !== 'active');
+            if ($removingOwner && count($owners) <= 1) {
+                throw new RuntimeException('The last active owner cannot be demoted or disabled.');
+            }
+
+            $update = $this->pdo->prepare(
+                'UPDATE staff_identities SET role = :role, status = :status, updated_at = UTC_TIMESTAMP()
+                 WHERE id = :id'
+            );
+            $update->execute([':role' => $role, ':status' => $status, ':id' => $targetStaffId]);
+            $this->recordAudit(
+                $actorStaffId,
+                null,
+                'staff.access_updated',
+                $targetStaffId,
+                ['role' => $role, 'status' => $status],
+                $requestId
+            );
+        });
+    }
+
     public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array
     {
         $query = $this->pdo->prepare(
@@ -137,12 +195,16 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         ?string $assignedStaffId,
         int $afterSequence,
         int $limit,
-        bool $includeUnassigned = false
+        bool $includeUnassigned = false,
+        string $search = ''
     ): array {
         if (!in_array($status, ['open', 'closed', 'all'], true)) {
             throw new InvalidArgumentException('Unsupported conversation status filter.');
         }
         $limit = max(1, min(100, $limit));
+        $search = trim($search);
+        if (strlen($search) > 100) throw new InvalidArgumentException('Search text is too long.');
+        $like = '%' . strtr($search, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']) . '%';
         $sql = 'SELECT c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                        g.display_name AS visitor_name, g.phone AS visitor_phone,
                        COALESCE(MAX(m.sequence_id), 0) AS latest_sequence,
@@ -156,6 +218,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                 LEFT JOIN staff_identities assigned ON assigned.id = a.staff_identity_id
                 WHERE (:status_all = 1 OR c.status = :status_value)
                   AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff OR (:include_unassigned = 1 AND a.staff_identity_id IS NULL))
+                  AND (:search_empty = 1 OR g.display_name LIKE :search_name OR g.phone LIKE :search_phone
+                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.conversation_id = c.id AND sm.body LIKE :search_message))
                 GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                          g.display_name, g.phone, a.staff_identity_id, assigned.display_name
                 HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
@@ -169,6 +233,10 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             ':assigned_filter' => $assignedStaffId === null ? 1 : 0,
             ':assigned_staff' => $assignedStaffId,
             ':include_unassigned' => $includeUnassigned ? 1 : 0,
+            ':search_empty' => $search === '' ? 1 : 0,
+            ':search_name' => $like,
+            ':search_phone' => $like,
+            ':search_message' => $like,
             ':after_sequence' => max(0, $afterSequence),
             ':after_sequence_empty' => max(0, $afterSequence),
         ]);
