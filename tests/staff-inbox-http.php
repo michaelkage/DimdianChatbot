@@ -144,9 +144,10 @@ $notePayload = [
     'body' => 'Private note through HTTP.',
 ];
 [$noteStatus, $noteBody] = staff_http_request('POST', '/api/v1/staff/notes.php', $notePayload);
-[$noteRetryStatus] = staff_http_request('POST', '/api/v1/staff/notes.php', $notePayload);
+[$noteRetryStatus, $noteRetryBody] = staff_http_request('POST', '/api/v1/staff/notes.php', $notePayload);
 staff_http_expect(
-    $noteStatus === 200 && ($noteBody['data']['created'] ?? false) === true && $noteRetryStatus === 200,
+    $noteStatus === 200 && ($noteBody['data']['created'] ?? false) === true
+        && $noteRetryStatus === 200 && ($noteRetryBody['data']['created'] ?? true) === false,
     'staff notes endpoint safely accepts an idempotent retry'
 );
 
