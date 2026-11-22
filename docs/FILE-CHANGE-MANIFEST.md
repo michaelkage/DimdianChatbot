@@ -2,7 +2,7 @@
 
 ## New files
 - app/staff/StaffInboxRepository.php — optional staff persistence contract.
-- app/staff/PdoStaffInboxRepository.php — MySQL/MariaDB staff identity, assignment, private-note, website-reply and audit persistence.
+- app/staff/PdoStaffInboxRepository.php — MySQL/MariaDB staff identity, assignment, private-note, website-reply, audit, owner-safe role updates and conversation search persistence.
 - app/staff/HmacStaffIdentityProvider.php — signed server assertion verification, exact request/body binding and replay protection.
 - app/staff/StaffInboxService.php — local role, assignment and staff-operation authorization.
 - app/staff/bootstrap.php — optional staff module wiring.
@@ -23,6 +23,7 @@
 - public/cron/process-webhook-inbox.php — CLI webhook recovery worker.
 - public/cron/retention.php — CLI data-retention job.
 - wordpress-plugin/chatbridge-widget/assets/meta-signup-admin.js — administrator-only Meta Embedded Signup v4 UI.
+- wordpress-plugin/chatbridge-widget/assets/staff-inbox-admin.js / .css — optional staff inbox UI, conversation search and owner staff-access panel.
 - database/migrations/004_production_hardening.sql — existing-database upgrade and legacy opt-in backfill.
 - docs/PRODUCTION-HARDENING.md — deployment and operations guide.
 - docs/MILESTONE-STATUS.md — milestone status and production acceptance gates.
