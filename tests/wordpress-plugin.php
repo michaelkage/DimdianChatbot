@@ -194,6 +194,8 @@ check(($staffSettings['staff_inbox_enabled'] ?? 0) === 1, 'optional staff inbox 
 check(($GLOBALS['chatbridge_options']['chatbridge_staff_assertion_secret'] ?? '') === str_repeat('staff-secret-', 4), 'staff assertion secret is stored in a separate private option');
 check(($GLOBALS['chatbridge_option_autoload']['chatbridge_staff_assertion_secret'] ?? null) === false, 'staff assertion secret is saved with autoload disabled');
 check(!array_key_exists('staff_assertion_secret', $staffSettings), 'staff assertion secret is excluded from general widget settings');
+// The Settings API persists the sanitized general option after this callback returns.
+$GLOBALS['chatbridge_options']['chatbridge_widget_settings'] = $staffSettings;
 check(chatbridge_staff_inbox_is_configured(), 'staff inbox becomes configured only with enabled flag, HTTPS API and private secret');
 
 
