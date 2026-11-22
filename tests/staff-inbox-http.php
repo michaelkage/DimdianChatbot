@@ -133,6 +133,16 @@ staff_http_expect(
     $adminRoleUpdateStatus === 403 && ($ownerAfterDeniedUpdate['role'] ?? '') === 'owner',
     'administrator cannot change staff roles through the owner-only endpoint'
 );
+[$selfDemotionStatus] = staff_http_request('POST', '/api/v1/staff/roles.php', [
+    'staff_identity_id' => $staffId,
+    'role' => 'agent',
+    'status' => 'active',
+]);
+$ownerAfterSelfDemotion = $repository->findStaffIdentityById($staffId);
+staff_http_expect(
+    $selfDemotionStatus === 409 && ($ownerAfterSelfDemotion['role'] ?? '') === 'owner',
+    'owner cannot remove its own access through the HTTP role endpoint'
+);
 
 [$agentsStatus, $agentsBody] = staff_http_request('GET', '/api/v1/staff/agents.php');
 staff_http_expect(
