@@ -18,7 +18,7 @@ if ($method === 'GET') {
     });
 }
 if ($method === 'POST') {
-    $input = request_json(12000);
+    $input = request_json(131072);
     staff_inbox_dispatch(static function () use ($service, $input): array {
         $conversationId = staff_inbox_required_string($input, 'conversation_id', 36);
         if (!staff_inbox_is_uuid($conversationId)) throw new InvalidArgumentException('conversation_id must be a UUID.');
