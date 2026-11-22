@@ -20,7 +20,7 @@ The planned module contains:
 - Roles and authorization policy: owner, admin and agent.
 - Conversation list with search across visitor name, phone number and message body.
 - One active assignee per conversation, with full assignment history.
-- Private, immutable internal notes.
+- Private, immutable internal notes with retry-safe client IDs.
 - Staff replies that appear as ordinary business messages to the visitor.
 - An append-only operational audit trail.
 
@@ -47,7 +47,7 @@ This is not a multi-tenant shared-database design. Do not place multiple busines
 - Internal notes live in staff_internal_notes, never in messages.
 - Visitor message polling must never return notes or audit metadata.
 - Staff replies are persisted as business messages and linked to their author in staff_message_authors.
-- The initial staff reply path is website-visible only. It does not enqueue WhatsApp messages.
+- The initial staff reply path is website-visible only. It does not enqueue WhatsApp messages. Both staff replies and private-note writes are idempotent when a client retries the same ID with the same content; reusing an ID for different content is a conflict.
 - A later WhatsApp-from-inbox feature must use the channel provider, respect consent and Meta's messaging-window/template rules, and preserve delivery state. It must not bypass the existing outbox.
 - Audit metadata must not contain message bodies, note bodies, access tokens, session tokens or other secrets.
 - Notes and audit events are immutable through the application contract; retention/export policy must explicitly include them.
@@ -80,7 +80,7 @@ Missing configuration, schema or identity validation must fail closed. Disabling
 
 The optional schema, repository interface, MySQL/MariaDB PDO adapter, HMAC-signed server assertion adapter, local role/assignment authorization service, versioned staff API routes, WordPress server-side proxy, separate WordPress admin inbox UI, conversation search and owner-only role administration are implemented. Assertions bind the HTTP method, exact request target (including query string), SHA-256 request-body digest, short expiry and one-time nonce. The WordPress connector keeps the shared secret server-side and requires a logged-in user with the inbox capability. New external identities default to the local agent role; an operator must explicitly provision the first owner with php bin/set-staff-role.php wordpress user:<WORDPRESS_USER_ID> owner after that administrator signs in once. Local roles are not copied from browser claims or external profile fields.
 
-The core workflow now includes conversation search across visitor name, phone number and message body, plus an owner-only staff access panel. Owners can promote/demote staff and disable/re-enable identities; the repository serializes owner changes and prevents removal of the last active owner. Export/restore procedures and broader end-to-end security coverage remain future work. The optional tables are excluded from default installs, and the current PHP schema assumes one business per database.
+The core workflow now includes conversation search across visitor name, phone number and message body, plus an owner-only staff access panel. Owners can promote/demote staff and disable/re-enable identities; the repository serializes owner changes, prevents removal of the last active owner and prevents an owner from demoting or disabling their own active account. Staff replies and private-note creation accept stable client-generated IDs for idempotent retries. Export/restore procedures and broader end-to-end security coverage remain future work. The optional tables are excluded from default installs, and the current PHP schema assumes one business per database.
 
 
 ## Assignment authorization and concurrency
