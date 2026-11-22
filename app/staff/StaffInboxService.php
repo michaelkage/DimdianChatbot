@@ -116,7 +116,7 @@ final class StaffInboxService
         return $this->repository->unassignConversation($conversationId, (string)$actor['id'], $requestId);
     }
 
-    /** @return list<array<string,mixed>> */
+    /** Update the local role and status of a staff identity; owner-only. */
     public function updateStaffIdentityAccess(
         array $server,
         string $targetStaffId,
