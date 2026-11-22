@@ -171,7 +171,10 @@ add_action('wp_ajax_chatbridge_staff_notes', static function (): void {
 add_action('wp_ajax_chatbridge_staff_note_create', static function (): void {
     $conversation = isset($_POST['conversation_id']) ? sanitize_text_field(wp_unslash($_POST['conversation_id'])) : '';
     $body = isset($_POST['body']) ? sanitize_textarea_field(wp_unslash($_POST['body'])) : '';
-    chatbridge_staff_ajax_forward('POST', 'notes.php', ['conversation_id' => $conversation, 'body' => $body]);
+    $noteId = isset($_POST['id']) ? sanitize_text_field(wp_unslash($_POST['id'])) : '';
+    $payload = ['conversation_id' => $conversation, 'body' => $body];
+    if ($noteId !== '') $payload['id'] = $noteId;
+    chatbridge_staff_ajax_forward('POST', 'notes.php', $payload);
 });
 add_action('wp_ajax_chatbridge_staff_reply', static function (): void {
     $conversation = isset($_POST['conversation_id']) ? sanitize_text_field(wp_unslash($_POST['conversation_id'])) : '';
