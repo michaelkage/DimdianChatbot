@@ -54,7 +54,7 @@ function process_webhook_inbox(PDO $pdo, ChatRepository $repository, int $limit 
     return process_webhook_inbox_with_repository($repository, $limit, $maxAttempts);
 }
 
-/** @return array{processed:int,retried:int,failed:int,empty:bool} */
+/** @return WebhookInboxWorker */
 function webhook_inbox_worker(
     ChatRepository $repository,
     ?WebhookPayloadCipher $cipher = null
