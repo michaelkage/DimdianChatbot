@@ -163,3 +163,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Durable webhook inbox service boundary (2026-11-23)
 
 `WebhookPayloadCipher` preserves the existing AES-256-GCM key derivation and associated data so already-encrypted inbox rows remain readable. `WebhookInboxWorker` claims and decrypts jobs, validates the provider envelope, resolves the active Meta phone-number ID through `ChatRepository`, invokes the idempotent `MetaWebhookProcessor`, and completes or retries the lease. The worker has no PDO or HTTP dependency. Event-level deduplication makes a partially processed multi-event payload safe to replay; the inbox row is completed only after all events have been handled. HTTP signature verification and persist-before-ack remain in the public route, while the cron endpoint delegates to the same worker facade.
+
+
+### Meta webhook verification boundary (2026-11-23)
+
+`MetaWebhookSignatureVerifier` now owns HMAC-SHA256 verification over the exact raw request body and constant-time signature comparison. The public HTTP route still owns method handling, request-size enforcement, persistence-before-acknowledgement and HTTP response generation. This keeps provider cryptography testable without moving HTTP concerns into the domain processor.
