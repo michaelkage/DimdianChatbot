@@ -57,7 +57,7 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Extracted `MetaWebhookProcessor` into `app/channels/whatsapp/MetaWebhookProcessor.php`.
 - The processor maps text inbound messages, Business App text echoes and delivery-status events into the existing `ChatRepository` provider-event contract, including event identifiers, payload hashes, timestamps and unsupported-event accounting.
 - Preserved `process_meta_webhook()` as a compatibility facade. Signature verification and durable raw-webhook inbox lifecycle remain separate concerns and were not moved into this processor.
-- Existing integration cases for inbound correlation, echo deduplication, early status reconciliation and late-failure precedence continue to exercise the facade. CI validation is pending.
+- Existing integration cases for inbound correlation, echo deduplication, early status reconciliation and late-failure precedence continue to exercise the facade. Full CI run [45258505392](https://github.com/michaelkage/DimdianChatbot/actions/runs/45258505392) passed all three jobs.
 
 
 ### Follow-up implementation — durable webhook inbox service boundary
@@ -67,14 +67,14 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Added `ChatRepository::activeWhatsAppPhoneNumberId()` and its MySQL/MariaDB implementation so connection lookup is behind the repository contract.
 - Kept `encrypt_webhook_payload()`, `decrypt_webhook_payload()`, `enqueue_meta_webhook()` and `process_webhook_inbox(PDO, ...)` as compatibility facades. The legacy PDO parameter remains accepted by the latter but is no longer used by the worker.
 - Removed the encompassing PDO transaction around the whole payload. Each provider event is now committed through the repository's idempotent event operation; inbox completion is lease-fenced and occurs only after all events are processed. If a worker crashes mid-payload, retry safely skips previously committed event IDs and resumes remaining events. This deliberately uses durable event-level idempotency rather than keeping a long transaction open while processing an entire provider payload.
-- Added authenticated-encryption tamper regression coverage. Existing HTTP integration cases exercise inline processing, inbound messages, Business App echoes, duplicate delivery and status callbacks through the same worker.
+- Added authenticated-encryption tamper regression coverage. Existing HTTP integration cases exercise inline processing, inbound messages, Business App echoes, duplicate delivery and status callbacks through the same worker. Full CI run [45259452485](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259452485) passed all three jobs on the implementation head.
 
 
 ### Follow-up implementation — signature verification boundary
 
 - Extracted `MetaWebhookSignatureVerifier` into `app/channels/whatsapp/MetaWebhookSignatureVerifier.php`.
 - The verifier checks the exact raw request bytes, requires the SHA-256 signature format and uses constant-time comparison. The legacy `verify_meta_webhook_signature()` function delegates to the class.
-- HTTP method negotiation, request-size enforcement, durable enqueue-before-acknowledgement and HTTP response generation remain in `public/api/webhook.php`.
+- HTTP method negotiation, request-size enforcement, durable enqueue-before-acknowledgement and HTTP response generation remain in `public/api/webhook.php`. The verifier is covered by full CI run [45259452485](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259452485).
 
 
 ### Follow-up implementation — HTTP endpoint boundary
@@ -83,4 +83,4 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - The endpoint owns Meta GET handshake validation, POST size/signature/JSON/envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. Invalid POST requests are rejected before a database connection is opened. It returns a response description and does not emit headers or terminate the process.
 - `public/api/webhook.php` is now a thin PHP adapter for reading the raw body, handling Meta's GET verification handshake, mapping the response to HTTP and logging unexpected failures. The route invokes the endpoint's static handshake and POST validation paths before opening a database connection, preserving database-independent verification and avoiding DB work for invalid requests.
 - The CLI recovery endpoint calls the same repository-backed inbox worker directly; it does not route through HTTP.
-- Added integration coverage for unsupported HTTP methods and malformed JSON carrying a valid signature.
+- Added integration coverage for unsupported HTTP methods and malformed JSON carrying a valid signature. Full CI run [45259452485](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259452485) passed all three jobs.
