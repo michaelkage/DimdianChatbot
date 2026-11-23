@@ -7,6 +7,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/channels/whatsapp/MetaCloudApiTransport.php';
+require_once __DIR__ . '/channels/whatsapp/WhatsAppOutboxWorker.php';
 
 function verify_meta_webhook_signature(string $rawBody, ?string $signatureHeader, string $appSecret): bool
 {
@@ -123,66 +124,7 @@ function enqueue_whatsapp_notification(PDO $pdo, string $messageId, string $reci
 
 function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int $batchSize = 10, int $maxAttempts = 6): array
 {
-    $summary = ['sent' => 0, 'retried' => 0, 'failed' => 0];
-    $batchSize = max(1, min(50, $batchSize));
-    $maxAttempts = max(1, $maxAttempts);
-    $repository = chat_repository($pdo);
-
-    for ($i = 0; $i < $batchSize; $i++) {
-        $lockToken = uuid_v4();
-        $claim = $repository->claimWhatsAppOutbox($lockToken, $maxAttempts, 300);
-        $summary['failed'] += $claim['exhausted'];
-        $job = $claim['job'];
-        if (!is_array($job)) break;
-
-        $attempt = (int) $job['attempts'];
-        try {
-            // Re-check consent immediately before the external send. A withdrawal
-            // can invalidate a job after it was claimed by this worker.
-            if (!$repository->hasWhatsAppConsent((string) $job['message_id'])) {
-                $repository->cancelWhatsAppOutbox((string) $job['id'], $lockToken, (string) $job['message_id']);
-                continue;
-            }
-
-            // Provider I/O is deliberately outside every repository transaction.
-            $result = $transport->sendTemplate((string) $job['recipient'], (string) $job['payload_text']);
-            if ($repository->completeWhatsAppOutbox(
-                (string) $job['id'],
-                $lockToken,
-                (string) $job['message_id'],
-                (string) $result['provider_message_id']
-            )) {
-                $summary['sent']++;
-            }
-        } catch (Throwable $error) {
-            $retryable = !($error instanceof WhatsAppTransportException) || $error->retryable;
-            $shouldRetry = $retryable && $attempt < $maxAttempts;
-            $delay = whatsapp_retry_delay_seconds($attempt);
-            $messageText = mb_substr_safe($error->getMessage(), 0, 900);
-            $recorded = $repository->failWhatsAppOutbox(
-                (string) $job['id'],
-                $lockToken,
-                (string) $job['message_id'],
-                $shouldRetry,
-                $delay,
-                $messageText
-            );
-            if ($recorded) {
-                if ($shouldRetry) {
-                    $summary['retried']++;
-                } else {
-                    $summary['failed']++;
-                }
-                app_log_event('outbox.attempt_failed', [
-                    'job_id' => (string) $job['id'],
-                    'attempt' => $attempt,
-                    'result' => $shouldRetry ? 'retry' : 'failed',
-                ]);
-            }
-        }
-    }
-
-    return $summary;
+    return (new WhatsAppOutboxWorker(chat_repository($pdo), $transport))->process($batchSize, $maxAttempts);
 }
 
 function mb_substr_safe(string $value, int $start, int $length): string
