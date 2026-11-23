@@ -168,3 +168,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Meta webhook verification boundary (2026-11-23)
 
 `MetaWebhookSignatureVerifier` now owns HMAC-SHA256 verification over the exact raw request body and constant-time signature comparison. The public HTTP route still owns method handling, request-size enforcement, persistence-before-acknowledgement and HTTP response generation. This keeps provider cryptography testable without moving HTTP concerns into the domain processor.
+
+
+### Meta webhook HTTP endpoint (2026-11-23)
+
+`MetaWebhookEndpoint` now owns POST request validation, HMAC verification, payload-envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. It returns a response description instead of writing headers or exiting. `public/api/webhook.php` remains the PHP transport adapter for raw-body input, the database-independent GET verification handshake, HTTP response emission and failure logging. The CLI recovery endpoint invokes the same inbox worker without going through the HTTP controller.
