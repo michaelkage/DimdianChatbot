@@ -12,8 +12,7 @@ final class MetaWebhookEndpoint
     public function __construct(
         private readonly ChatRepository $repository,
         private readonly WebhookPayloadCipher $cipher,
-        private readonly WebhookInboxWorker $worker,
-        private readonly MetaWebhookSignatureVerifier $signatureVerifier
+        private readonly WebhookInboxWorker $worker
     ) {}
 
     /**
