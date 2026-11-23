@@ -73,6 +73,13 @@ try {
     $metaGraphHttpRejected = true;
 }
 check($metaGraphHttpRejected, 'Meta Graph client rejects non-HTTPS requests before network access');
+$metaGraphHeaderRejected = false;
+try {
+    (new MetaGraphApiClient())->post('https://graph.facebook.com/v20.0/123/subscribed_apps', "token\r\nX-Injected: yes");
+} catch (InvalidArgumentException) {
+    $metaGraphHeaderRejected = true;
+}
+check($metaGraphHeaderRejected, 'Meta Graph client rejects CR/LF in bearer tokens');
 $logContext = app_sanitize_log_context(['attempt' => 3, 'exception_class' => 'PDOException', 'phone_number' => '+2348012345678', 'message' => 'private chat content']);
 check($logContext === ['attempt' => 3, 'exception_class' => 'PDOException'], 'structured operational logs allow only non-PII diagnostic fields');
 
