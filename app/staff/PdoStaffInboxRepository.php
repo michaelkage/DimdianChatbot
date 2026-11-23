@@ -225,8 +225,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
                 LEFT JOIN staff_identities assigned ON assigned.id = a.staff_identity_id
                 WHERE (:status_all = 1 OR c.status = :status_value)
                   AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff OR (:include_unassigned = 1 AND a.staff_identity_id IS NULL))
-                  AND (:search_empty = 1 OR g.display_name LIKE :search_name ESCAPE '!' OR g.phone LIKE :search_phone ESCAPE '!'
-                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.conversation_id = c.id AND sm.body LIKE :search_message ESCAPE '!'))
+                  AND (:search_empty = 1 OR g.display_name LIKE :search_name ESCAPE \'!\' OR g.phone LIKE :search_phone ESCAPE \'!\'
+                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.conversation_id = c.id AND sm.body LIKE :search_message ESCAPE \'!\'))
                 GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                          g.display_name, g.phone, a.staff_identity_id, assigned.display_name
                 HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
