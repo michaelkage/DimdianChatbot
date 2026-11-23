@@ -32,23 +32,11 @@ final class MetaWebhookEndpoint
         $method = strtoupper($method);
 
         if ($method === 'GET') {
-            $mode = (string)($query['hub_mode'] ?? $query['hub.mode'] ?? '');
-            $token = (string)($query['hub_verify_token'] ?? $query['hub.verify_token'] ?? '');
-            $challenge = (string)($query['hub_challenge'] ?? $query['hub.challenge'] ?? '');
-            if ($mode === 'subscribe' && $verifyToken !== '' && hash_equals($verifyToken, $token) && $challenge !== '') {
-                return $this->response(200, $challenge, [
-                    'Content-Type' => 'text/plain; charset=utf-8',
-                    'Cache-Control' => 'no-store',
-                ]);
-            }
-            return $this->response(403, 'Forbidden', ['Content-Type' => 'text/plain; charset=utf-8']);
+            return self::verifyHandshake($query, $verifyToken);
         }
 
         if ($method !== 'POST') {
-            return $this->response(405, 'Method Not Allowed', [
-                'Content-Type' => 'text/plain; charset=utf-8',
-                'Allow' => 'GET, POST',
-            ]);
+            return self::methodNotAllowed();
         }
 
         if (strlen($rawBody) > $maxBodyBytes) {
@@ -85,8 +73,31 @@ final class MetaWebhookEndpoint
         ], JSON_UNESCAPED_SLASHES), ['Content-Type' => 'application/json; charset=utf-8']);
     }
 
+    /** @param array<string,mixed> $query */
+    public static function verifyHandshake(array $query, string $verifyToken): array
+    {
+        $mode = (string)($query['hub_mode'] ?? $query['hub.mode'] ?? '');
+        $token = (string)($query['hub_verify_token'] ?? $query['hub.verify_token'] ?? '');
+        $challenge = (string)($query['hub_challenge'] ?? $query['hub.challenge'] ?? '');
+        if ($mode === 'subscribe' && $verifyToken !== '' && hash_equals($verifyToken, $token) && $challenge !== '') {
+            return self::response(200, $challenge, [
+                'Content-Type' => 'text/plain; charset=utf-8',
+                'Cache-Control' => 'no-store',
+            ]);
+        }
+        return self::response(403, 'Forbidden', ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+
+    public static function methodNotAllowed(): array
+    {
+        return self::response(405, 'Method Not Allowed', [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Allow' => 'GET, POST',
+        ]);
+    }
+
     /** @param array<string,string> $headers */
-    private function response(int $status, string $body, array $headers): array
+    private static function response(int $status, string $body, array $headers): array
     {
         return ['status' => $status, 'headers' => $headers, 'body' => $body];
     }
