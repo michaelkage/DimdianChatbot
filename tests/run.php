@@ -50,6 +50,29 @@ try {
 check($webhookTamperRejected, 'webhook payload authentication rejects ciphertext tampering');
 $sealedMetaToken = meta_seal_token('test-meta-access-token');
 check(meta_open_token($sealedMetaToken['ciphertext'], $sealedMetaToken['nonce'], $sealedMetaToken['tag']) === 'test-meta-access-token', 'Meta access tokens are encrypted at rest and authenticated on read');
+$tamperedMetaCiphertext = $sealedMetaToken['ciphertext'];
+$tamperedMetaCiphertext[0] = chr(ord($tamperedMetaCiphertext[0]) ^ 1);
+$metaTokenTamperRejected = false;
+try {
+    meta_open_token($tamperedMetaCiphertext, $sealedMetaToken['nonce'], $sealedMetaToken['tag']);
+} catch (RuntimeException) {
+    $metaTokenTamperRejected = true;
+}
+check($metaTokenTamperRejected, 'Meta token authentication rejects ciphertext tampering');
+$metaGraphUrlRejected = false;
+try {
+    (new MetaGraphApiClient())->get('https://example.com/v20.0/oauth/access_token');
+} catch (InvalidArgumentException) {
+    $metaGraphUrlRejected = true;
+}
+check($metaGraphUrlRejected, 'Meta Graph client rejects non-Meta hosts before network access');
+$metaGraphHttpRejected = false;
+try {
+    (new MetaGraphApiClient())->post('http://graph.facebook.com/v20.0/123/subscribed_apps', 'token');
+} catch (InvalidArgumentException) {
+    $metaGraphHttpRejected = true;
+}
+check($metaGraphHttpRejected, 'Meta Graph client rejects non-HTTPS requests before network access');
 $logContext = app_sanitize_log_context(['attempt' => 3, 'exception_class' => 'PDOException', 'phone_number' => '+2348012345678', 'message' => 'private chat content']);
 check($logContext === ['attempt' => 3, 'exception_class' => 'PDOException'], 'structured operational logs allow only non-PII diagnostic fields');
 
