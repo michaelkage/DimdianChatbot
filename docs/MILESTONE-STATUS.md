@@ -91,4 +91,4 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Extracted `MetaTokenCipher` into `app/channels/whatsapp/MetaTokenCipher.php`. It preserves the existing SHA-256 key derivation and `dimdian-meta-token-v1` AAD, so already-encrypted access tokens remain decryptable.
 - Extracted `MetaGraphApiClient` into `app/channels/whatsapp/MetaGraphApiClient.php`. It centralizes the existing GET/POST behavior, pins requests to HTTPS `graph.facebook.com` versioned endpoints, disables redirects to prevent bearer-token forwarding, and rejects CR/LF in bearer tokens.
 - Kept `meta_seal_token()`, `meta_open_token()`, `meta_graph_get()` and `meta_graph_post()` as compatibility facades. The higher-level Embedded Signup orchestration and its remaining PDO state transitions are not yet extracted.
-- Added regression tests for token ciphertext tampering, non-Meta hosts and non-HTTPS Graph URLs.
+- Added regression tests for token ciphertext tampering, non-Meta hosts and non-HTTPS Graph URLs. Full CI run [45259832664](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259832664) passed all three jobs.
