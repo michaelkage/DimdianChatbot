@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+
+require_once __DIR__ . '/channels/whatsapp/MetaTokenCipher.php';
+require_once __DIR__ . '/channels/whatsapp/MetaGraphApiClient.php';
 function meta_signup_admin_authorized(): bool {
     $expected=(string)app_config('meta.admin_api_key');$supplied=$_SERVER['HTTP_X_DIMDIAN_ADMIN_KEY']??'';
     return strlen($expected)>=32&&is_string($supplied)&&hash_equals($expected,$supplied);
@@ -8,37 +11,26 @@ function meta_token_key(): string {
     $secret=(string)app_config('app.app_key');if(strlen($secret)<32)throw new RuntimeException('app.app_key must contain at least 32 characters.');
     return hash('sha256','dimdian-meta-token:'.$secret,true);
 }
-function meta_seal_token(string $token): array {
-    $nonce=random_bytes(12);$tag='';$cipher=openssl_encrypt($token,'aes-256-gcm',meta_token_key(),OPENSSL_RAW_DATA,$nonce,$tag,'dimdian-meta-token-v1',16);
-    if(!is_string($cipher)||strlen($tag)!==16)throw new RuntimeException('Meta token encryption failed.');
-    return ['ciphertext'=>$cipher,'nonce'=>$nonce,'tag'=>$tag];
+function meta_seal_token(string $token): array
+{
+    return (new MetaTokenCipher((string) app_config('app.app_key')))->seal($token);
 }
-function meta_open_token(string $cipher,string $nonce,string $tag): string {
-    $token=openssl_decrypt($cipher,'aes-256-gcm',meta_token_key(),OPENSSL_RAW_DATA,$nonce,$tag,'dimdian-meta-token-v1');
-    if(!is_string($token)||$token==='')throw new RuntimeException('Stored Meta token could not be authenticated.');
-    return $token;
+
+function meta_open_token(string $cipher,string $nonce,string $tag): string
+{
+    return (new MetaTokenCipher((string) app_config('app.app_key')))->open($cipher, $nonce, $tag);
 }
-function meta_graph_get(string $url): array {
-    $ctx=stream_context_create(['http'=>['method'=>'GET','timeout'=>15,'ignore_errors'=>true,'header'=>"Accept: application/json\r\n"]]);
-    $raw=@file_get_contents($url,false,$ctx);$status=0;
-    foreach($http_response_header??[] as $h)if(preg_match('/^HTTP\/\S+\s+(\d{3})/',$h,$m))$status=(int)$m[1];
-    $data=is_string($raw)?json_decode($raw,true):null;
-    if(!is_array($data)||$status<200||$status>=300||empty($data['access_token']))throw new RuntimeException('Meta token exchange was rejected or returned no token.');
-    return $data;
+
+function meta_graph_get(string $url): array
+{
+    return (new MetaGraphApiClient())->get($url);
 }
-function meta_graph_post(string $url,string $token): bool {
-    $ctx=stream_context_create(['http'=>[
-        'method'=>'POST','timeout'=>15,'ignore_errors'=>true,
-        'header'=>"Authorization: Bearer ".$token."\r\nAccept: application/json\r\nContent-Length: 0\r\n",
-    ]]);
-    $raw=@file_get_contents($url,false,$ctx);$status=0;
-    foreach($http_response_header??[] as $h)if(preg_match('/^HTTP\/\S+\s+(\d{3})/',$h,$m))$status=(int)$m[1];
-    if(!is_string($raw)||$status<200||$status>=300){
-        error_log('[DimdianChatbot] Meta WABA webhook subscription failed with HTTP '.$status.'.');
-        return false;
-    }
-    return true;
+
+function meta_graph_post(string $url,string $token): bool
+{
+    return (new MetaGraphApiClient())->post($url, $token);
 }
+
 function meta_subscribe_active_waba(PDO $pdo): bool {
     $row=$pdo->query('SELECT waba_id,access_token_ciphertext,access_token_nonce,access_token_tag FROM meta_connections WHERE status="active" ORDER BY updated_at DESC LIMIT 1')->fetch();
     if(!$row)return false;
