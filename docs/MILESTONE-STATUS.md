@@ -4,7 +4,7 @@ This checklist distinguishes shipped repository changes from operational work an
 
 | # | Milestone | Status | Evidence / boundary |
 |---:|---|---|---|
-| 1 | Application service architecture refactoring | Partial | Existing PHP service boundary remains framework-free. New consent, inbox and Meta onboarding responsibilities are separated into focused files. The legacy app/whatsapp.php is still a large procedural service and should be split further in a dedicated refactor with full DB integration tests. |
+| 1 | Application service architecture refactoring | Partial — transport boundary extracted | `MetaCloudApiTransport`, its transport interface and typed transport exception now live in `app/channels/whatsapp/MetaCloudApiTransport.php`; `app/whatsapp.php` loads the adapter and retains compatibility functions for webhook interpretation and outbox orchestration. The remaining procedural webhook and worker responsibilities still require decomposition into independently testable services. |
 | 2 | Centralized configuration and environment management | Implemented | app/bootstrap.php overlays documented DIMDIAN_* environment variables on private config.php. |
 | 3 | Database integrity and migration management | Implemented | Migration 004 and fresh-install schema add consent ledger, active identity links, encrypted webhook inbox and Meta connection/state tables. Migration backfills legacy consent timestamps and deterministic active phone links. |
 | 4 | Guest identity and session lifecycle management | Implemented | Existing random guest tokens remain hash-only, expiring and revocable; session creation and authenticated lifecycle are retained. |
