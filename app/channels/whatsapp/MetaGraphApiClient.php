@@ -34,8 +34,8 @@ final class MetaGraphApiClient
     public function post(string $url, string $token): bool
     {
         $this->assertGraphUrl($url);
-        if ($token === '') {
-            throw new InvalidArgumentException('A Meta access token is required.');
+        if ($token === '' || preg_match('/[\r\n]/', $token)) {
+            throw new InvalidArgumentException('A valid Meta access token is required.');
         }
 
         $context = stream_context_create(['http' => [
