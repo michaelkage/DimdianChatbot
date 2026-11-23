@@ -52,6 +52,25 @@ function request_api(string $method, string $path, ?array $body = null, array $h
     return [$status, $decoded, is_string($raw) ? $raw : ''];
 }
 
+function webhook_raw_post(string $raw, string $secret): array
+{
+    global $base;
+    $signature = 'sha256=' . hash_hmac('sha256', $raw, $secret);
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Content-Type: application/json\r\nX-Hub-Signature-256: {$signature}\r\n",
+        'content' => $raw,
+        'ignore_errors' => true,
+        'timeout' => 10,
+    ]]);
+    $response = file_get_contents($base . '/api/webhook.php', false, $context);
+    $status = 0;
+    foreach ($http_response_header ?? [] as $header) {
+        if (preg_match('/^HTTP\/\\S+\\s+(\\d{3})/', $header, $match)) $status = (int) $match[1];
+    }
+    return [$status, is_string($response) ? $response : ''];
+}
+
 function webhook_post(array $payload, string $secret): array
 {
     global $base;
@@ -204,6 +223,10 @@ expect(($pollBody['meta']['delivery_updates'][0]['delivery_status'] ?? '') === '
 $secret = 'test-meta-app-secret';
 [$verifyStatus, $verifyBody] = request_api('GET', '/api/webhook.php?hub.mode=subscribe&hub.verify_token=test-webhook-token&hub.challenge=challenge-123');
 expect($verifyStatus === 200 && $verifyBody === null, 'Meta webhook verification returns a plain-text challenge');
+[$unsupportedWebhookMethod] = request_api('DELETE', '/api/webhook.php');
+expect($unsupportedWebhookMethod === 405, 'Meta webhook route rejects unsupported HTTP methods');
+[$invalidWebhookJson] = webhook_raw_post('{', $secret);
+expect($invalidWebhookJson === 400, 'Meta webhook route rejects malformed JSON after signature verification');
 $echoPayload = [
     'object' => 'whatsapp_business_account',
     'entry' => [[
