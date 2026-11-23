@@ -9,13 +9,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/channels/whatsapp/MetaCloudApiTransport.php';
 require_once __DIR__ . '/channels/whatsapp/WhatsAppOutboxWorker.php';
 require_once __DIR__ . '/channels/whatsapp/MetaWebhookProcessor.php';
+require_once __DIR__ . '/channels/whatsapp/MetaWebhookSignatureVerifier.php';
 
 function verify_meta_webhook_signature(string $rawBody, ?string $signatureHeader, string $appSecret): bool
 {
-    if ($appSecret === '' || $signatureHeader === null || !preg_match('/^sha256=([a-f0-9]{64})$/i', trim($signatureHeader), $match)) {
-        return false;
-    }
-    return hash_equals(hash_hmac('sha256', $rawBody, $appSecret), strtolower($match[1]));
+    return (new MetaWebhookSignatureVerifier())->verify($rawBody, $signatureHeader, $appSecret);
 }
 
 function normalize_whatsapp_number(string $number): string
