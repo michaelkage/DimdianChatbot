@@ -7,25 +7,16 @@ require_once dirname(__DIR__, 2) . '/app/webhook_inbox.php';
 
 try {
     $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-    if ($method === 'GET') {
-        $verifyToken = (string)app_config('whatsapp.verify_token');
-        $mode = (string)($_GET['hub_mode'] ?? $_GET['hub.mode'] ?? '');
-        $token = (string)($_GET['hub_verify_token'] ?? $_GET['hub.verify_token'] ?? '');
-        $challenge = (string)($_GET['hub_challenge'] ?? $_GET['hub.challenge'] ?? '');
-        if ($mode === 'subscribe' && $verifyToken !== '' && hash_equals($verifyToken, $token) && $challenge !== '') {
-            http_response_code(200);
-            header('Content-Type: text/plain; charset=utf-8');
-            header('Cache-Control: no-store');
-            echo $challenge;
-            exit;
+    if ($method === 'GET' || $method !== 'POST') {
+        $response = $method === 'GET'
+            ? MetaWebhookEndpoint::verifyHandshake($_GET, (string)app_config('whatsapp.verify_token'))
+            : MetaWebhookEndpoint::methodNotAllowed();
+        http_response_code($response['status']);
+        foreach ($response['headers'] as $name => $value) {
+            header($name . ': ' . $value);
         }
-        http_response_code(403);
-        exit('Forbidden');
-    }
-    if ($method !== 'POST') {
-        header('Allow: GET, POST');
-        http_response_code(405);
-        exit('Method Not Allowed');
+        echo $response['body'];
+        exit;
     }
 
     $rawBody = '';
