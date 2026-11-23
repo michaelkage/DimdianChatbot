@@ -381,8 +381,14 @@ $agentIdentity = $agentService->authenticate($agentServer);
 $agentSearchOwnerOnly = $agentService->listConversations($agentServer, 'open', 0, 50, 'Owner Only Visitor');
 staff_expect($agentSearchOwnerOnly === [], 'agent search cannot reveal a visitor assigned to another agent');
 $agentList = $agentService->listConversations($agentServer, 'open', 0, 50);
+$agentListIds = array_column($agentList, 'id');
 staff_expect($agentIdentity['role'] === 'agent', 'local staff role overrides untrusted external role claims');
-staff_expect(count($agentList) === 2 && count(array_filter($agentList, static fn(array $row): bool => in_array($row['id'], [$conversationId, $secondConversationId], true))) === 2, 'agent inbox includes own assignments and unassigned conversations but excludes another agent’s assignments');
+staff_expect(
+    in_array($conversationId, $agentListIds, true)
+        && in_array($secondConversationId, $agentListIds, true)
+        && !in_array($thirdConversationId, $agentListIds, true),
+    'agent inbox includes own assignments and unassigned conversations but excludes another agent’s assignments'
+);
 $agentMessages = $agentService->listConversationMessages($agentServer, $conversationId, 0, 50);
 staff_expect(count($agentMessages['items']) === 1, 'assigned agent can read conversation messages');
 $agentNotes = $agentService->listInternalNotes($agentServer, $conversationId, 0, 20);
