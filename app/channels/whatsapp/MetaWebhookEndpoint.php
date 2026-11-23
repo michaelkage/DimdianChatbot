@@ -54,7 +54,7 @@ final class MetaWebhookEndpoint
      * @param array<string,mixed> $payload
      * @return array{status:int,headers:array<string,string>,body:string}
      */
-    public function processValidatedPayload(string $rawBody, array $payload): array
+    public function processValidatedPayload(string $rawBody): array
     {
         $encrypted = $this->cipher->encrypt($rawBody);
         $queued = $this->repository->enqueueWebhookInbox(hash('sha256', $rawBody), $encrypted);
