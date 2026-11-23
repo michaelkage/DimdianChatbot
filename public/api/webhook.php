@@ -29,26 +29,25 @@ try {
         $rawBody = $body;
     }
 
+    $signature = isset($_SERVER['HTTP_X_HUB_SIGNATURE_256']) && is_string($_SERVER['HTTP_X_HUB_SIGNATURE_256'])
+        ? $_SERVER['HTTP_X_HUB_SIGNATURE_256']
+        : null;
+    $appSecret = (string)app_config('whatsapp.app_secret');
+    $validation = MetaWebhookEndpoint::validatePost($rawBody, $signature, $appSecret);
+    if (isset($validation['status'])) {
+        http_response_code($validation['status']);
+        foreach ($validation['headers'] as $name => $value) {
+            header($name . ': ' . $value);
+        }
+        echo $validation['body'];
+        exit;
+    }
+
     $repository = chat_repository();
     $cipher = webhook_payload_cipher();
     $worker = webhook_inbox_worker($repository, $cipher);
-    $endpoint = new MetaWebhookEndpoint(
-        $repository,
-        $cipher,
-        $worker,
-        new MetaWebhookSignatureVerifier()
-    );
-
-    $response = $endpoint->handle(
-        $method,
-        $_GET,
-        isset($_SERVER['HTTP_X_HUB_SIGNATURE_256']) && is_string($_SERVER['HTTP_X_HUB_SIGNATURE_256'])
-            ? $_SERVER['HTTP_X_HUB_SIGNATURE_256']
-            : null,
-        $rawBody,
-        (string)app_config('whatsapp.verify_token'),
-        (string)app_config('whatsapp.app_secret')
-    );
+    $endpoint = new MetaWebhookEndpoint($repository, $cipher, $worker);
+    $response = $endpoint->processValidatedPayload($rawBody, $validation['payload']);
 
     http_response_code($response['status']);
     foreach ($response['headers'] as $name => $value) {
