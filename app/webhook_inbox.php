@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/channels/whatsapp/WebhookPayloadCipher.php';
 require_once __DIR__ . '/channels/whatsapp/WebhookInboxWorker.php';
+require_once __DIR__ . '/channels/whatsapp/MetaWebhookEndpoint.php';
 
 function webhook_payload_cipher(): WebhookPayloadCipher
 {
@@ -54,19 +55,24 @@ function process_webhook_inbox(PDO $pdo, ChatRepository $repository, int $limit 
 }
 
 /** @return array{processed:int,retried:int,failed:int,empty:bool} */
-function process_webhook_inbox_with_repository(ChatRepository $repository, int $limit = 10, int $maxAttempts = 8): array
-{
+function webhook_inbox_worker(
+    ChatRepository $repository,
+    ?WebhookPayloadCipher $cipher = null
+): WebhookInboxWorker {
     $resolver = static function () use ($repository): string {
         return $repository->activeWhatsAppPhoneNumberId()
             ?? (string) app_config('whatsapp.phone_number_id');
     };
 
-    $worker = new WebhookInboxWorker(
+    return new WebhookInboxWorker(
         $repository,
         new MetaWebhookProcessor($repository),
-        webhook_payload_cipher(),
+        $cipher ?? webhook_payload_cipher(),
         $resolver
     );
+}
 
-    return $worker->process($limit, $maxAttempts);
+function process_webhook_inbox_with_repository(ChatRepository $repository, int $limit = 10, int $maxAttempts = 8): array
+{
+    return webhook_inbox_worker($repository)->process($limit, $maxAttempts);
 }
