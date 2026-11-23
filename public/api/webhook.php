@@ -47,7 +47,7 @@ try {
     $cipher = webhook_payload_cipher();
     $worker = webhook_inbox_worker($repository, $cipher);
     $endpoint = new MetaWebhookEndpoint($repository, $cipher, $worker);
-    $response = $endpoint->processValidatedPayload($rawBody, $validation['payload']);
+    $response = $endpoint->processValidatedPayload($rawBody);
 
     http_response_code($response['status']);
     foreach ($response['headers'] as $name => $value) {
