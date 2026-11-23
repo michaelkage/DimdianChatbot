@@ -4,7 +4,7 @@ This checklist distinguishes shipped repository changes from operational work an
 
 | # | Milestone | Status | Evidence / boundary |
 |---:|---|---|---|
-| 1 | Application service architecture refactoring | Partial — transport, signature verifier, webhook processor, inbox worker and payload cipher extracted | `MetaCloudApiTransport` defines the text transport boundary and Meta adapter. `MetaWebhookSignatureVerifier` verifies the exact raw body against Meta's HMAC signature. `MetaWebhookProcessor` maps inbound text, Business App echoes and delivery statuses into repository provider-event operations. `WebhookPayloadCipher` owns AES-256-GCM payload sealing with the existing key derivation/AAD. `WebhookInboxWorker` owns lease, decrypt, validate, replay-safe event processing, completion and retry orchestration; active Meta phone-number lookup is exposed by `ChatRepository`. `WhatsAppOutboxWorker` owns outbound job orchestration. Legacy functions remain compatibility facades. HTTP method handling, persist-before-ack response and other procedural application responsibilities remain in routes.
+| 1 | Application service architecture refactoring | Partial — transport, signature verifier, webhook processor, inbox worker and payload cipher extracted | `MetaCloudApiTransport` defines the text transport boundary and Meta adapter. `MetaWebhookSignatureVerifier` verifies the exact raw body against Meta's HMAC signature. `MetaWebhookProcessor` maps inbound text, Business App echoes and delivery statuses into repository provider-event operations. `WebhookPayloadCipher` owns AES-256-GCM payload sealing with the existing key derivation/AAD. `WebhookInboxWorker` owns lease, decrypt, validate, replay-safe event processing, completion and retry orchestration; active Meta phone-number lookup is exposed by `ChatRepository`. `WhatsAppOutboxWorker` owns outbound job orchestration. Legacy functions remain compatibility facades. raw PHP request/response I/O and Meta GET handshake remain in the route adapter; other procedural application responsibilities remain.
 | 2 | Centralized configuration and environment management | Implemented | app/bootstrap.php overlays documented DIMDIAN_* environment variables on private config.php. |
 | 3 | Database integrity and migration management | Implemented | Migration 004 and fresh-install schema add consent ledger, active identity links, encrypted webhook inbox and Meta connection/state tables. Migration backfills legacy consent timestamps and deterministic active phone links. |
 | 4 | Guest identity and session lifecycle management | Implemented | Existing random guest tokens remain hash-only, expiring and revocable; session creation and authenticated lifecycle are retained. |
@@ -75,3 +75,12 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Extracted `MetaWebhookSignatureVerifier` into `app/channels/whatsapp/MetaWebhookSignatureVerifier.php`.
 - The verifier checks the exact raw request bytes, requires the SHA-256 signature format and uses constant-time comparison. The legacy `verify_meta_webhook_signature()` function delegates to the class.
 - HTTP method negotiation, request-size enforcement, durable enqueue-before-acknowledgement and HTTP response generation remain in `public/api/webhook.php`.
+
+
+### Follow-up implementation — HTTP endpoint boundary
+
+- Extracted `MetaWebhookEndpoint` into `app/channels/whatsapp/MetaWebhookEndpoint.php`.
+- The endpoint owns POST signature validation, JSON/envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. It returns a response description and does not emit headers or terminate the process.
+- `public/api/webhook.php` is now a thin PHP adapter for reading the raw body, handling Meta's GET verification handshake, mapping the response to HTTP and logging unexpected failures. The handshake remains database-independent.
+- The CLI recovery endpoint calls the same repository-backed inbox worker directly; it does not route through HTTP.
+- Added integration coverage for unsupported HTTP methods and malformed JSON carrying a valid signature.
