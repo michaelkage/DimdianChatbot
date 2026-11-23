@@ -109,7 +109,8 @@ function load_meta_whatsapp_config(PDO $pdo,array $base): array {
     $base['access_token']=$token;
     return $base;
 }
-function meta_active_phone_number_id(PDO $pdo): string {
-    $id=$pdo->query('SELECT phone_number_id FROM meta_connections WHERE status="active" ORDER BY updated_at DESC LIMIT 1')->fetchColumn();
-    return is_string($id)?$id:(string)app_config('whatsapp.phone_number_id');
+function meta_active_phone_number_id(PDO $pdo): string
+{
+    return chat_repository($pdo)->activeWhatsAppPhoneNumberId()
+        ?? (string) app_config('whatsapp.phone_number_id');
 }
