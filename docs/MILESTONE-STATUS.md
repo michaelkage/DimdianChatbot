@@ -80,7 +80,7 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 ### Follow-up implementation — HTTP endpoint boundary
 
 - Extracted `MetaWebhookEndpoint` into `app/channels/whatsapp/MetaWebhookEndpoint.php`.
-- The endpoint owns Meta GET handshake validation, POST signature validation, JSON/envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. It returns a response description and does not emit headers or terminate the process.
-- `public/api/webhook.php` is now a thin PHP adapter for reading the raw body, handling Meta's GET verification handshake, mapping the response to HTTP and logging unexpected failures. The route invokes the endpoint's static handshake path before opening a database connection, preserving database-independent verification.
+- The endpoint owns Meta GET handshake validation, POST size/signature/JSON/envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. Invalid POST requests are rejected before a database connection is opened. It returns a response description and does not emit headers or terminate the process.
+- `public/api/webhook.php` is now a thin PHP adapter for reading the raw body, handling Meta's GET verification handshake, mapping the response to HTTP and logging unexpected failures. The route invokes the endpoint's static handshake and POST validation paths before opening a database connection, preserving database-independent verification and avoiding DB work for invalid requests.
 - The CLI recovery endpoint calls the same repository-backed inbox worker directly; it does not route through HTTP.
 - Added integration coverage for unsupported HTTP methods and malformed JSON carrying a valid signature.
