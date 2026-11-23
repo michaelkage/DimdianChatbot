@@ -4,7 +4,7 @@ This checklist distinguishes shipped repository changes from operational work an
 
 | # | Milestone | Status | Evidence / boundary |
 |---:|---|---|---|
-| 1 | Application service architecture refactoring | Partial — transport and outbox worker extracted | `MetaCloudApiTransport`, its transport interface and typed transport exception live in `app/channels/whatsapp/MetaCloudApiTransport.php`. `WhatsAppOutboxWorker` now owns batch processing, consent rechecks, provider invocation, retry classification and completion/failure orchestration in `app/channels/whatsapp/WhatsAppOutboxWorker.php`; the legacy `process_whatsapp_outbox()` function delegates to it. Webhook interpretation/ingestion and the remaining application entry points still require decomposition into independently testable services. |
+| 1 | Application service architecture refactoring | Partial — transport, webhook processor and outbox worker extracted | `MetaCloudApiTransport` defines the text transport boundary and Meta adapter. `MetaWebhookProcessor` maps inbound text, Business App echoes and delivery statuses into repository provider-event operations. `WhatsAppOutboxWorker` owns bounded job processing, consent rechecks, provider invocation, retry classification and lease-fenced completion/failure. The legacy functions in `app/whatsapp.php` remain compatibility facades. Webhook signature verification, durable inbox orchestration, active Meta connection lookup and other application entry points remain to be decomposed. |
 | 2 | Centralized configuration and environment management | Implemented | app/bootstrap.php overlays documented DIMDIAN_* environment variables on private config.php. |
 | 3 | Database integrity and migration management | Implemented | Migration 004 and fresh-install schema add consent ledger, active identity links, encrypted webhook inbox and Meta connection/state tables. Migration backfills legacy consent timestamps and deterministic active phone links. |
 | 4 | Guest identity and session lifecycle management | Implemented | Existing random guest tokens remain hash-only, expiring and revocable; session creation and authenticated lifecycle are retained. |
@@ -50,3 +50,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Repository calls remain the only persistence interface; provider HTTP I/O remains outside database transactions.
 - Preserved `process_whatsapp_outbox(PDO, WhatsAppTextTransport, ...)` as a compatibility wrapper so existing CLI and application call sites do not change.
 - Existing integration transports continue to exercise success, retryable failure, permanent failure and lease-reclaim behavior through the wrapper. CI validation is pending for this extraction.
+
+
+### Follow-up implementation — webhook processor service boundary
+
+- Extracted `MetaWebhookProcessor` into `app/channels/whatsapp/MetaWebhookProcessor.php`.
+- The processor maps text inbound messages, Business App text echoes and delivery-status events into the existing `ChatRepository` provider-event contract, including event identifiers, payload hashes, timestamps and unsupported-event accounting.
+- Preserved `process_meta_webhook()` as a compatibility facade. Signature verification and durable raw-webhook inbox lifecycle remain separate concerns and were not moved into this processor.
+- Existing integration cases for inbound correlation, echo deduplication, early status reconciliation and late-failure precedence continue to exercise the facade. CI validation is pending.
