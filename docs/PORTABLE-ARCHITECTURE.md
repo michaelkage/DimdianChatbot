@@ -173,3 +173,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Meta webhook HTTP endpoint (2026-11-23)
 
 `MetaWebhookEndpoint` now owns POST size/signature/JSON/envelope validation, encrypted inbox enqueue-before-acknowledgement and bounded inline processing. The route performs this validation before opening a database connection, so unauthenticated or malformed webhook traffic does not consume database connections. It returns a response description instead of writing headers or exiting. `public/api/webhook.php` remains the PHP transport adapter for raw-body input, HTTP response emission and failure logging. It invokes the endpoint's static GET handshake path before opening a database connection. The CLI recovery endpoint invokes the same inbox worker without going through the HTTP controller.
+
+
+### Meta signup infrastructure boundaries (2026-11-23)
+
+`MetaTokenCipher` now owns Meta access-token AES-256-GCM encryption while preserving the existing derivation and AAD for stored-token compatibility. `MetaGraphApiClient` centralizes Graph API requests, restricts destinations to HTTPS `graph.facebook.com` versioned paths, disables redirects and rejects invalid bearer-token header values. Procedural helpers remain as compatibility facades; the larger Embedded Signup state machine and PDO persistence are not yet extracted.
