@@ -20,7 +20,11 @@ function webhook_payload_cipher(): WebhookPayloadCipher
 /** Backwards-compatible key accessor for operational diagnostics. */
 function webhook_payload_key(): string
 {
-    return hash('sha256', 'dimdian-webhook-inbox:' . (string) app_config('app.app_key'), true);
+    $secret = (string) app_config('app.app_key');
+    if (strlen($secret) < 32) {
+        throw new RuntimeException('A 32-character app.app_key is required for webhook encryption.');
+    }
+    return hash('sha256', 'dimdian-webhook-inbox:' . $secret, true);
 }
 
 /** @return array{ciphertext:string,nonce:string,tag:string} */
