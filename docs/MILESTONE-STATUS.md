@@ -4,7 +4,7 @@ This checklist distinguishes shipped repository changes from operational work an
 
 | # | Milestone | Status | Evidence / boundary |
 |---:|---|---|---|
-| 1 | Application service architecture refactoring | Partial — transport boundary extracted | `MetaCloudApiTransport`, its transport interface and typed transport exception now live in `app/channels/whatsapp/MetaCloudApiTransport.php`; `app/whatsapp.php` loads the adapter and retains compatibility functions for webhook interpretation and outbox orchestration. The remaining procedural webhook and worker responsibilities still require decomposition into independently testable services. |
+| 1 | Application service architecture refactoring | Partial — transport and outbox worker extracted | `MetaCloudApiTransport`, its transport interface and typed transport exception live in `app/channels/whatsapp/MetaCloudApiTransport.php`. `WhatsAppOutboxWorker` now owns batch processing, consent rechecks, provider invocation, retry classification and completion/failure orchestration in `app/channels/whatsapp/WhatsAppOutboxWorker.php`; the legacy `process_whatsapp_outbox()` function delegates to it. Webhook interpretation/ingestion and the remaining application entry points still require decomposition into independently testable services. |
 | 2 | Centralized configuration and environment management | Implemented | app/bootstrap.php overlays documented DIMDIAN_* environment variables on private config.php. |
 | 3 | Database integrity and migration management | Implemented | Migration 004 and fresh-install schema add consent ledger, active identity links, encrypted webhook inbox and Meta connection/state tables. Migration backfills legacy consent timestamps and deterministic active phone links. |
 | 4 | Guest identity and session lifecycle management | Implemented | Existing random guest tokens remain hash-only, expiring and revocable; session creation and authenticated lifecycle are retained. |
@@ -41,3 +41,12 @@ This checklist distinguishes shipped repository changes from operational work an
 Latest outbox extraction validation: [GitHub Actions run 44939900785](https://github.com/michaelkage/DimdianChatbot/actions/runs/44939900785) passed the MySQL integration suite and WordPress adapter compatibility jobs on PHP 7.4 and 8.2. Integration coverage includes worker success, retryable and permanent failure, exhausted leases, expired-lease reclaim, stale-token fencing, consent lookup, and atomic message/outbox completion.
 
 Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/michaelkage/DimdianChatbot/actions/runs/45200920244) passed all three jobs on the current PR head. PHP 8.2 lint and MySQL integration passed, including 17 helper tests, 65 application integration tests, 66 staff repository/policy tests (including both CLI last-owner guards), 18 signed staff HTTP tests, the WordPress plugin contract suite, and all 6 widget tests. WordPress adapter compatibility also passed on PHP 7.4 and 8.2.
+
+
+### Follow-up implementation — outbox worker service boundary
+
+- Extracted `WhatsAppOutboxWorker` into `app/channels/whatsapp/WhatsAppOutboxWorker.php`.
+- The worker owns bounded batch processing, durable job claiming, the immediate consent recheck, provider invocation, retry classification, lease-fenced completion/failure and operational attempt logging.
+- Repository calls remain the only persistence interface; provider HTTP I/O remains outside database transactions.
+- Preserved `process_whatsapp_outbox(PDO, WhatsAppTextTransport, ...)` as a compatibility wrapper so existing CLI and application call sites do not change.
+- Existing integration transports continue to exercise success, retryable failure, permanent failure and lease-reclaim behavior through the wrapper. CI validation is pending for this extraction.
