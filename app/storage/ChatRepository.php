@@ -40,6 +40,9 @@ interface ChatRepository
     /** @return list<array{id:string,delivery_status:string}> */
     public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array;
 
+    /** Return the currently active Meta phone-number ID, or null when none is connected. */
+    public function activeWhatsAppPhoneNumberId(): ?string;
+
     /**
      * Persist an encrypted, signature-verified provider payload before acknowledging it.
      * @param array{ciphertext:string,nonce:string,tag:string} $encrypted
