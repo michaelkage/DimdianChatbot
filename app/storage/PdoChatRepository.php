@@ -465,6 +465,19 @@ final class PdoChatRepository implements ChatRepository
     }
 
 
+    public function activeWhatsAppPhoneNumberId(): ?string
+    {
+        $statement = $this->pdo->query(
+            'SELECT phone_number_id
+             FROM meta_connections
+             WHERE status = "active"
+             ORDER BY updated_at DESC
+             LIMIT 1'
+        );
+        $value = $statement->fetchColumn();
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
     {
         return $this->transaction(function () use ($payloadHash, $encrypted): array {
