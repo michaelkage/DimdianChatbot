@@ -39,6 +39,15 @@ check(whatsapp_retry_delay_seconds(6) === 480, 'sixth retry delay is bounded exp
 check(whatsapp_retry_delay_seconds(99) === 3600, 'retry delay is capped at one hour');
 $encryptedPayload = encrypt_webhook_payload('{"object":"whatsapp_business_account"}');
 check(decrypt_webhook_payload($encryptedPayload['ciphertext'], $encryptedPayload['nonce'], $encryptedPayload['tag']) === '{"object":"whatsapp_business_account"}', 'webhook payload encryption round-trips with authenticated encryption');
+$tamperedWebhookCiphertext = $encryptedPayload['ciphertext'];
+$tamperedWebhookCiphertext[0] = chr(ord($tamperedWebhookCiphertext[0]) ^ 1);
+$webhookTamperRejected = false;
+try {
+    decrypt_webhook_payload($tamperedWebhookCiphertext, $encryptedPayload['nonce'], $encryptedPayload['tag']);
+} catch (RuntimeException) {
+    $webhookTamperRejected = true;
+}
+check($webhookTamperRejected, 'webhook payload authentication rejects ciphertext tampering');
 $sealedMetaToken = meta_seal_token('test-meta-access-token');
 check(meta_open_token($sealedMetaToken['ciphertext'], $sealedMetaToken['nonce'], $sealedMetaToken['tag']) === 'test-meta-access-token', 'Meta access tokens are encrypted at rest and authenticated on read');
 $logContext = app_sanitize_log_context(['attempt' => 3, 'exception_class' => 'PDOException', 'phone_number' => '+2348012345678', 'message' => 'private chat content']);
