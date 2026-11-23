@@ -17,46 +17,46 @@ final class MetaWebhookEndpoint
     ) {}
 
     /**
-     * @param array<string,mixed> $query
-     * @return array{status:int,headers:array<string,string>,body:string}
+     * Validate a POST request before opening a database connection.
+     *
+     * @return array{payload:array<string,mixed>}|array{status:int,headers:array<string,string>,body:string}
      */
-    public function handle(
-        string $method,
-        array $query,
-        ?string $signatureHeader,
+    public static function validatePost(
         string $rawBody,
-        string $verifyToken,
+        ?string $signatureHeader,
         string $appSecret,
         int $maxBodyBytes = 1048576
     ): array {
-        $method = strtoupper($method);
-
-        if ($method === 'GET') {
-            return self::verifyHandshake($query, $verifyToken);
-        }
-
-        if ($method !== 'POST') {
-            return self::methodNotAllowed();
-        }
-
         if (strlen($rawBody) > $maxBodyBytes) {
-            return $this->response(413, 'Payload Too Large', ['Content-Type' => 'text/plain; charset=utf-8']);
+            return self::response(413, 'Payload Too Large', ['Content-Type' => 'text/plain; charset=utf-8']);
         }
 
-        if (!$this->signatureVerifier->verify($rawBody, $signatureHeader, $appSecret)) {
-            return $this->response(401, 'Invalid signature', ['Content-Type' => 'text/plain; charset=utf-8']);
+        if (!(new MetaWebhookSignatureVerifier())->verify($rawBody, $signatureHeader, $appSecret)) {
+            return self::response(401, 'Invalid signature', ['Content-Type' => 'text/plain; charset=utf-8']);
         }
 
         try {
             $payload = json_decode($rawBody, true, 64, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            return $this->response(400, 'Invalid JSON', ['Content-Type' => 'text/plain; charset=utf-8']);
+            return self::response(400, 'Invalid JSON', ['Content-Type' => 'text/plain; charset=utf-8']);
         }
 
         if (!is_array($payload) || ($payload['object'] ?? '') !== 'whatsapp_business_account') {
-            return $this->response(400, 'Invalid payload', ['Content-Type' => 'text/plain; charset=utf-8']);
+            return self::response(400, 'Invalid payload', ['Content-Type' => 'text/plain; charset=utf-8']);
         }
 
+        return ['payload' => $payload];
+    }
+
+    /**
+     * Persist a validated payload before acknowledgement, then attempt one
+     * inline job. The durable CLI worker recovers work after process failure.
+     *
+     * @param array<string,mixed> $payload
+     * @return array{status:int,headers:array<string,string>,body:string}
+     */
+    public function processValidatedPayload(string $rawBody, array $payload): array
+    {
         $encrypted = $this->cipher->encrypt($rawBody);
         $queued = $this->repository->enqueueWebhookInbox(hash('sha256', $rawBody), $encrypted);
         $summary = ['processed' => 0, 'retried' => 0, 'failed' => 0];
@@ -64,7 +64,7 @@ final class MetaWebhookEndpoint
             $summary = $this->worker->process(1, 8);
         }
 
-        return $this->response(200, (string)json_encode([
+        return self::response(200, (string)json_encode([
             'ok' => true,
             'queued' => $queued['inserted'],
             'inbox_id' => $queued['id'],
