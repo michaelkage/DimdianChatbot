@@ -11,7 +11,7 @@ final class PdoRateLimitRepository implements RateLimitRepository
         $this->pdo = $pdo;
     }
 
-    public function consumeRateLimit(string $tenantId, string $bucket, int $maxRequests, int $windowSeconds): bool
+    public function consumeRateLimit(string $bucket, int $maxRequests, int $windowSeconds): bool
     {
         $bucketKey = hash('sha256', $bucket);
         $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
