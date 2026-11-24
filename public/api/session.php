@@ -58,6 +58,11 @@ try {
         ],
     ], 429);
 } catch (Throwable $error) {
+    // The CI database harness sets DIMDIAN_TEST_DSN; expose the driver detail
+    // only in that isolated test environment to diagnose schema drift.
+    if (getenv('DIMDIAN_TEST_DSN') !== false) {
+        error_log('[DimdianChatbot test DB] ' . $error->getMessage());
+    }
     app_log_event('session.create_failed', [
         'endpoint' => 'session',
         'exception_class' => get_class($error),
