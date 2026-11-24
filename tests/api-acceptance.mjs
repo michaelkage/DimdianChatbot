@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 const base = new URL(
   process.env.DIMDIAN_API_BASE_URL || "http://127.0.0.1:8080/api/v1/",
 );
+if (!base.pathname.endsWith("/")) base.pathname += "/";
 const origin = process.env.DIMDIAN_CONTRACT_ORIGIN || "https://website.example.test";
 let passed = 0;
 
