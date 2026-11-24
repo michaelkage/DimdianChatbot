@@ -252,3 +252,6 @@ Active WhatsApp phone-number lookup is now implemented once in `PdoMetaConnectio
 
 
 `PdoChatRepository` is now composition-only: it constructs focused adapters over the shared PDO connection and delegates the legacy aggregate contract. It no longer stores PDO or contains SQL/transaction logic. SQL dialect behavior resides in the individual adapter classes, making a future alternate-database implementation a set of explicit capability adapters rather than a rewrite of the application services.
+
+
+The visitor-message adapter no longer duplicates outbox INSERT SQL. It depends on the `WhatsAppOutboxRepository` capability and invokes its enqueue operation inside the message transaction. The composition root injects the same PDO-backed outbox adapter instance/connection, so message and outbox persistence remain atomic while the outbox SQL has one owner.
