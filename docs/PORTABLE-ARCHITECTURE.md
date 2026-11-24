@@ -258,3 +258,6 @@ The visitor-message adapter no longer duplicates outbox INSERT SQL. It depends o
 
 
 Guest-session authentication policy is now isolated in `GuestSessionAuthenticator`. It accepts the raw token as an explicit argument, hashes it before repository lookup, touches the session and enforces the open-conversation rule. The legacy HTTP helper remains responsible for reading the request header and mapping typed service failures to the established JSON/status responses.
+
+
+Staff identity resolution is a separate application service. `StaffIdentityService` accepts a verified principal from the configured `StaffIdentityProvider`, upserts and reloads the local identity, and fails closed unless that local identity is active. It does not trust role claims from the external provider. `StaffInboxService` retains authorization and inbox use cases while delegating identity lifecycle. Automated architecture checks guard application services against HTTP response/request globals and direct SQL/PDO, and guard API route handlers against direct persistence.
