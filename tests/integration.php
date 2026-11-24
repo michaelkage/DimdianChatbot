@@ -619,9 +619,9 @@ $repositoryConsentState->execute([':id' => $repositoryGuestId]);
 expect($repositoryConsentState->fetchColumn() !== false && $repositoryConsentState->fetchColumn() !== null, 'repository consent transition can restore opt-in');
 
 $rateBucket = 'integration-contract:' . uuid_v4();
-expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository admits the first request');
-expect($repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository admits requests up to the configured maximum');
-expect(!$repository->consumeRateLimit($rateBucket, 2, 60), 'rate-limit repository rejects requests above the configured maximum');
+expect($repository->consumeRateLimit('00000000-0000-4000-8000-000000000001', $rateBucket, 2, 60), 'rate-limit repository admits the first request');
+expect($repository->consumeRateLimit('00000000-0000-4000-8000-000000000001', $rateBucket, 2, 60), 'rate-limit repository admits requests up to the configured maximum');
+expect(!$repository->consumeRateLimit('00000000-0000-4000-8000-000000000001', $rateBucket, 2, 60), 'rate-limit repository rejects requests above the configured maximum');
 
 $webhookHash = hash('sha256', 'repository-webhook:' . uuid_v4());
 $webhookEncrypted = [
