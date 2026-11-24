@@ -31,9 +31,10 @@ final class ChatMessageService
 
     /**
      * @param array<string,mixed> $session Authenticated guest-session data.
+     * @param mixed $clientMessageId Optional client idempotency key, validated after rate limiting.
      * @return array{http_status:int,body:array<string,mixed>}
      */
-    public function send(array $session, string $messageText, ?string $clientMessageId = null): array
+    public function send(array $session, string $messageText, $clientMessageId = null): array
     {
         $rateConfig = $this->config['app']['message_rate_limit'] ?? [];
         if (!is_array($rateConfig)) {
@@ -48,7 +49,7 @@ final class ChatMessageService
         if ($clientMessageId === null) {
             $clientMessageId = $this->uuidV4();
         }
-        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientMessageId)) {
+        if (!is_string($clientMessageId) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientMessageId)) {
             throw new InvalidArgumentException('client_message_id must be a UUID.');
         }
 
