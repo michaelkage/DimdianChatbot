@@ -9,10 +9,10 @@ final class WhatsAppConsentPhoneRequired extends RuntimeException
 /** Applies visitor WhatsApp consent through the auditable ConsentRepository transition. */
 final class WhatsAppConsentService
 {
-    /** @var ChatRepository */
+    /** @var ConsentRepository */
     private $repository;
 
-    public function __construct(ChatRepository $repository)
+    public function __construct(ConsentRepository $repository)
     {
         $this->repository = $repository;
     }
