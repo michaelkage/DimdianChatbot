@@ -8,16 +8,16 @@ interface GuestSessionRepository
     public function createGuestSession(array $session): void;
 
     /** @return array<string,mixed>|null */
-    public function findGuestSessionByTokenHash(string $tokenHash): ?array;
+    public function findGuestSessionByTokenHash(string $tokenHash, string $tenantId): ?array;
 
-    public function touchGuestSession(string $sessionId): void;
+    public function touchGuestSession(string $sessionId, string $tenantId): void;
 }
 
 /** Fixed-window request accounting. */
 interface RateLimitRepository
 {
     /** Increment a fixed-window bucket and report whether this request is within its limit. */
-    public function consumeRateLimit(string $bucket, int $maxRequests, int $windowSeconds): bool;
+    public function consumeRateLimit(string $tenantId, string $bucket, int $maxRequests, int $windowSeconds): bool;
 }
 
 /** Visitor-visible conversation message persistence and polling. */
@@ -33,16 +33,17 @@ interface VisitorMessageRepository
     public function createVisitorMessage(array $message): array;
 
     /** @return array{items:list<array<string,mixed>>,has_more:bool,next_cursor:int} */
-    public function listConversationMessages(string $conversationId, int $after, int $limit): array;
+    public function listConversationMessages(string $tenantId, string $conversationId, int $after, int $limit): array;
 
     /** @return list<array{id:string,delivery_status:string}> */
-    public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array;
+    public function listVisitorDeliveryUpdates(string $tenantId, string $conversationId, int $limit = 50): array;
 }
 
 /** Auditable visitor consent transitions. */
 interface ConsentRepository
 {
     public function recordWhatsAppConsent(
+        string $tenantId,
         string $guestId,
         string $conversationId,
         string $normalizedPhone,
