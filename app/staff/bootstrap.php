@@ -44,7 +44,12 @@ function staff_inbox_dispatch(callable $operation): never
     } catch (ChatStorageConflict) {
         json_response(['error' => ['code' => 'conflict', 'message' => 'This request conflicts with an existing message.']], 409);
     } catch (PDOException $error) {
-        app_log_event('staff_inbox.storage_failed', ['endpoint' => 'staff_inbox', 'exception_class' => get_class($error)]);
+        $driverCode = is_array($error->errorInfo ?? null) ? (string)($error->errorInfo[1] ?? '') : '';
+        app_log_event('staff_inbox.storage_failed', [
+            'endpoint' => 'staff_inbox',
+            'exception_class' => get_class($error),
+            'reason_code' => (string)$error->getCode() . ($driverCode !== '' ? ':' . $driverCode : ''),
+        ]);
         json_response(['error' => ['code' => 'storage_error', 'message' => 'The staff operation could not be completed.']], 500);
     } catch (InvalidArgumentException $error) {
         json_response(['error' => ['code' => 'invalid_request', 'message' => $error->getMessage()]], 422);
