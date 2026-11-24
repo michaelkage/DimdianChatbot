@@ -31,7 +31,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
         return $this->transaction(function () use ($eventId, $eventType, $payloadHash, $phone, $senderType, $body, $providerMessageId, $deliveryStatus, $sentAt): string {
             if (!$this->insertWebhookEvent($eventId, $eventType, $payloadHash)) return 'duplicate';
 
-            $conversation = $this->pdo->prepare(
+            $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT c.id
                  FROM whatsapp_identity_links l
                  INNER JOIN conversations c ON c.id = l.conversation_id
@@ -45,7 +45,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
                 return 'ignored';
             }
 
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO messages
                     (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
                  VALUES
@@ -65,7 +65,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
                 return 'ignored';
             }
 
-            $update = $this->pdo->prepare(
+            $update = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE conversations SET last_message_at = :sent_at, updated_at = UTC_TIMESTAMP() WHERE id = :id'
             );
             $update->execute([':sent_at' => $sentAt, ':id' => $conversationId]);
@@ -76,7 +76,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
 
     public function reconcileProviderMessageStatus(string $providerMessageId): bool
     {
-        $lookup = $this->pdo->prepare(
+        $lookup = PdoSqlDialect::prepare($this->pdo, 
             'SELECT status FROM message_status_events
              WHERE provider_message_id = :provider_id
              ORDER BY CASE status WHEN "read" THEN 4 WHEN "delivered" THEN 3 WHEN "failed" THEN 2 ELSE 1 END DESC,
@@ -86,7 +86,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
         $status = $lookup->fetchColumn();
         if (!is_string($status)) return false;
 
-        $update = $this->pdo->prepare('UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
+        $update = PdoSqlDialect::prepare($this->pdo, 'UPDATE messages SET delivery_status = :status WHERE provider_message_id = :provider_id');
         $update->execute([':status' => $status, ':provider_id' => $providerMessageId]);
         return $update->rowCount() > 0;
     }
@@ -111,7 +111,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
         return $this->transaction(function () use ($eventId, $payloadHash, $providerMessageId, $status, $eventTimestamp): string {
             if (!$this->insertWebhookEvent($eventId, 'message_status', $payloadHash)) return 'duplicate';
 
-            $store = $this->pdo->prepare(
+            $store = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO message_status_events
                     (provider_message_id, status, event_timestamp, created_at)
                  VALUES (:provider_id, :status, :event_timestamp, UTC_TIMESTAMP())'
@@ -130,7 +130,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
 
     private function insertWebhookEvent(string $eventId, string $eventType, string $payloadHash): bool
     {
-        $insert = $this->pdo->prepare(
+        $insert = PdoSqlDialect::prepare($this->pdo, 
             'INSERT IGNORE INTO webhook_events
                 (provider_event_id, event_type, payload_sha256, received_at, processing_status)
              VALUES (:event_id, :event_type, :payload_hash, UTC_TIMESTAMP(), "received")'
@@ -145,7 +145,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
 
     private function markWebhookEvent(string $eventId, string $status): void
     {
-        $update = $this->pdo->prepare(
+        $update = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE webhook_events SET processing_status = :status, processed_at = UTC_TIMESTAMP()
              WHERE provider_event_id = :event_id'
         );
