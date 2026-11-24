@@ -78,8 +78,8 @@ final class PdoConsentRepository implements ConsentRepository
                        FROM messages AS m
                        INNER JOIN conversations AS c
                          ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
-                       WHERE m.id = o.message_id AND o.tenant_id = :tenant_id
-                         AND m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                       WHERE m.id = o.message_id AND o.tenant_id = :tenant_id_outbox
+                         AND m.tenant_id = :tenant_id_message AND c.tenant_id = :tenant_id_conversation
                          AND c.guest_id = :guest AND o.status IN (\'pending\', \'processing\')'
                     : 'UPDATE message_outbox o
                        INNER JOIN messages m ON m.id = o.message_id AND m.tenant_id = o.tenant_id
@@ -87,25 +87,30 @@ final class PdoConsentRepository implements ConsentRepository
                        SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
                            o.last_error = "Cancelled after WhatsApp consent withdrawal.",
                            o.updated_at = UTC_TIMESTAMP()
-                       WHERE o.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                       WHERE o.tenant_id = :tenant_id_outbox AND c.tenant_id = :tenant_id_conversation
                          AND c.guest_id = :guest AND o.status IN ("pending","processing")';
                 $cancel = PdoSqlDialect::prepare($this->pdo, $cancelSql);
-                $cancel->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
+                $cancel->execute([
+                    ':tenant_id_outbox' => $tenantId,
+                    ':tenant_id_message' => $tenantId,
+                    ':tenant_id_conversation' => $tenantId,
+                    ':guest' => $guestId,
+                ]);
 
                 $markSql = PdoSqlDialect::isPostgres($this->pdo)
                     ? 'UPDATE messages AS m
                        SET delivery_status = \'web_only\'
                        FROM conversations AS c
                        WHERE c.id = m.conversation_id AND c.tenant_id = m.tenant_id
-                         AND m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                         AND m.tenant_id = :tenant_id_message AND c.tenant_id = :tenant_id_conversation
                          AND c.guest_id = :guest AND m.delivery_status = \'queued\''
                     : 'UPDATE messages m
                        INNER JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
                        SET m.delivery_status = "web_only"
-                       WHERE m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                       WHERE m.tenant_id = :tenant_id_message AND c.tenant_id = :tenant_id_conversation
                          AND c.guest_id = :guest AND m.delivery_status = "queued"';
                 $mark = PdoSqlDialect::prepare($this->pdo, $markSql);
-                $mark->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
+                $mark->execute([':tenant_id_message' => $tenantId, ':tenant_id_conversation' => $tenantId, ':guest' => $guestId]);
             }
 
             $event = PdoSqlDialect::prepare($this->pdo,
