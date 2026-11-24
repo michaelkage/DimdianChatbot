@@ -594,26 +594,40 @@ components:
             next_cursor: { type: integer }
         request_id: { type: string }
     AssignmentRequest:
-      type: object
-      required: [conversation_id]
-      properties:
-        conversation_id: { type: string, format: uuid }
-        action: { type: string, enum: [assign, unassign], default: assign }
-        staff_identity_id:
-          type: string
-          format: uuid
-          description: Required for assign; ignored for unassign.
-      additionalProperties: false
-    AssignmentResponse:
-      type: object
-      required: [data, request_id]
-      properties:
-        data:
-          type: object
+      oneOf:
+        - type: object
+          required: [conversation_id, staff_identity_id]
           properties:
-            assigned: { type: boolean }
-            unassigned: { type: boolean }
-        request_id: { type: string }
+            conversation_id: { type: string, format: uuid }
+            action: { type: string, const: assign, default: assign }
+            staff_identity_id: { type: string, format: uuid }
+          additionalProperties: false
+        - type: object
+          required: [conversation_id, action]
+          properties:
+            conversation_id: { type: string, format: uuid }
+            action: { type: string, const: unassign }
+          additionalProperties: false
+    AssignmentResponse:
+      oneOf:
+        - type: object
+          required: [data, request_id]
+          properties:
+            data:
+              type: object
+              required: [assigned]
+              properties:
+                assigned: { type: boolean, const: true }
+            request_id: { type: string }
+        - type: object
+          required: [data, request_id]
+          properties:
+            data:
+              type: object
+              required: [unassigned]
+              properties:
+                unassigned: { type: boolean }
+            request_id: { type: string }
     InternalNote:
       type: object
       required: [id, sequence_id, body, created_at, author_id, author_name]
