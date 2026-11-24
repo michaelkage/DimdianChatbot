@@ -12,7 +12,7 @@ final class MetaEmbeddedSignupService
     private $repository;
     /** @var MetaTokenCipher */
     private $cipher;
-    /** @var MetaGraphApiClient */
+    /** @var MetaGraphApi */
     private $graph;
     /** @var array<string,mixed> */
     private $config;
@@ -21,7 +21,7 @@ final class MetaEmbeddedSignupService
     public function __construct(
         MetaConnectionRepository $repository,
         MetaTokenCipher $cipher,
-        MetaGraphApiClient $graph,
+        MetaGraphApi $graph,
         array $config
     ) {
         $this->repository = $repository;
