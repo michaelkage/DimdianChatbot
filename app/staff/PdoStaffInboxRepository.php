@@ -277,10 +277,11 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_conversation_assignments
                     (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation, :staff, :actor, UTC_TIMESTAMP(), :conversation)'
+                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
             );
             $insert->execute([
-                ':conversation' => $conversationId,
+                ':conversation_id' => $conversationId,
+                ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
                 ':actor' => $actorStaffId,
             ]);
@@ -313,10 +314,11 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $insert = $this->pdo->prepare(
                 'INSERT INTO staff_conversation_assignments
                     (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation, :staff, :actor, UTC_TIMESTAMP(), :conversation)'
+                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
             );
             $insert->execute([
-                ':conversation' => $conversationId,
+                ':conversation_id' => $conversationId,
+                ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
                 ':actor' => $staffIdentityId,
             ]);
