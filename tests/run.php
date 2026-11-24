@@ -64,6 +64,11 @@ check(
     'PdoVisitorMessageRepository directly implements the visitor-message capability'
 );
 
+check(
+    is_subclass_of(PdoProviderEventRepository::class, ProviderEventRepository::class),
+    'PdoProviderEventRepository directly implements the provider-event capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
