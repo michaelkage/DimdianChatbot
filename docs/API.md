@@ -10,7 +10,7 @@ Base path: `/api`. All responses are JSON except the Meta webhook verification h
 
 Returns a small, read-only status report for the PHP chat API, its MySQL connection and the required chat tables. It does not return credentials, customer data or raw SQL errors. A 200 response with `status: healthy` confirms only those chat components.
 
-This endpoint does **not** test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity or live WhatsApp delivery. It is intended as a first diagnostic check for the business owner; detailed errors remain in the private Hostinger PHP error log.
+This endpoint does **not** test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity or live WhatsApp delivery. It is intended as a first diagnostic check for the business owner; detailed errors remain in the private server PHP error log.
 
 ## Authentication
 
