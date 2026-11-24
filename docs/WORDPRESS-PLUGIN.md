@@ -119,3 +119,12 @@ The WordPress AJAX proxy checks the current WordPress login, capability and nonc
 To disable the feature, set `staff_inbox.enabled = false` on the service and disable the WordPress setting. Disabling it stops API access but does not delete staff records or conversation history. Retention cleanup removes staff notes, assignments, message-author links, audit rows and expired auth nonces for old closed conversations when the module is enabled.
 
 This is the core staff-inbox workflow, not a full helpdesk: export/restore tooling and shared-database multi-tenant isolation are not included. Search is bounded substring matching over visitor name, phone and message bodies, not a dedicated full-text index. Staff reply and note writes use client-generated IDs so safe retries do not create duplicate records.
+
+
+## WCFM Marketplace vendor attribution (0.7.0)
+
+When WCFM Marketplace is active, public WooCommerce product-search results can include the public vendor store name. The authenticated customer's own order summary can also show the public vendor name beside each line item.
+
+The adapter calls WCFM's in-process `wcfm_get_vendor_id_by_post()` and `wcfm_get_vendor_store()` functions when available. If WCFM is absent or the product has no valid vendor, the field is `null` and ordinary WooCommerce behaviour is unchanged.
+
+This is display attribution only. It does not add vendor login, vendor dashboards, vendor-wide order access, customer PII access, commission information, payouts, or payment-provider integration. The existing order ownership check still applies to the entire parent order; a vendor name never grants access to that order.

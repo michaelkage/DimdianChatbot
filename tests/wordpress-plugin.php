@@ -65,6 +65,7 @@ class WC_Order_Item_Test
 {
     public function get_name(): string { return 'Brake Pad Set'; }
     public function get_quantity(): int { return 2; }
+    public function get_product_id(): int { return crc32('Brake Pad Set'); }
 }
 class WC_Order
 {
@@ -150,6 +151,9 @@ function is_wp_error($value): bool { return $value instanceof WP_Error; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
 function is_user_logged_in(): bool { return $GLOBALS['chatbridge_is_logged_in']; }
 function get_current_user_id(): int { return (int) $GLOBALS['chatbridge_current_user_id']; }
+function wcfm_get_vendor_id_by_post(int $productId): int { return $productId === crc32('Brake Pad Set') ? 77 : ($productId === 88 ? 88 : 0); }
+function wcfm_get_vendor_store(int $vendorId): string { return $vendorId === 77 ? 'Brake Parts Hub' : ''; }
+function wcfm_is_vendor(int $vendorId): bool { return $vendorId === 77; }
 function wc_get_order(int $orderId): ?WC_Order { return $orderId === 1042 ? $GLOBALS['chatbridge_test_order'] : null; }
 function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_option_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
@@ -316,6 +320,9 @@ check(($GLOBALS['chatbridge_store_api_params']['per_page'] ?? null) === 8, 'Stor
 check(count($data['products'] ?? []) === 1, 'hidden and unpublished products are excluded');
 $product = $data['products'][0] ?? [];
 check(($product['name'] ?? '') === 'Brake Pad Set', 'product name is returned');
+check(($product['vendor'] ?? '') === 'Brake Parts Hub', 'public product response includes WCFM store attribution');
+check(chatbridge_widget_wcfm_available(), 'WCFM support activates only when its supported lookup functions exist');
+check(chatbridge_widget_product_vendor(88) === null, 'non-vendor accounts are excluded from vendor attribution');
 check(($product['sku'] ?? '') === 'BP-001', 'public product SKU is returned for part-number enquiries');
 check(($product['price'] ?? '') === '₦45,000', 'formatted product price is returned as plain text');
 check(($product['stock_status'] ?? '') === 'instock', 'only coarse stock status is returned');
@@ -345,6 +352,7 @@ $ownData = $ownOrder->get_data();
 check($ownOrder->get_status() === 200, 'customer can retrieve their own order');
 check(($ownData['order']['number'] ?? '') === '1042', 'order lookup returns order number');
 check(count($ownData['order']['items'] ?? []) === 1, 'order lookup returns a bounded item summary');
+check(($ownData['order']['items'][0]['vendor'] ?? '') === 'Brake Parts Hub', 'customer order summary includes public vendor name for its line item');
 check(($ownData['order']['date_created'] ?? '') === '2026-11-20T09:00:00+00:00', 'order date is serialized using DATE_ATOM');
 $GLOBALS['chatbridge_test_order'] = new WC_Order(99);
 $foreignOrder = chatbridge_widget_get_own_order(new WP_REST_Request(['order_id' => '1042']));
