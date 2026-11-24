@@ -14,6 +14,8 @@ require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
 require_once dirname(__DIR__) . '/app/staff/StaffIdentityService.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffPersistenceSupport.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffIdentityRepository.php';
 
 $passed = 0;
 $failed = 0;
@@ -84,6 +86,11 @@ check(
 check(
     is_subclass_of(PdoWhatsAppOutboxRepository::class, WhatsAppOutboxRepository::class),
     'PdoWhatsAppOutboxRepository directly implements the WhatsApp outbox capability'
+);
+
+check(
+    is_subclass_of(PdoStaffIdentityRepository::class, StaffIdentityRepository::class),
+    'PdoStaffIdentityRepository directly implements the staff identity persistence capability'
 );
 
 $aggregateProperties = array_map(
