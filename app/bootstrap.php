@@ -62,6 +62,7 @@ require_once __DIR__ . '/storage/PdoVisitorMessageRepository.php';
 require_once __DIR__ . '/storage/PdoWhatsAppOutboxRepository.php';
 require_once __DIR__ . '/storage/PdoWebhookInboxRepository.php';
 require_once __DIR__ . '/storage/PdoChatRepository.php';
+require_once __DIR__ . '/chat/GuestSessionAuthenticator.php';
 require_once __DIR__ . '/storage/RetentionRepository.php';
 require_once __DIR__ . '/storage/PdoRetentionRepository.php';
 require_once __DIR__ . '/storage/HealthRepository.php';
@@ -280,20 +281,15 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
 function authenticate_guest_session(GuestSessionRepository $repository, bool $requireOpen = true): array
 {
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
-    if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
-        json_response(['error' => ['code' => 'unauthorized', 'message' => 'A valid chat session token is required.']], 401);
+    $token = is_string($token) ? $token : '';
+
+    try {
+        return (new GuestSessionAuthenticator($repository))->authenticate($token, $requireOpen);
+    } catch (GuestSessionTokenInvalid $error) {
+        json_response(['error' => ['code' => 'unauthorized', 'message' => $error->getMessage()]], 401);
+    } catch (GuestSessionNotFound $error) {
+        json_response(['error' => ['code' => 'session_expired', 'message' => $error->getMessage()]], 401);
+    } catch (GuestConversationClosed $error) {
+        json_response(['error' => ['code' => 'conversation_closed', 'message' => $error->getMessage()]], 409);
     }
-
-    $session = $repository->findGuestSessionByTokenHash(hash('sha256', $token));
-    if ($session === null) {
-        json_response(['error' => ['code' => 'session_expired', 'message' => 'This chat session is no longer valid. Start a new chat to continue.']], 401);
-    }
-
-    $repository->touchGuestSession((string) $session['session_id']);
-
-    if ($requireOpen && $session['conversation_status'] !== 'open') {
-        json_response(['error' => ['code' => 'conversation_closed', 'message' => 'This conversation has been closed. Start a new chat to send another message.']], 409);
-    }
-
-    return $session;
 }
