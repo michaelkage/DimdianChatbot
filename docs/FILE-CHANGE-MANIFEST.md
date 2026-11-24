@@ -128,3 +128,7 @@
 
 - app/storage/PdoVisitorMessageRepository.php — composes WhatsAppOutboxRepository for the optional outbox insert inside the visitor-message transaction, eliminating duplicate outbox SQL.
 - app/storage/PdoChatRepository.php — constructs the outbox adapter before the visitor-message adapter and injects the shared outbox capability.
+
+- app/chat/GuestSessionAuthenticator.php — request-independent guest-token validation, hashing, session lookup/touch and open-conversation policy with typed failures.
+- app/bootstrap.php — loads GuestSessionAuthenticator and retains the legacy HTTP adapter that extracts the token header and maps failures to existing API responses.
+- tests/run.php — covers guest authenticator token hashing, repository lookup/touch, invalid/missing sessions and closed-conversation policy.
