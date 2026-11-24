@@ -48,6 +48,8 @@ jobs:
         run: |
           find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
+      - name: Validate OpenAPI 3.1 YAML syntax
+        run: ruby -e "require 'yaml'; YAML.parse_file('docs/openapi.yaml')"
       - name: Prepare disposable database and app config
         run: |
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
