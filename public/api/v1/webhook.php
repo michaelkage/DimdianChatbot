@@ -4,8 +4,7 @@ declare(strict_types=1);
 /**
  * Versioned compatibility entry point.
  *
- * The v1 contract currently delegates to the proven PHP implementation.
- * Keep transport/security behaviour in the existing handler until the
- * application-service and storage boundaries are extracted.
+ * v1 and legacy aliases share the same HTTP handler. Application use cases
+ * and persistence are delegated to their service/repository boundaries.
  */
 require dirname(__DIR__) . '/webhook.php';
