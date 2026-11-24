@@ -11,10 +11,12 @@ declare(strict_types=1);
 final class PdoVisitorMessageRepository implements VisitorMessageRepository
 {
     private PDO $pdo;
+    private WhatsAppOutboxRepository $outbox;
 
-    public function __construct(PDO $pdo)
+    public function __construct(PDO $pdo, WhatsAppOutboxRepository $outbox)
     {
         $this->pdo = $pdo;
+        $this->outbox = $outbox;
     }
 
     public function createVisitorMessage(array $message): array
@@ -63,18 +65,14 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
                 $update->execute([':id' => $message['conversation_id']]);
 
                 if ($message['outbound_enabled']) {
-                    $outbox = $this->pdo->prepare(
-                        'INSERT INTO message_outbox
-                            (id, message_id, recipient, payload_text, status, attempts, available_at, created_at, updated_at)
-                         VALUES
-                            (:id, :message_id, :recipient, :payload, "pending", 0, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    // The outbox adapter uses this same PDO connection; its insert
+                    // participates in the message transaction and rolls back with it.
+                    $this->outbox->enqueueWhatsAppOutbox(
+                        (string) $saved['id'],
+                        (string) $message['recipient'],
+                        (string) $message['outbox_payload'],
+                        (string) $message['outbox_id']
                     );
-                    $outbox->execute([
-                        ':id' => $message['outbox_id'],
-                        ':message_id' => $saved['id'],
-                        ':recipient' => $message['recipient'],
-                        ':payload' => $message['outbox_payload'],
-                    ]);
                 }
             }
 
