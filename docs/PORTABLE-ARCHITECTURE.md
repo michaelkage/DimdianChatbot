@@ -203,3 +203,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Versioned API contract boundary (2026-11-24)
 
 The core v1 widget/operator surface is described by `docs/openapi.yaml` (OpenAPI 3.1): session creation, message send/poll, consent, health, Meta webhook and administrator Embedded Signup. The optional staff API is described separately by `docs/openapi-staff.yaml`, including all ten implemented staff routes and the HMAC assertion contract. The legacy `/api/*.php` and versioned `/api/v1/*.php` aliases still share the same handlers. CI runs a dependency-free structural validator for both documents, checking version, route coverage, operation IDs, response declarations, request-body content, internal references and required security schemes. Reusable request/response fixtures, full schema conformance and cross-backend acceptance tests are still outstanding. This document does not imply PostgreSQL parity or shared-database multi-tenancy.
+
+
+### Backend-neutral API acceptance runner (2026-11-24)
+
+`tests/api-acceptance.mjs` exercises the public v1 HTTP contract using only Node's built-in fetch and crypto APIs. It does not connect to MySQL or inspect implementation internals. The runner creates a guest session and verifies one-time credential shape, visitor message persistence, idempotent replay and conflict behavior, invalid-token rejection, polling/cursor output, opt-in phone preconditions and opt-out. `DIMDIAN_API_BASE_URL` can point the same suite at another backend implementing the documented v1 routes. This is the first reusable black-box acceptance slice; staff API conformance and cross-database migration/transaction behavior remain covered by the PHP/MySQL-specific suites until an alternate backend exists.
