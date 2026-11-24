@@ -243,3 +243,6 @@ Visitor-visible message persistence now has a dedicated `PdoVisitorMessageReposi
 
 
 Provider-event persistence now has a dedicated `PdoProviderEventRepository` for provider-event deduplication, inbound message routing/insertion, ignored events, status-event storage and delivery-state reconciliation. The aggregate delegates these operations while retaining a compatibility method used by outbox completion to reconcile provider callbacks that arrive before send acceptance is persisted.
+
+
+The WhatsApp outbox now has a dedicated `PdoWhatsAppOutboxRepository` for enqueue, claim/reclaim, consent checks, cancellation, completion and failure transitions. It receives the provider-event capability so an early status callback can be reconciled inside the send-completion transaction. Provider HTTP requests remain outside transactions in the worker; visitor-message plus initial outbox insertion remains atomic in `PdoVisitorMessageRepository`.
