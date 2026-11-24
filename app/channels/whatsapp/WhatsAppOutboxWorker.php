@@ -10,7 +10,7 @@ declare(strict_types=1);
 final class WhatsAppOutboxWorker
 {
     public function __construct(
-        private readonly ChatRepository $repository,
+        private readonly WhatsAppOutboxRepository $repository,
         private readonly WhatsAppTextTransport $transport
     ) {}
 
