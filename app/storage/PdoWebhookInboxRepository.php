@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../support/Utf8.php';
+
 /**
  * MySQL/MariaDB adapter for the durable, encrypted webhook inbox.
  *
@@ -126,7 +128,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
         $statement->execute([
             ':status' => $retry ? 'pending' : 'failed',
             ':delay' => max(0, $delaySeconds),
-            ':error' => mb_substr_safe($error, 0, 450),
+            ':error' => safe_utf8_substring($error, 0, 450),
             ':id' => $id,
             ':token' => $lockToken,
         ]);
