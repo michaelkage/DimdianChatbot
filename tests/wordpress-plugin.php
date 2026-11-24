@@ -61,6 +61,23 @@ final class WP_REST_Response
 }
 
 class WooCommerce {}
+class WC_Order_Item_Test
+{
+    public function get_name(): string { return 'Brake Pad Set'; }
+    public function get_quantity(): int { return 2; }
+}
+class WC_Order
+{
+    private int $customerId;
+    public function __construct(int $customerId) { $this->customerId = $customerId; }
+    public function get_customer_id(): int { return $this->customerId; }
+    public function get_items(): array { return [new WC_Order_Item_Test()]; }
+    public function get_order_number(): string { return '1042'; }
+    public function get_status(): string { return 'processing'; }
+    public function get_date_created() { return new DateTimeImmutable('2026-11-20T09:00:00+00:00'); }
+    public function get_currency(): string { return 'NGN'; }
+    public function get_formatted_order_total(): string { return '&#8358;90,000.00'; }
+}
 class WC_Product
 {
     private string $name;
@@ -106,6 +123,9 @@ $GLOBALS['chatbridge_wc_queries'] = [];
 $GLOBALS['chatbridge_store_api_params'] = [];
 $GLOBALS['chatbridge_remote_response'] = ['status' => 200, 'body' => '{"data":[]}'];
 $GLOBALS['chatbridge_remote_request'] = null;
+$GLOBALS['chatbridge_current_user_id'] = 0;
+$GLOBALS['chatbridge_is_logged_in'] = false;
+$GLOBALS['chatbridge_test_order'] = null;
 
 function add_action(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void
 {
@@ -128,6 +148,9 @@ function wp_remote_retrieve_response_code(array $response): int { return (int) (
 function wp_remote_retrieve_body(array $response): string { return (string) ($response['body'] ?? ''); }
 function is_wp_error($value): bool { return $value instanceof WP_Error; }
 function get_option(string $key, $default = false) { return $GLOBALS['chatbridge_options'][$key] ?? $default; }
+function is_user_logged_in(): bool { return $GLOBALS['chatbridge_is_logged_in']; }
+function get_current_user_id(): int { return (int) $GLOBALS['chatbridge_current_user_id']; }
+function wc_get_order(int $orderId): ?WC_Order { return $orderId === 1042 ? $GLOBALS['chatbridge_test_order'] : null; }
 function update_option(string $key, $value, $autoload = null): bool { $GLOBALS['chatbridge_options'][$key] = $value; $GLOBALS['chatbridge_option_autoload'][$key] = $autoload; return true; }
 function wp_parse_args(array $args, array $defaults): array { return array_merge($defaults, $args); }
 function sanitize_text_field(string $value): string { return trim(strip_tags($value)); }
@@ -189,7 +212,27 @@ function check(bool $condition, string $message): void
         fwrite(STDERR, "FAIL: {$message}\n");
         exit(1);
     }
-    fwrite(STDOUT, "PASS: {$message}\n");
+    $GLOBALS['chatbridge_options']['chatbridge_widget_settings'] = ['woocommerce_orders_enabled' => 1];
+$orderRoute = $GLOBALS['chatbridge_routes']['chatbridge/v1/orders/(?P<order_id>\\d+)'] ?? null;
+check(is_array($orderRoute), 'registers a separate customer order lookup route');
+check(($orderRoute['permission_callback'] ?? null) === 'chatbridge_widget_can_read_own_order', 'order lookup requires authenticated ownership permission');
+check(chatbridge_widget_can_read_own_order() === false, 'anonymous visitors cannot use order lookup');
+$GLOBALS['chatbridge_is_logged_in'] = true;
+$GLOBALS['chatbridge_current_user_id'] = 55;
+$GLOBALS['chatbridge_test_order'] = new WC_Order(55);
+check(chatbridge_widget_can_read_own_order() === true, 'signed-in customers can use order lookup when enabled');
+$ownOrder = chatbridge_widget_get_own_order(new WP_REST_Request(['order_id' => '1042']));
+$ownData = $ownOrder->get_data();
+check($ownOrder->get_status() === 200, 'customer can retrieve their own order');
+check(($ownData['order']['number'] ?? '') === '1042', 'order lookup returns order number');
+check(count($ownData['order']['items'] ?? []) === 1, 'order lookup returns a bounded item summary');
+check(($ownData['order']['date_created'] ?? '') === '2026-11-20T09:00:00+00:00', 'order date is serialized using DATE_ATOM');
+$GLOBALS['chatbridge_test_order'] = new WC_Order(99);
+$foreignOrder = chatbridge_widget_get_own_order(new WP_REST_Request(['order_id' => '1042']));
+check($foreignOrder->get_status() === 404, 'another customer order is indistinguishable from a missing order');
+$GLOBALS['chatbridge_is_logged_in'] = false;
+
+fwrite(STDOUT, "PASS: {$message}\n");
 }
 
 foreach ($GLOBALS['chatbridge_hooks']['rest_api_init'] ?? [] as $callback) {
