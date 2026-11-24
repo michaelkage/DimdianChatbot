@@ -14,7 +14,7 @@ final class WebhookInboxWorker
     private Closure $phoneNumberIdResolver;
 
     public function __construct(
-        private readonly ChatRepository $repository,
+        private readonly WebhookProcessingRepository $repository,
         private readonly MetaWebhookProcessor $processor,
         private readonly WebhookPayloadCipher $cipher,
         Closure $phoneNumberIdResolver
