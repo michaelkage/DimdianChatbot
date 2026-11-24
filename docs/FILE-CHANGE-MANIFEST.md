@@ -94,3 +94,7 @@
 - No live Meta, hosting-provider or WordPress production configuration was changed by these repository commits.
 
 - docs/TENANCY-ARCHITECTURE.md — design-only tenant ownership inventory, context resolution, composite constraints, Meta webhook routing, staged migration and isolation acceptance requirements; no tenant behavior is implemented.
+
+- app/storage/ChatRepository.php — split the aggregate contract into session, rate-limit, visitor-message, consent, WhatsApp-identity, webhook-inbox, provider-event and outbox capability interfaces; ChatRepository remains the aggregate compatibility contract.
+- app/chat/* and app/channels/whatsapp/* — narrow application-service and worker constructor dependencies to the capabilities each uses.
+- tests/run.php — verifies ChatRepository still implements each capability interface.
