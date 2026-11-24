@@ -570,8 +570,8 @@ $repository = chat_repository($pdo);
 $repositoryResult = $repository->createVisitorMessage($repositoryInput);
 expect($repositoryResult['inserted'] === true && $repositoryResult['transport'] === 'queued', 'repository persists an outbound-eligible message');
 $repositoryMessageId = (string) $repositoryResult['message']['id'];
-$outboxCount = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE message_id = :message_id');
-$outboxCount->execute([':message_id' => $repositoryMessageId]);
+$outboxCount = $pdo->prepare('SELECT COUNT(*) FROM message_outbox WHERE tenant_id = :tenant_id AND message_id = :message_id');
+$outboxCount->execute([':tenant_id' => $repositoryTenantId, ':message_id' => $repositoryMessageId]);
 expect((int) $outboxCount->fetchColumn() === 1, 'repository atomically creates exactly one WhatsApp outbox job');
 
 $repositoryReplayInput = $repositoryInput;
@@ -594,27 +594,27 @@ try {
 } catch (PDOException $error) {
     $atomicityFailed = true;
 }
-$atomicityCheck = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE conversation_id = :conversation_id AND client_message_id = :client_message_id');
-$atomicityCheck->execute([':conversation_id' => $repositoryConversationId, ':client_message_id' => $atomicityClientMessageId]);
+$atomicityCheck = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND client_message_id = :client_message_id');
+$atomicityCheck->execute([':tenant_id' => $repositoryTenantId, ':conversation_id' => $repositoryConversationId, ':client_message_id' => $atomicityClientMessageId]);
 expect($atomicityFailed && (int) $atomicityCheck->fetchColumn() === 0, 'outbox insert failure rolls back the visitor message insert');
 
 
 /*
  * Consent and rate-limit persistence are part of the shared repository contract.
  */
-$repositoryGuestIdQuery = $pdo->prepare('SELECT guest_id FROM conversations WHERE id = :id');
-$repositoryGuestIdQuery->execute([':id' => $repositoryConversationId]);
+$repositoryGuestIdQuery = $pdo->prepare('SELECT guest_id FROM conversations WHERE tenant_id = :tenant_id AND id = :id');
+$repositoryGuestIdQuery->execute([':tenant_id' => $repositoryTenantId, ':id' => $repositoryConversationId]);
 $repositoryGuestId = (string) $repositoryGuestIdQuery->fetchColumn();
-$repositoryPhoneQuery = $pdo->prepare('SELECT phone_normalized FROM guests WHERE id = :id');
-$repositoryPhoneQuery->execute([':id' => $repositoryGuestId]);
+$repositoryPhoneQuery = $pdo->prepare('SELECT phone_normalized FROM guests WHERE tenant_id = :tenant_id AND id = :id');
+$repositoryPhoneQuery->execute([':tenant_id' => $repositoryTenantId, ':id' => $repositoryGuestId]);
 $repositoryPhone = (string) $repositoryPhoneQuery->fetchColumn();
 $repository->recordWhatsAppConsent($repositoryTenantId, $repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_out', 'repository_contract_test');
-$repositoryConsentState = $pdo->prepare('SELECT whatsapp_opt_in_at FROM guests WHERE id = :id');
-$repositoryConsentState->execute([':id' => $repositoryGuestId]);
+$repositoryConsentState = $pdo->prepare('SELECT whatsapp_opt_in_at FROM guests WHERE tenant_id = :tenant_id AND id = :id');
+$repositoryConsentState->execute([':tenant_id' => $repositoryTenantId, ':id' => $repositoryGuestId]);
 $consentTimestamp = $repositoryConsentState->fetchColumn();
 expect($consentTimestamp === false || $consentTimestamp === null, 'repository consent transition clears the current opt-in timestamp');
-$repositoryConsentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE guest_id = :guest AND action = "opt_out" AND source = "repository_contract_test"');
-$repositoryConsentAudit->execute([':guest' => $repositoryGuestId]);
+$repositoryConsentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE tenant_id = :tenant_id AND guest_id = :guest AND action = "opt_out" AND source = "repository_contract_test"');
+$repositoryConsentAudit->execute([':tenant_id' => $repositoryTenantId, ':guest' => $repositoryGuestId]);
 expect((int) $repositoryConsentAudit->fetchColumn() === 1, 'repository consent transition appends its audit event');
 $repository->recordWhatsAppConsent($repositoryTenantId, $repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_in', 'repository_contract_test');
 $repositoryConsentState->execute([':id' => $repositoryGuestId]);
