@@ -152,3 +152,12 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Inspected the actual core and optional staff DDL, widget bootstrap and repository contracts. The current schema has no tenant/business root or tenant keys; ChatRepository, MetaConnectionRepository and StaffInboxRepository are installation-scoped; the widget currently sends no tenant-resolving public identifier.
 - Added [TENANCY-ARCHITECTURE.md](TENANCY-ARCHITECTURE.md) with the current table ownership inventory, tenant-context resolution rules, composite foreign-key/unique-index requirements, the multi-entry Meta webhook routing exception, staged migration sequence and cross-tenant negative acceptance suite.
 - This is a design and migration guardrail only. No tenant columns, resolver, tenant-scoped SQL or shared-database mode have been implemented. The supported boundary remains one business per database.
+
+
+### Storage capability-interface decomposition (2026-11-24)
+
+- Split the broad chat persistence contract into guest-session, rate-limit, visitor-message, consent, WhatsApp-identity, webhook-inbox, provider-event and WhatsApp-outbox capabilities.
+- Added focused composition interfaces for guest-session operations, visitor messaging and webhook processing. The existing `ChatRepository` remains the backward-compatible aggregate implemented by `PdoChatRepository` and existing test adapters.
+- Narrowed application dependencies: session service, visitor message service, consent service, Meta webhook processor, webhook inbox worker, WhatsApp outbox worker and HTTP helper functions now depend only on the capabilities they call.
+- Added contract tests asserting that the aggregate retains every capability. This is interface segregation, not a second database adapter; the implementation remains MySQL/MariaDB PDO and milestone 17 remains partial.
+- GitHub Actions run [45411674012](https://github.com/michaelkage/DimdianChatbot/actions/runs/45411674012) passed all three jobs on the capability-interface implementation head.
