@@ -249,3 +249,6 @@ The WhatsApp outbox now has a dedicated `PdoWhatsAppOutboxRepository` for enqueu
 
 
 Active WhatsApp phone-number lookup is now implemented once in `PdoMetaConnectionRepository`. The legacy `PdoChatRepository::activeWhatsAppPhoneNumberId()` method delegates to that adapter to preserve the `WhatsAppIdentityRepository` capability used by webhook composition.
+
+
+`PdoChatRepository` is now composition-only: it constructs focused adapters over the shared PDO connection and delegates the legacy aggregate contract. It no longer stores PDO or contains SQL/transaction logic. SQL dialect behavior resides in the individual adapter classes, making a future alternate-database implementation a set of explicit capability adapters rather than a rewrite of the application services.
