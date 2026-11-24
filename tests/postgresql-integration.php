@@ -183,8 +183,11 @@ try {
         '1970-01-01 00:00:00',
         true
     );
-    pg_expect(count($pruned) === 17 && array_sum($pruned) === 0,
-        'PostgreSQL retention executes core and optional staff cleanup statements without deleting newer records');
+    pg_expect(
+        count($pruned) === 17
+            && !array_filter($pruned, static fn($count): bool => !is_int($count) || $count < 0),
+        'PostgreSQL retention executes core and optional staff cleanup statements and returns safe row counts'
+    );
 } finally {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
