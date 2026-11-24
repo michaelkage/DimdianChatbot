@@ -131,3 +131,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - `docs/openapi.yaml` publishes the OpenAPI 3.1 contract for the core v1 widget/operator endpoints: guest session, message send/poll, consent, health, Meta webhook and administrator Embedded Signup.
 - `docs/openapi-staff.yaml` separately specifies all ten implemented optional staff routes, including the request-bound HMAC assertion, role and assignment restrictions, private notes, website-only replies and administrator audit access.
 - CI runs a dependency-free structural validator over both documents. It checks OpenAPI 3.1, expected route coverage, unique operation IDs, declared responses, request-body content, all local references and required security schemes. Reusable request/response fixtures, full schema conformance and cross-backend acceptance tests remain future work.
+
+
+### Backend-neutral API acceptance validation (2026-11-24)
+
+- GitHub Actions run [45407583097](https://github.com/michaelkage/DimdianChatbot/actions/runs/45407583097) passed on PR head `eba66dc1b2be96287b72a8887e52f33f134e14aa`.
+- The new Node acceptance runner executed against the PHP/MySQL test deployment and passed session creation, token shape, message persistence, idempotent replay/conflict, invalid-token rejection, polling/cursor output, opt-in phone precondition and consent withdrawal.
+- The same run passed the OpenAPI structural validator, PHP/MySQL integration and staff inbox HTTP/policy suites, widget tests and WordPress compatibility on PHP 7.4 and 8.2.
