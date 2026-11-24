@@ -81,6 +81,50 @@ final class PdoSqlDialect
             $sql = rtrim($sql) . ' ON CONFLICT DO NOTHING';
         }
 
-        return $sql;
+        return self::translateDelete($sql);
+    }
+
+    private static function translateDelete(string $sql): string
+    {
+        if (preg_match('/^\\s*DELETE\\s+([a-z_][a-z0-9_]*)\\s+FROM\\s+([a-z_][a-z0-9_]*)\\s+([a-z_][a-z0-9_]*)(.*)$/is', $sql, $match) !== 1) {
+            return $sql;
+        }
+
+        $targetAlias = $match[1];
+        $targetTable = $match[2];
+        $rest = trim($match[4]);
+        $wherePosition = stripos($rest, ' WHERE ');
+        if ($wherePosition === false) {
+            return $sql;
+        }
+        $joinSql = trim(substr($rest, 0, $wherePosition));
+        $whereSql = trim(substr($rest, $wherePosition + 7));
+
+        if ($joinSql === '') {
+            return 'DELETE FROM ' . $targetTable . ' AS ' . $targetAlias . ' WHERE ' . $whereSql;
+        }
+
+        $matches = [];
+        preg_match_all(
+            '/(?:^|\\s)INNER JOIN\\s+([a-z_][a-z0-9_]*)\\s+([a-z_][a-z0-9_]*)\\s+ON\\s+(.*?)(?=\\s+INNER JOIN\\s+|$)/is',
+            $joinSql,
+            $matches,
+            PREG_SET_ORDER
+        );
+        if ($matches === []) {
+            throw new RuntimeException('Unsupported joined DELETE syntax in PostgreSQL adapter.');
+        }
+
+        $using = [];
+        $conditions = [];
+        foreach ($matches as $join) {
+            $using[] = $join[1] . ' AS ' . $join[2];
+            $conditions[] = '(' . trim($join[3]) . ')';
+        }
+
+        return 'DELETE FROM ' . $targetTable . ' AS ' . $targetAlias
+            . ' USING ' . implode(', ', $using)
+            . ' WHERE ' . implode(' AND ', $conditions)
+            . ' AND (' . $whereSql . ')';
     }
 }
