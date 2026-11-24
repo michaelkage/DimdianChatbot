@@ -20,7 +20,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
     public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
     {
         return $this->transaction(function () use ($payloadHash, $encrypted): array {
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO webhook_inbox
                     (payload_sha256, payload_ciphertext, payload_nonce, payload_tag, status, attempts, available_at, received_at)
                  VALUES (:hash, :cipher, :nonce, :tag, "pending", 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -31,14 +31,14 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
                 ':nonce' => $encrypted['nonce'],
                 ':tag' => $encrypted['tag'],
             ]);
-            $query = $this->pdo->prepare('SELECT id, status, attempts FROM webhook_inbox WHERE payload_sha256 = :hash LIMIT 1');
+            $query = PdoSqlDialect::prepare($this->pdo, 'SELECT id, status, attempts FROM webhook_inbox WHERE payload_sha256 = :hash LIMIT 1');
             $query->execute([':hash' => $payloadHash]);
             $row = $query->fetch();
             if (!is_array($row)) {
                 throw new RuntimeException('Webhook inbox insert could not be confirmed.');
             }
             if ($row['status'] === 'failed' && (int) $row['attempts'] < 8) {
-                $this->pdo->prepare(
+                PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE webhook_inbox SET status = "pending", available_at = UTC_TIMESTAMP(), last_error = NULL
                      WHERE id = :id AND status = "failed"'
                 )->execute([':id' => $row['id']]);
@@ -52,7 +52,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
     {
         return $this->transaction(function () use ($lockToken, $maxAttempts): ?array {
             $maxAttempts = max(1, $maxAttempts);
-            $this->pdo->prepare(
+            PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE webhook_inbox
                  SET status = "failed", locked_at = NULL, lock_token = NULL,
                      last_error = "Worker lease expired after maximum attempts."
@@ -61,7 +61,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
                    AND attempts >= :max_attempts'
             )->execute([':max_attempts' => $maxAttempts]);
 
-            $query = $this->pdo->prepare(
+            $query = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, payload_ciphertext, payload_nonce, payload_tag, attempts
                  FROM webhook_inbox
                  WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
@@ -75,7 +75,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             if (!is_array($job)) return null;
 
             $attempt = (int) $job['attempts'] + 1;
-            $this->pdo->prepare(
+            PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE webhook_inbox
                  SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(), lock_token = :token
                  WHERE id = :id'
@@ -87,7 +87,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
 
     public function completeWebhookInbox(int $id, string $lockToken): void
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE webhook_inbox
              SET status = "processed", processed_at = UTC_TIMESTAMP(), locked_at = NULL,
                  lock_token = NULL, last_error = NULL
@@ -101,7 +101,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
 
     public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE webhook_inbox
              SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
                  locked_at = NULL, lock_token = NULL, last_error = :error
