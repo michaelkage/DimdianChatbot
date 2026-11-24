@@ -132,3 +132,9 @@
 - app/chat/GuestSessionAuthenticator.php — request-independent guest-token validation, hashing, session lookup/touch and open-conversation policy with typed failures.
 - app/bootstrap.php — loads GuestSessionAuthenticator and retains the legacy HTTP adapter that extracts the token header and maps failures to existing API responses.
 - tests/run.php — covers guest authenticator token hashing, repository lookup/touch, invalid/missing sessions and closed-conversation policy.
+
+- app/staff/StaffIdentityService.php — resolves verified external principals to active locally persisted staff identities; ignores external role claims.
+- app/staff/StaffInboxService.php — delegates authentication and identity lifecycle to StaffIdentityService while retaining staff inbox authorization and use cases.
+- app/staff/bootstrap.php — loads the new staff identity service before the inbox application service.
+- tests/run.php — adds architecture regression checks for application-service HTTP/PDO/SQL boundaries and API route persistence boundaries; includes StaffIdentityService repository contract.
+- tests/staff-inbox.php — loads the identity service for the existing staff authorization and lifecycle integration suite.
