@@ -92,3 +92,5 @@
 - The two OpenAPI 3.1 documents cover the core v1 widget/operator routes and all ten optional staff routes. Reusable request/response fixtures and deeper schema/conformance testing remain outstanding.
 - The PHP storage adapters remain MySQL/MariaDB-specific; no PostgreSQL or SQLite adapter is implemented.
 - No live Meta, hosting-provider or WordPress production configuration was changed by these repository commits.
+
+- docs/TENANCY-ARCHITECTURE.md — design-only tenant ownership inventory, context resolution, composite constraints, Meta webhook routing, staged migration and isolation acceptance requirements; no tenant behavior is implemented.
