@@ -93,12 +93,18 @@ final class PdoSqlDialect
         $targetAlias = $match[1];
         $targetTable = $match[2];
         $rest = trim($match[4]);
-        $wherePosition = stripos($rest, ' WHERE ');
-        if ($wherePosition === false) {
-            return $sql;
+        if (stripos($rest, 'WHERE ') === 0) {
+            $wherePosition = 0;
+            $joinSql = '';
+            $whereSql = trim(substr($rest, 6));
+        } else {
+            $wherePosition = stripos($rest, ' WHERE ');
+            if ($wherePosition === false) {
+                return $sql;
+            }
+            $joinSql = trim(substr($rest, 0, $wherePosition));
+            $whereSql = trim(substr($rest, $wherePosition + 7));
         }
-        $joinSql = trim(substr($rest, 0, $wherePosition));
-        $whereSql = trim(substr($rest, $wherePosition + 7));
 
         if ($joinSql === '') {
             return 'DELETE FROM ' . $targetTable . ' AS ' . $targetAlias . ' WHERE ' . $whereSql;
