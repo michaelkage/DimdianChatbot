@@ -234,3 +234,8 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - After extracting the capability slices, removed the remaining transaction helper and direct PDO property from `PdoChatRepository`. It no longer executes SQL or owns transaction logic.
 - The class now only constructs the focused adapters over the same PDO connection and delegates the legacy aggregate methods. The actual MySQL/MariaDB SQL and transaction boundaries reside in the focused adapters.
 - Added a reflection regression test confirming that `PdoChatRepository` still implements `ChatRepository` but does not retain direct PDO state.
+
+
+### PDO aggregate composition validation
+
+[GitHub Actions run 45415674271](https://github.com/michaelkage/DimdianChatbot/actions/runs/45415674271) passed all three jobs after converting `PdoChatRepository` to a composition-only adapter and adding the reflection regression assertion. [Run 45415643135](https://github.com/michaelkage/DimdianChatbot/actions/runs/45415643135) also passed on the composition refactor commit itself.
