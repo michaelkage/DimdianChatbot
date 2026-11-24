@@ -51,27 +51,42 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function saveActiveConnection(array $connection): void
     {
-        $statement = PdoSqlDialect::prepare($this->pdo, 
-            'INSERT INTO meta_connections
-                (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
-                 access_token_tag, token_expires_at, status, connected_at, updated_at)
-             VALUES
-                (:waba, :phone, :cipher, :nonce, :tag, :expires, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE
-                waba_id = VALUES(waba_id),
-                access_token_ciphertext = VALUES(access_token_ciphertext),
-                access_token_nonce = VALUES(access_token_nonce),
-                access_token_tag = VALUES(access_token_tag),
-                token_expires_at = VALUES(token_expires_at),
-                status = "active",
-                updated_at = UTC_TIMESTAMP()'
-        );
+        $binary = PdoSqlDialect::isPostgres($this->pdo);
+        $ciphertext = $binary ? base64_encode((string) $connection['token_ciphertext']) : $connection['token_ciphertext'];
+        $nonce = $binary ? base64_encode((string) $connection['token_nonce']) : $connection['token_nonce'];
+        $tag = $binary ? base64_encode((string) $connection['token_tag']) : $connection['token_tag'];
+        $sql = $binary
+            ? 'INSERT INTO meta_connections
+                   (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
+                    access_token_tag, token_expires_at, status, connected_at, updated_at)
+               VALUES (:waba, :phone, :cipher, :nonce, :tag, :expires, \'active\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               ON CONFLICT (phone_number_id) DO UPDATE SET
+                   waba_id = EXCLUDED.waba_id,
+                   access_token_ciphertext = EXCLUDED.access_token_ciphertext,
+                   access_token_nonce = EXCLUDED.access_token_nonce,
+                   access_token_tag = EXCLUDED.access_token_tag,
+                   token_expires_at = EXCLUDED.token_expires_at,
+                   status = \'active\',
+                   updated_at = CURRENT_TIMESTAMP'
+            : 'INSERT INTO meta_connections
+                   (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
+                    access_token_tag, token_expires_at, status, connected_at, updated_at)
+               VALUES (:waba, :phone, :cipher, :nonce, :tag, :expires, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
+               ON DUPLICATE KEY UPDATE
+                   waba_id = VALUES(waba_id),
+                   access_token_ciphertext = VALUES(access_token_ciphertext),
+                   access_token_nonce = VALUES(access_token_nonce),
+                   access_token_tag = VALUES(access_token_tag),
+                   token_expires_at = VALUES(token_expires_at),
+                   status = "active",
+                   updated_at = UTC_TIMESTAMP()';
+        $statement = PdoSqlDialect::prepare($this->pdo, $sql);
         $statement->execute([
             ':waba' => $connection['waba_id'],
             ':phone' => $connection['phone_number_id'],
-            ':cipher' => $connection['token_ciphertext'],
-            ':nonce' => $connection['token_nonce'],
-            ':tag' => $connection['token_tag'],
+            ':cipher' => $ciphertext,
+            ':nonce' => $nonce,
+            ':tag' => $tag,
             ':expires' => $connection['token_expires_at'],
         ]);
     }
@@ -87,21 +102,34 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
              LIMIT 1'
         );
         $row = $statement->fetch();
-        return is_array($row) ? $row : null;
+        if (!is_array($row)) {
+            return null;
+        }
+        if (PdoSqlDialect::isPostgres($this->pdo)) {
+            foreach (['access_token_ciphertext', 'access_token_nonce', 'access_token_tag'] as $field) {
+                $decoded = base64_decode((string) $row[$field], true);
+                if (!is_string($decoded)) {
+                    throw new RuntimeException('Stored Meta token material is corrupt.');
+                }
+                $row[$field] = $decoded;
+            }
+        }
+        return $row;
     }
 
     public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void
     {
-        $statement = PdoSqlDialect::prepare($this->pdo, 
+        $binary = PdoSqlDialect::isPostgres($this->pdo);
+        $statement = PdoSqlDialect::prepare($this->pdo,
             'UPDATE meta_connections
              SET access_token_ciphertext = :cipher, access_token_nonce = :nonce,
                  access_token_tag = :tag, token_expires_at = :expires, updated_at = UTC_TIMESTAMP()
              WHERE id = :id AND status = "active"'
         );
         $statement->execute([
-            ':cipher' => $encrypted['ciphertext'],
-            ':nonce' => $encrypted['nonce'],
-            ':tag' => $encrypted['tag'],
+            ':cipher' => $binary ? base64_encode((string) $encrypted['ciphertext']) : $encrypted['ciphertext'],
+            ':nonce' => $binary ? base64_encode((string) $encrypted['nonce']) : $encrypted['nonce'],
+            ':tag' => $binary ? base64_encode((string) $encrypted['tag']) : $encrypted['tag'],
             ':expires' => $expiresAt,
             ':id' => $connectionId,
         ]);
