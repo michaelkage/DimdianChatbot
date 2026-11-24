@@ -162,6 +162,7 @@ const noteReplay = await staffRequest("notes.php", agentA, "POST", {
   body: noteBody,
 });
 const notes = await staffRequest("notes.php?conversation_id=" + conversationA.conversationId, agentA);
+const threadAfterNote = await staffRequest("messages.php?conversation_id=" + conversationA.conversationId, agentA);
 check(
   note.status === 200 &&
     note.body?.data?.created === true &&
@@ -171,7 +172,7 @@ check(
   "private notes support idempotent creation and authenticated retrieval",
 );
 check(
-  !threadA.body.data.items.some((item) => item.body === noteBody),
+  !threadAfterNote.body.data.items.some((item) => item.body === noteBody),
   "private notes are excluded from visitor-visible messages",
 );
 
