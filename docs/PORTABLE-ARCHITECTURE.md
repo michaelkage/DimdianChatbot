@@ -237,3 +237,6 @@ The consent capability now has its own `PdoConsentRepository`. It owns the atomi
 
 
 Guest/session persistence now has a dedicated `PdoGuestSessionRepository` for guest, conversation and session creation, token-hash lookup and last-seen updates. It shares the `PdoConsentRepository` and same PDO connection so initial opt-in is still atomic with session creation. The aggregate retains the legacy interface and delegates those operations.
+
+
+Visitor-visible message persistence now has a dedicated `PdoVisitorMessageRepository` for message creation, idempotency, atomic optional outbox insertion, polling and delivery updates. The adapter retains the message-plus-outbox transaction and the aggregate delegates using the same PDO connection.
