@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffPersistenceSupport.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffIdentityRepository.php';
 require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
