@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/storage/PdoSqlDialect.php';
 require_once __DIR__ . '/StaffInboxRepository.php';
 require_once __DIR__ . '/PdoStaffPersistenceSupport.php';
 require_once __DIR__ . '/PdoStaffIdentityRepository.php';
