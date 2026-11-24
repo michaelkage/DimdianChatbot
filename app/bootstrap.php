@@ -54,6 +54,7 @@ date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 require_once __DIR__ . '/storage/ChatRepository.php';
 require_once __DIR__ . '/storage/PdoConsentRepository.php';
 require_once __DIR__ . '/storage/PdoGuestSessionRepository.php';
+require_once __DIR__ . '/storage/PdoProviderEventRepository.php';
 require_once __DIR__ . '/storage/PdoRateLimitRepository.php';
 require_once __DIR__ . '/storage/PdoVisitorMessageRepository.php';
 require_once __DIR__ . '/storage/PdoWebhookInboxRepository.php';
