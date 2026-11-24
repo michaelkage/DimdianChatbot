@@ -187,7 +187,7 @@ paths:
       operationId: getHealth
       summary: Read chat API health and queue metrics
       description: >-
-        Checks the PHP chat API runtime, required MySQL tables and queue counts.
+        Checks the PHP chat API runtime, required schema tables and queue counts for the configured MySQL/MariaDB or PostgreSQL driver.
         It does not test WordPress, WooCommerce, Paystack, Meta connectivity or
         live WhatsApp delivery.
       responses:
@@ -591,7 +591,7 @@ components:
           format: date-time
         checks:
           type: object
-          required: [php_api, database, schema, openssl, pdo_mysql]
+          required: [php_api, database, schema, openssl, pdo, pdo_driver]
           properties:
             php_api:
               type: string
@@ -601,8 +601,11 @@ components:
               type: string
             openssl:
               type: string
-            pdo_mysql:
+            pdo:
               type: string
+            pdo_driver:
+              type: string
+              enum: [mysql, pgsql, unsupported]
         missing_tables:
           type: array
           items:
