@@ -20,7 +20,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
         $this->providerEvents = $providerEvents;
     }
 
-    public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void
+    public function enqueueWhatsAppOutbox(string $tenantId, string $messageId, string $recipient, string $text, string $outboxId): void
     {
         $insert = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO message_outbox
@@ -30,6 +30,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
         );
         $insert->execute([
             ':id' => $outboxId,
+            ':tenant_id' => $tenantId,
             ':message_id' => $messageId,
             ':recipient' => $recipient,
             ':payload' => $text,
