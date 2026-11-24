@@ -552,9 +552,11 @@ expect($badSignatureStatus === 401, 'invalid Meta webhook signature is rejected'
 ], $sessionHeaders);
 expect($repositorySessionStatus === 201, 'repository contract test creates an opted-in guest session');
 $repositoryConversationId = (string) ($repositorySessionBody['data']['conversation_id'] ?? '');
+$repositoryTenantId = '00000000-0000-4000-8000-000000000001';
 $repositoryClientMessageId = '760e8400-e29b-41d4-a716-446655440000';
 $repositoryOutboxId = uuid_v4();
 $repositoryInput = [
+    'tenant_id' => $repositoryTenantId,
     'id' => uuid_v4(),
     'conversation_id' => $repositoryConversationId,
     'client_message_id' => $repositoryClientMessageId,
@@ -606,7 +608,7 @@ $repositoryGuestId = (string) $repositoryGuestIdQuery->fetchColumn();
 $repositoryPhoneQuery = $pdo->prepare('SELECT phone_normalized FROM guests WHERE id = :id');
 $repositoryPhoneQuery->execute([':id' => $repositoryGuestId]);
 $repositoryPhone = (string) $repositoryPhoneQuery->fetchColumn();
-$repository->recordWhatsAppConsent($repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_out', 'repository_contract_test');
+$repository->recordWhatsAppConsent($repositoryTenantId, $repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_out', 'repository_contract_test');
 $repositoryConsentState = $pdo->prepare('SELECT whatsapp_opt_in_at FROM guests WHERE id = :id');
 $repositoryConsentState->execute([':id' => $repositoryGuestId]);
 $consentTimestamp = $repositoryConsentState->fetchColumn();
@@ -614,7 +616,7 @@ expect($consentTimestamp === false || $consentTimestamp === null, 'repository co
 $repositoryConsentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_events WHERE guest_id = :guest AND action = "opt_out" AND source = "repository_contract_test"');
 $repositoryConsentAudit->execute([':guest' => $repositoryGuestId]);
 expect((int) $repositoryConsentAudit->fetchColumn() === 1, 'repository consent transition appends its audit event');
-$repository->recordWhatsAppConsent($repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_in', 'repository_contract_test');
+$repository->recordWhatsAppConsent($repositoryTenantId, $repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_in', 'repository_contract_test');
 $repositoryConsentState->execute([':id' => $repositoryGuestId]);
 expect($repositoryConsentState->fetchColumn() !== false && $repositoryConsentState->fetchColumn() !== null, 'repository consent transition can restore opt-in');
 
