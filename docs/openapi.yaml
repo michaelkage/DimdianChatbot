@@ -7,8 +7,8 @@ info:
     Canonical v1 contract for guest sessions, visitor messages, WhatsApp consent,
     operational health, Meta webhook delivery and administrator-only Meta
     Embedded Signup. The legacy /api/*.php aliases execute the same handlers.
-    The optional staff inbox is documented separately and is not yet included
-    in this core-widget OpenAPI surface.
+    The optional staff inbox has a separate server-to-server contract in
+    docs/openapi-staff.yaml and is not included in this public widget surface.
 servers:
   - url: https://chat.example.com/api/v1
     description: Replace with the deployed Dimdian API origin.
