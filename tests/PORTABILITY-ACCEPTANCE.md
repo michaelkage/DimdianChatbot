@@ -1,5 +1,7 @@
 # Portability foundation acceptance criteria
 
+Tenant isolation is not implemented. The proposed schema, context-resolution and migration boundary is documented in [TENANCY-ARCHITECTURE.md](../docs/TENANCY-ARCHITECTURE.md). Keep the shared-database acceptance items below unchecked until the full migration and negative isolation suite pass.
+
 These checks govern the transition from the current PHP/MySQL implementation to a portable ChatBridge platform.
 
 ## Product boundaries
