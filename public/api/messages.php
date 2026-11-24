@@ -31,17 +31,12 @@ try {
         }
 
         $clientMessageId = $body['client_message_id'] ?? null;
-        if ($clientMessageId !== null && (
-            !is_string($clientMessageId)
-            || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $clientMessageId)
-        )) {
-            json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
-        }
-
         try {
             $result = $service->send($session, $messageText, $clientMessageId);
         } catch (ChatStorageConflict $error) {
             json_response(['error' => ['code' => 'idempotency_conflict', 'message' => 'This message ID was already used for different text.']], 409);
+        } catch (InvalidArgumentException $error) {
+            json_response(['error' => ['code' => 'invalid_idempotency_key', 'message' => 'client_message_id must be a UUID.']], 422);
         }
         json_response($result['body'], $result['http_status']);
     }
