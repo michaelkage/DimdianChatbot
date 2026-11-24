@@ -152,7 +152,7 @@ final class PdoRetentionRepository implements RetentionRepository
     /** @param array<string,mixed> $parameters */
     private function delete(string $sql, array $parameters = []): int
     {
-        $statement = $this->pdo->prepare($sql);
+        $statement = PdoSqlDialect::prepare($this->pdo, $sql);
         $statement->execute($parameters);
         return $statement->rowCount();
     }
