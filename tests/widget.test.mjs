@@ -57,7 +57,9 @@ test('composer clears only after the outbox write succeeds', () => {
   const end = widget.indexOf('async function deliverQueued', start);
   const queueMessage = widget.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.ok(queueMessage.indexOf('if(!writeQueue(queue.concat(item)))return false;') < queueMessage.indexOf("input.value=''"));
+  const persistIndex = queueMessage.indexOf('if(!writeQueue(queue.concat(item)))return false;');
+  const clearIndex = queueMessage.indexOf("input.value=''", persistIndex);
+  assert.ok(persistIndex >= 0 && clearIndex > persistIndex);
   assert.match(widget, /function writeQueue\(items\)[\s\S]*return true[\s\S]*return false/);
 });
 
