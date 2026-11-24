@@ -198,3 +198,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Visitor consent application service boundary (2026-11-24)
 
 `WhatsAppConsentService` now owns the visitor opt-in/opt-out use case. It requires a persisted normalized phone for opt-in, delegates the append-only consent transition to `ChatRepository`, and returns the resulting state timestamp. The HTTP route retains authentication, JSON validation and mapping of the missing-phone domain signal to HTTP 422. Consent state, audit history, identity-link deactivation and queued-send cancellation remain implemented transactionally by the repository.
+
+
+### Versioned API contract boundary (2026-11-24)
+
+The core v1 widget/operator surface is described by `docs/openapi.yaml` (OpenAPI 3.1): session creation, message send/poll, consent, health, Meta webhook and administrator Embedded Signup. The legacy `/api/*.php` and versioned `/api/v1/*.php` aliases still share the same handlers. CI validates the YAML syntax. Optional staff routes are described separately and remain outside the current OpenAPI file; staff schemas, reusable conformance fixtures and cross-backend acceptance tests are still outstanding. This document does not imply PostgreSQL parity or shared-database multi-tenancy.
