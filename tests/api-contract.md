@@ -80,3 +80,8 @@ The existing HTTP acceptance runner is `tests/staff-inbox-http.php`; repository/
 ### Current CI validation
 
 The backend-neutral runner and both OpenAPI structural checks passed in [GitHub Actions run 45407583097](https://github.com/michaelkage/DimdianChatbot/actions/runs/45407583097) on 2026-11-24. This validates the current PHP/MySQL implementation only; no alternate backend has yet been tested against the same runner.
+
+
+## Backend-neutral staff acceptance
+
+`tests/staff-api-acceptance.mjs` uses Node's built-in crypto/fetch to sign the same per-request HMAC assertions described in `docs/openapi-staff.yaml`. It creates two visitor conversations and two first-seen local agent identities without direct database access, then verifies unassigned visibility, self-assignment, assignment isolation, denial of cross-agent reads and assignment theft, private-note idempotency and isolation from the visitor thread, website-only staff replies, assignment history, administrator-only route denial and immediate access loss after unassignment. The same runner can be pointed at another implementation by setting `DIMDIAN_API_BASE_URL` and `DIMDIAN_STAFF_ASSERTION_SECRET`.
