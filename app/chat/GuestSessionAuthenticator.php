@@ -29,7 +29,7 @@ final class GuestSessionAuthenticator
     }
 
     /** @return array<string,mixed> */
-    public function authenticate(string $token, TenantContext $tenantContext, bool $requireOpen = true): array
+    public function authenticate(string $token, bool $requireOpen = true): array
     {
         if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
             throw new GuestSessionTokenInvalid('A valid chat session token is required.');
