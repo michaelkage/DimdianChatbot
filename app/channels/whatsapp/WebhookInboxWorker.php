@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Durable, replay-safe processing of signature-verified Meta webhook inbox rows.
  *
- * Each provider event is committed through WebhookProcessingRepository's idempotent event
+ * Each provider event is committed through WebhookInboxRepository's idempotent event
  * operation. If a process dies midway through a multi-event payload, a retry
  * safely skips already-recorded events and resumes the remaining events.
  */
@@ -14,7 +14,7 @@ final class WebhookInboxWorker
     private Closure $phoneNumberIdResolver;
 
     public function __construct(
-        private readonly WebhookProcessingRepository $repository,
+        private readonly WebhookInboxRepository $repository,
         private readonly MetaWebhookProcessor $processor,
         private readonly WebhookPayloadCipher $cipher,
         Closure $phoneNumberIdResolver
