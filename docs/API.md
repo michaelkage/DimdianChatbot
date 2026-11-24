@@ -1,6 +1,6 @@
 # Public API contract
 
-For the versioned compatibility entry points under /api/v1, see [API v1](API-V1.md). The existing /api/*.php routes remain supported during migration.
+For the versioned compatibility entry points under /api/v1, see [API v1](API-V1.md) and the [OpenAPI 3.1 contract](openapi.yaml). The existing /api/*.php routes remain supported during migration.
 
 Base path: `/api`. All responses are JSON except the Meta webhook verification handshake. Timestamps are UTC ISO-8601 strings.
 
