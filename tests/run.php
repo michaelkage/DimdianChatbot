@@ -165,25 +165,34 @@ check($invalidTokenRejected, 'guest authenticator rejects malformed tokens befor
 
 $missingRepository = new GuestSessionAuthenticatorTestRepository();
 $missingSessionRejected = false;
+$missingSessionMessage = '';
 try {
     (new GuestSessionAuthenticator($missingRepository))->authenticate($authToken);
-} catch (GuestSessionNotFound) {
+} catch (GuestSessionNotFound $error) {
     $missingSessionRejected = true;
+    $missingSessionMessage = $error->getMessage();
 }
-check($missingSessionRejected, 'guest authenticator rejects expired or unknown sessions');
+check(
+    $missingSessionRejected
+        && $missingSessionMessage === 'This chat session is no longer valid. Start a new chat to continue.',
+    'guest authenticator rejects expired sessions with the established API message'
+);
 
 $closedRepository = new GuestSessionAuthenticatorTestRepository();
 $closedRepository->session = ['session_id' => 'closed-session', 'conversation_status' => 'closed'];
 $closedAuthenticator = new GuestSessionAuthenticator($closedRepository);
 $closedSessionRejected = false;
+$closedSessionMessage = '';
 try {
     $closedAuthenticator->authenticate($authToken);
-} catch (GuestConversationClosed) {
+} catch (GuestConversationClosed $error) {
     $closedSessionRejected = true;
+    $closedSessionMessage = $error->getMessage();
 }
 $closedSessionReadable = $closedAuthenticator->authenticate($authToken, false);
 check(
     $closedSessionRejected
+        && $closedSessionMessage === 'This conversation has been closed. Start a new chat to send another message.'
         && $closedSessionReadable['session_id'] === 'closed-session'
         && $closedRepository->touched === ['closed-session', 'closed-session'],
     'guest authenticator enforces open conversations only when requested'
