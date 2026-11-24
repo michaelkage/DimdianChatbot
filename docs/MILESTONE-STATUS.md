@@ -262,3 +262,8 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 
 
 Guest authentication compatibility note: the HTTP helper retains the existing 401/409 response codes and exact response messages when mapping `GuestSessionAuthenticator` failures. Regression tests assert the established missing-session and closed-conversation message text.
+
+
+### Guest-session authentication validation
+
+[GitHub Actions run 45416831196](https://github.com/michaelkage/DimdianChatbot/actions/runs/45416831196) passed all three jobs after adding unit coverage for request-independent guest authentication and exact API error-message compatibility. The public/staff acceptance suites, MySQL integration tests, widget tests and PHP 7.4/8.2 compatibility checks passed.
