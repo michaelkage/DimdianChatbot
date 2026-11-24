@@ -218,3 +218,8 @@ The core v1 widget/operator surface is described by `docs/openapi.yaml` (OpenAPI
 ### Tenant isolation boundary (design only; 2026-11-24)
 
 The current core and optional staff DDL contain no tenant root or tenant keys, and the repository contracts do not accept tenant context. The public widget also has no public tenant/widget identifier. The implementation must therefore remain one business per database. The proposed end-to-end tenant model, schema ownership inventory, webhook routing exception, composite relational constraints, migration sequence and negative acceptance tests are documented in [TENANCY-ARCHITECTURE.md](TENANCY-ARCHITECTURE.md). This is a design artifact only; no tenant columns, tenant resolver or shared-database behavior have been implemented by this change.
+
+
+### Storage capability interfaces (2026-11-24)
+
+The aggregate `ChatRepository` contract is now composed from narrower interfaces: `GuestSessionRepository`, `RateLimitRepository`, `VisitorMessageRepository`, `ConsentRepository`, `WhatsAppIdentityRepository`, `WebhookInboxRepository`, `ProviderEventRepository` and `WhatsAppOutboxRepository`. Focused composition contracts serve session operations, visitor messaging and webhook processing. Application services now depend on the narrow capability they actually use, while `ChatRepository` remains the compatibility aggregate implemented by the existing MySQL/MariaDB adapter. This reduces adapter coupling but does not itself add another database engine or tenant scope.
