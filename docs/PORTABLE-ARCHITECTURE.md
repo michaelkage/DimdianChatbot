@@ -213,3 +213,8 @@ The core v1 widget/operator surface is described by `docs/openapi.yaml` (OpenAPI
 ### Backend-neutral staff API acceptance runner (2026-11-24)
 
 `tests/staff-api-acceptance.mjs` exercises the optional staff API without direct database access. It signs each request with a fresh HMAC assertion bound to the exact method, URI, body digest and nonce, provisions first-seen local agent identities through the identity endpoint, and creates visitor conversations through the public API. It verifies unassigned visibility, self-assignment, cross-agent isolation, private-note idempotency and separation, website-only staff replies, assignment history, administrator-only operation denial and access revocation after unassignment. Both backend-neutral runners are configured to accept a different API base URL and can serve as the first black-box compatibility gate for another runtime. The current CI run remains against PHP/MySQL only.
+
+
+### Tenant isolation boundary (design only; 2026-11-24)
+
+The current core and optional staff DDL contain no tenant root or tenant keys, and the repository contracts do not accept tenant context. The public widget also has no public tenant/widget identifier. The implementation must therefore remain one business per database. The proposed end-to-end tenant model, schema ownership inventory, webhook routing exception, composite relational constraints, migration sequence and negative acceptance tests are documented in [TENANCY-ARCHITECTURE.md](TENANCY-ARCHITECTURE.md). This is a design artifact only; no tenant columns, tenant resolver or shared-database behavior have been implemented by this change.
