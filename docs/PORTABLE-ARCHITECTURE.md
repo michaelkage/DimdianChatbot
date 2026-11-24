@@ -246,3 +246,6 @@ Provider-event persistence now has a dedicated `PdoProviderEventRepository` for 
 
 
 The WhatsApp outbox now has a dedicated `PdoWhatsAppOutboxRepository` for enqueue, claim/reclaim, consent checks, cancellation, completion and failure transitions. It receives the provider-event capability so an early status callback can be reconciled inside the send-completion transaction. Provider HTTP requests remain outside transactions in the worker; visitor-message plus initial outbox insertion remains atomic in `PdoVisitorMessageRepository`.
+
+
+Active WhatsApp phone-number lookup is now implemented once in `PdoMetaConnectionRepository`. The legacy `PdoChatRepository::activeWhatsAppPhoneNumberId()` method delegates to that adapter to preserve the `WhatsAppIdentityRepository` capability used by webhook composition.
