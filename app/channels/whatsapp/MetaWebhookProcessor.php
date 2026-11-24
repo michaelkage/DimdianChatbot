@@ -9,7 +9,7 @@ declare(strict_types=1);
  */
 final class MetaWebhookProcessor
 {
-    public function __construct(private readonly ChatRepository $repository) {}
+    public function __construct(private readonly ProviderEventRepository $repository) {}
 
     /** @return array{processed:int,ignored:int} */
     public function process(array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
