@@ -2,11 +2,11 @@
 declare(strict_types=1);
 
 /**
- * Reference ChatRepository implementation for MySQL 8 / compatible MariaDB.
+ * Backward-compatible composition adapter for the MySQL/MariaDB repository slices.
  *
- * SQL dialect details stay in this adapter. A PostgreSQL implementation must
- * implement the same contract and pass the shared API/integration tests; it
- * must not be selected just because PDO can connect to a PostgreSQL DSN.
+ * SQL dialect details live in the focused PDO adapters. This class only wires
+ * them together over one PDO connection and preserves the ChatRepository
+ * aggregate contract for existing routes, workers and integration callers.
  */
 final class PdoChatRepository implements ChatRepository
 {
@@ -19,7 +19,7 @@ final class PdoChatRepository implements ChatRepository
     private PdoWhatsAppOutboxRepository $whatsAppOutbox;
     private PdoMetaConnectionRepository $metaConnections;
 
-    public function __construct(private PDO $pdo)
+    public function __construct(PDO $pdo)
     {
         $this->webhookInbox = new PdoWebhookInboxRepository($pdo);
         $this->rateLimits = new PdoRateLimitRepository($pdo);
@@ -178,23 +178,5 @@ final class PdoChatRepository implements ChatRepository
         );
     }
 
-    private function transaction(callable $operation): mixed
-    {
-        $ownsTransaction = !$this->pdo->inTransaction();
-        if ($ownsTransaction) {
-            $this->pdo->beginTransaction();
-        }
-        try {
-            $result = $operation();
-            if ($ownsTransaction) {
-                $this->pdo->commit();
-            }
-            return $result;
-        } catch (Throwable $error) {
-            if ($ownsTransaction && $this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            throw $error;
-        }
-    }
+
 }
