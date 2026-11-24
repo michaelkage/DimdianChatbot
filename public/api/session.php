@@ -39,7 +39,8 @@ if ($whatsappOptIn && $normalizedPhone === null) {
 }
 
 try {
-    $service = new GuestSessionService(chat_repository(), app_config());
+    $tenantContext = tenant_context_from_request();
+    $service = new GuestSessionService(chat_repository(), app_config(), $tenantContext);
     $session = $service->create([
         'name' => $name,
         'phone' => $phone,
