@@ -17,7 +17,7 @@ final class PdoConsentRepository implements ConsentRepository
         $this->pdo = $pdo;
     }
 
-    public function recordWhatsAppConsent(string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void
+    public function recordWhatsAppConsent(string $tenantId, string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void
     {
         if (!in_array($action, ['opt_in', 'opt_out'], true)) {
             throw new InvalidArgumentException('Unsupported consent action.');
@@ -26,75 +26,95 @@ final class PdoConsentRepository implements ConsentRepository
             throw new InvalidArgumentException('A valid international WhatsApp number is required.');
         }
 
-        $this->transaction(function () use ($guestId, $conversationId, $normalizedPhone, $action, $source): void {
+        $this->transaction(function () use ($tenantId, $guestId, $conversationId, $normalizedPhone, $action, $source): void {
             if ($action === 'opt_in') {
-                // A phone number can route to one active website conversation only.
-                // Re-consent deliberately moves the route; prior conversations remain readable.
-                $deactivate = PdoSqlDialect::prepare($this->pdo, 
+                $deactivate = PdoSqlDialect::prepare($this->pdo,
                     'UPDATE whatsapp_identity_links
                      SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
-                     WHERE phone_normalized = :phone AND is_active = 1'
+                     WHERE tenant_id = :tenant_id AND phone_normalized = :phone AND is_active = 1'
                 );
-                $deactivate->execute([':phone' => $normalizedPhone]);
-                $link = PdoSqlDialect::prepare($this->pdo, 
+                $deactivate->execute([':tenant_id' => $tenantId, ':phone' => $normalizedPhone]);
+                $link = PdoSqlDialect::prepare($this->pdo,
                     'INSERT INTO whatsapp_identity_links
-                        (phone_normalized, guest_id, conversation_id, is_active, created_at)
-                     VALUES (:phone, :guest, :conversation, 1, UTC_TIMESTAMP())'
+                        (tenant_id, phone_normalized, guest_id, conversation_id, is_active, created_at)
+                     VALUES (:tenant_id, :phone, :guest, :conversation, 1, UTC_TIMESTAMP())'
                 );
-                $link->execute([':phone' => $normalizedPhone, ':guest' => $guestId, ':conversation' => $conversationId]);
-                $update = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE guests SET phone_normalized = :phone, whatsapp_opt_in_at = :now, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
+                $link->execute([
+                    ':tenant_id' => $tenantId,
+                    ':phone' => $normalizedPhone,
+                    ':guest' => $guestId,
+                    ':conversation' => $conversationId,
+                ]);
+                $update = PdoSqlDialect::prepare($this->pdo,
+                    'UPDATE guests
+                     SET phone_normalized = :phone, whatsapp_opt_in_at = :now, updated_at = UTC_TIMESTAMP()
+                     WHERE tenant_id = :tenant_id AND id = :guest'
                 );
-                $update->execute([':phone' => $normalizedPhone, ':now' => gmdate('Y-m-d H:i:s'), ':guest' => $guestId]);
+                $update->execute([
+                    ':phone' => $normalizedPhone,
+                    ':now' => gmdate('Y-m-d H:i:s'),
+                    ':tenant_id' => $tenantId,
+                    ':guest' => $guestId,
+                ]);
             } else {
-                $deactivate = PdoSqlDialect::prepare($this->pdo, 
+                $deactivate = PdoSqlDialect::prepare($this->pdo,
                     'UPDATE whatsapp_identity_links
                      SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
-                     WHERE guest_id = :guest AND is_active = 1'
+                     WHERE tenant_id = :tenant_id AND guest_id = :guest AND is_active = 1'
                 );
-                $deactivate->execute([':guest' => $guestId]);
-                $update = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE guests SET whatsapp_opt_in_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
+                $deactivate->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
+                $update = PdoSqlDialect::prepare($this->pdo,
+                    'UPDATE guests
+                     SET whatsapp_opt_in_at = NULL, updated_at = UTC_TIMESTAMP()
+                     WHERE tenant_id = :tenant_id AND id = :guest'
                 );
-                $update->execute([':guest' => $guestId]);
+                $update->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
 
-                // Prevent queued messages from being sent after consent withdrawal.
                 $cancelSql = PdoSqlDialect::isPostgres($this->pdo)
                     ? 'UPDATE message_outbox AS o
                        SET status = \'failed\', locked_at = NULL, lock_token = NULL,
                            last_error = \'Cancelled after WhatsApp consent withdrawal.\',
                            updated_at = CURRENT_TIMESTAMP
                        FROM messages AS m
-                       INNER JOIN conversations AS c ON c.id = m.conversation_id
-                       WHERE m.id = o.message_id AND c.guest_id = :guest
-                         AND o.status IN (\'pending\', \'processing\')'
+                       INNER JOIN conversations AS c
+                         ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
+                       WHERE m.id = o.message_id AND o.tenant_id = :tenant_id
+                         AND m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                         AND c.guest_id = :guest AND o.status IN (\'pending\', \'processing\')'
                     : 'UPDATE message_outbox o
-                       INNER JOIN messages m ON m.id = o.message_id
-                       INNER JOIN conversations c ON c.id = m.conversation_id
+                       INNER JOIN messages m ON m.id = o.message_id AND m.tenant_id = o.tenant_id
+                       INNER JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
                        SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
                            o.last_error = "Cancelled after WhatsApp consent withdrawal.",
                            o.updated_at = UTC_TIMESTAMP()
-                       WHERE c.guest_id = :guest AND o.status IN ("pending","processing")';
+                       WHERE o.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                         AND c.guest_id = :guest AND o.status IN ("pending","processing")';
                 $cancel = PdoSqlDialect::prepare($this->pdo, $cancelSql);
-                $cancel->execute([':guest' => $guestId]);
+                $cancel->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
+
                 $markSql = PdoSqlDialect::isPostgres($this->pdo)
                     ? 'UPDATE messages AS m
                        SET delivery_status = \'web_only\'
                        FROM conversations AS c
-                       WHERE c.id = m.conversation_id AND c.guest_id = :guest
-                         AND m.delivery_status = \'queued\''
-                    : 'UPDATE messages m INNER JOIN conversations c ON c.id = m.conversation_id
+                       WHERE c.id = m.conversation_id AND c.tenant_id = m.tenant_id
+                         AND m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                         AND c.guest_id = :guest AND m.delivery_status = \'queued\''
+                    : 'UPDATE messages m
+                       INNER JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = m.tenant_id
                        SET m.delivery_status = "web_only"
-                       WHERE c.guest_id = :guest AND m.delivery_status = "queued"';
+                       WHERE m.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                         AND c.guest_id = :guest AND m.delivery_status = "queued"';
                 $mark = PdoSqlDialect::prepare($this->pdo, $markSql);
-                $mark->execute([':guest' => $guestId]);
+                $mark->execute([':tenant_id' => $tenantId, ':guest' => $guestId]);
             }
 
-            $event = PdoSqlDialect::prepare($this->pdo, 
-                'INSERT INTO guest_consent_events (guest_id, channel, action, source, policy_version, created_at)
-                 VALUES (:guest, "whatsapp", :action, :source, "2026-11", UTC_TIMESTAMP())'
+            $event = PdoSqlDialect::prepare($this->pdo,
+                'INSERT INTO guest_consent_events
+                    (tenant_id, guest_id, channel, action, source, policy_version, created_at)
+                 VALUES (:tenant_id, :guest, "whatsapp", :action, :source, "2026-11", UTC_TIMESTAMP())'
             );
             $event->execute([
+                ':tenant_id' => $tenantId,
                 ':guest' => $guestId,
                 ':action' => $action,
                 ':source' => substr(preg_replace('/[^a-z0-9_-]/i', '', $source) ?: 'website_widget', 0, 40),
