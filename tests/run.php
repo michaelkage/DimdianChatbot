@@ -242,6 +242,8 @@ final class GuestSessionAuthenticatorTestRepository implements GuestSessionRepos
 {
     public ?array $session = null;
     public ?string $lookedUpHash = null;
+    public ?string $lookedUpTenantId = null;
+    public ?string $touchedTenantId = null;
     public array $touched = [];
 
     public function createGuestSession(array $session): void
@@ -251,12 +253,14 @@ final class GuestSessionAuthenticatorTestRepository implements GuestSessionRepos
     public function findGuestSessionByTokenHash(string $tokenHash, string $tenantId): ?array
     {
         $this->lookedUpHash = $tokenHash;
+        $this->lookedUpTenantId = $tenantId;
         return $this->session;
     }
 
     public function touchGuestSession(string $sessionId, string $tenantId): void
     {
         $this->touched[] = $sessionId;
+        $this->touchedTenantId = $tenantId;
     }
 }
 
@@ -269,7 +273,9 @@ $authenticatedSession = $authenticator->authenticate($authToken, $authTenantCont
 check(
     $authenticatedSession['session_id'] === 'session-1'
         && $authRepository->lookedUpHash === hash('sha256', $authToken)
-        && $authRepository->touched === ['session-1'],
+        && $authRepository->lookedUpTenantId === $authTenantContext->tenantId
+        && $authRepository->touched === ['session-1']
+        && $authRepository->touchedTenantId === $authTenantContext->tenantId,
     'guest authenticator hashes tokens, resolves the session and updates last-seen state'
 );
 
