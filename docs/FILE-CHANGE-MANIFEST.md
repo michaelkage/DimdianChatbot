@@ -66,6 +66,7 @@
 - docs/openapi.yaml / docs/openapi-staff.yaml — separate OpenAPI 3.1 contracts for the core v1 widget API and optional server-to-server staff API.
 - tests/validate-openapi.rb — dependency-free structural validation of OpenAPI version, expected route coverage, operation IDs, responses, request-body content, security schemes and local references.
 - tests/api-acceptance.mjs — backend-neutral HTTP acceptance runner for guest sessions, messages, idempotency, authentication, polling and consent.
+- tests/staff-api-acceptance.mjs — backend-neutral HMAC-authenticated staff API runner for role/assignment isolation, notes, replies, history and forbidden operations.
 
 ### Additional updated files
 - app/meta_signup.php — compatibility functions now delegate to MetaEmbeddedSignupService and MetaConnectionRepository.
@@ -76,7 +77,7 @@
 - public/cron/retention.php — CLI-only adapter over RetentionService and RetentionRepository.
 - tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php — service policy, encryption, token lifecycle, health, retention, session token, rate-limit and staff HTTP regression coverage.
 - tests/api-contract.md — documents the core and optional staff acceptance requirements and how to run the backend-neutral suite.
-- .github/workflows/tests.yml — runs the OpenAPI structural validator on both documents and asserts that all ten implemented staff routes and the global HMAC assertion security scheme are present.
+- .github/workflows/tests.yml — runs the OpenAPI structural validator and both backend-neutral public/staff API acceptance runners, alongside the PHP/MySQL-specific suites.
 - docs/API-V1.md / API.md — links to both OpenAPI contracts and updates current service/storage boundaries.
 - docs/PORTABLE-ARCHITECTURE.md / MILESTONE-STATUS.md — documents extracted service/repository boundaries and remaining portability work.
 - docs/FILE-CHANGE-MANIFEST.md — this additional implementation inventory.
