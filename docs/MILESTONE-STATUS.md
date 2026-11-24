@@ -285,3 +285,14 @@ Guest authentication compatibility note: the HTTP helper retains the existing 40
 - Added `PdoStaffPersistenceSupport` for shared staff transaction, active-account/assignment and audit primitives. `PdoStaffInboxRepository` retains its existing aggregate interface and delegates the identity capability over the same PDO connection.
 - Added interface conformance coverage. The existing staff integration suite continues to exercise identity resolution, owner role changes, last-owner protections, nonce replay rejection and staff access policies through the aggregate.
 - [GitHub Actions run 45429720336](https://github.com/michaelkage/DimdianChatbot/actions/runs/45429720336) passed all three jobs after the adapter extraction, including MySQL-backed staff integration and PHP 7.4/8.2 plugin compatibility.
+
+
+### Staff inbox repository fully decomposed into focused PDO adapters (2026-11-24)
+
+- Added `StaffConversationRepository` and `StaffMessageRepository` alongside `StaffIdentityRepository`; the legacy `StaffInboxRepository` is now a compatibility aggregate extending the three capabilities.
+- Added `PdoStaffConversationRepository` for conversation visibility, assignment, self-assignment, unassignment and assignment history.
+- Added `PdoStaffMessageRepository` for conversation message reads, private notes, website-only staff replies and audit reads.
+- Converted `PdoStaffInboxRepository` into a SQL-free composition root. It has no PDO property and delegates to the identity, conversation and message adapters. All three adapters share one PDO connection and the same `PdoStaffPersistenceSupport` instance.
+- Shared transaction, active-staff/assignment validation and audit writing are centralized. Existing transactional boundaries remain in the focused adapters: assignment state and audit event are committed together; note/reply writes lock the parent conversation, recheck active assignment, and persist audit data within the same transaction; staff replies remain website-only and never enqueue WhatsApp.
+- Added adapter-interface checks and a regression assertion that the aggregate has no direct PDO state. Existing MySQL staff integration tests continue to exercise assignment concurrency, assignment revocation, note/reply authorization, owner protections and audit behavior.
+- [GitHub Actions run 45430392227](https://github.com/michaelkage/DimdianChatbot/actions/runs/45430392227) passed all three jobs after the focused-adapter composition refactor.
