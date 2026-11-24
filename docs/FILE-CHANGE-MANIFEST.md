@@ -117,3 +117,6 @@
 
 - app/storage/PdoProviderEventRepository.php — dedicated MySQL/MariaDB adapter for provider event deduplication, inbound/echo message routing, status-event storage and delivery-state reconciliation.
 - app/storage/PdoChatRepository.php — delegates provider event operations to PdoProviderEventRepository while preserving the aggregate reconciliation method used by outbox completion.
+
+- app/storage/PdoWhatsAppOutboxRepository.php — dedicated MySQL/MariaDB adapter for durable WhatsApp outbox lifecycle and lease-fenced state transitions; reconciles provider status through ProviderEventRepository.
+- app/storage/PdoChatRepository.php — delegates outbox lifecycle operations to PdoWhatsAppOutboxRepository.
