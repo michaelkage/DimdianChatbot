@@ -23,7 +23,7 @@ final class GuestSessionService
     private $config;
 
     /** @param array<string,mixed> $config */
-    public function __construct(ChatRepository $repository, array $config)
+    public function __construct(GuestSessionOperationsRepository $repository, array $config)
     {
         $this->repository = $repository;
         $this->config = $config;
