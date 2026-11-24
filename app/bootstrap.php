@@ -57,6 +57,8 @@ require_once __DIR__ . '/storage/MetaConnectionRepository.php';
 require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
 require_once __DIR__ . '/storage/RetentionRepository.php';
 require_once __DIR__ . '/storage/PdoRetentionRepository.php';
+require_once __DIR__ . '/storage/HealthRepository.php';
+require_once __DIR__ . '/storage/PdoHealthRepository.php';
 
 function app_config(?string $key = null): mixed
 {
@@ -204,6 +206,13 @@ function meta_connection_repository(?PDO $connection = null): MetaConnectionRepo
 function retention_repository(?PDO $connection = null): RetentionRepository
 {
     return new PdoRetentionRepository($connection ?? database());
+}
+
+
+/** Resolve the configured read-only health diagnostics adapter. */
+function health_repository(?PDO $connection = null): HealthRepository
+{
+    return new PdoHealthRepository($connection ?? database());
 }
 
 function client_fingerprint(): string
