@@ -25,7 +25,7 @@ function normalize_whatsapp_number(string $number): string
     return preg_replace('/\D+/', '', $number) ?? '';
 }
 
-function process_meta_webhook(ChatRepository $repository, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
+function process_meta_webhook(ProviderEventRepository $repository, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
 {
     return (new MetaWebhookProcessor($repository))->process($payload, $rawBody, $expectedPhoneNumberId);
 }
