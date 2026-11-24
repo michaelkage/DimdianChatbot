@@ -19,7 +19,7 @@ final class PdoRateLimitRepository implements RateLimitRepository
         $nowString = $now->format('Y-m-d H:i:s');
 
         return $this->transaction(function () use ($bucketKey, $cutoff, $nowString, $maxRequests): bool {
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
                  VALUES (:bucket, :now, 1)
                  ON DUPLICATE KEY UPDATE
@@ -33,7 +33,7 @@ final class PdoRateLimitRepository implements RateLimitRepository
                 ':cutoff2' => $cutoff,
                 ':now2' => $nowString,
             ]);
-            $select = $this->pdo->prepare('SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
+            $select = PdoSqlDialect::prepare($this->pdo, 'SELECT request_count FROM rate_limits WHERE bucket_key = :bucket FOR UPDATE');
             $select->execute([':bucket' => $bucketKey]);
             $row = $select->fetch();
             return is_array($row) && (int) $row['request_count'] <= max(1, $maxRequests);
