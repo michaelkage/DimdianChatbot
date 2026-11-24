@@ -261,3 +261,6 @@ Guest-session authentication policy is now isolated in `GuestSessionAuthenticato
 
 
 Staff identity resolution is a separate application service. `StaffIdentityService` accepts a verified principal from the configured `StaffIdentityProvider`, upserts and reloads the local identity, and fails closed unless that local identity is active. It does not trust role claims from the external provider. `StaffInboxService` retains authorization and inbox use cases while delegating identity lifecycle. Automated architecture checks guard application services against HTTP response/request globals and direct SQL/PDO, and guard API route handlers against direct persistence.
+
+
+Staff persistence is being split into focused capabilities. `StaffIdentityRepository` owns identity lifecycle and owner-managed access; `PdoStaffIdentityRepository` implements it for MySQL/MariaDB. The legacy `PdoStaffInboxRepository` remains the aggregate compatibility adapter and delegates identity operations over the same PDO connection. Shared transaction and audit primitives live in `PdoStaffPersistenceSupport`. Owner access changes continue to lock the active-owner set and write the audit event in the same transaction.
