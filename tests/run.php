@@ -64,6 +64,14 @@ check(
     'PdoVisitorMessageRepository directly implements the visitor-message capability'
 );
 
+$visitorMessageConstructor = (new ReflectionClass(PdoVisitorMessageRepository::class))->getConstructor();
+$visitorOutboxType = $visitorMessageConstructor?->getParameters()[1]->getType() ?? null;
+check(
+    $visitorOutboxType instanceof ReflectionNamedType
+        && $visitorOutboxType->getName() === WhatsAppOutboxRepository::class,
+    'PdoVisitorMessageRepository reuses the outbox capability for atomic queue insertion'
+);
+
 check(
     is_subclass_of(PdoProviderEventRepository::class, ProviderEventRepository::class),
     'PdoProviderEventRepository directly implements the provider-event capability'
