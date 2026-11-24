@@ -84,5 +84,3 @@ final class PdoStaffPersistenceSupport
         if ($count === false) throw new InvalidArgumentException('Text must be valid UTF-8.');
         return $count;
     }
-}
-}
