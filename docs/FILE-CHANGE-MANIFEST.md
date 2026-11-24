@@ -90,7 +90,7 @@
 - Meta business verification, app review and Partner/Solution eligibility must be completed by the business in Meta.
 - app/whatsapp.php remains a compatibility facade with some procedural transport/utility helpers; the webhook, outbox, Meta onboarding, retention, health, guest-session, message and consent use cases have been extracted, but the entire legacy file is not yet decomposed.
 - The two OpenAPI 3.1 documents cover the core v1 widget/operator routes and all ten optional staff routes. Reusable request/response fixtures and deeper schema/conformance testing remain outstanding.
-- The PHP storage adapters remain MySQL/MariaDB-specific; no PostgreSQL or SQLite adapter is implemented.
+- PostgreSQL 15+ is supported through dialect-aware PDO repositories and separate core/optional schemas; SQLite remains unsupported.
 - No live Meta, hosting-provider or WordPress production configuration was changed by these repository commits.
 
 - docs/TENANCY-ARCHITECTURE.md — design-only tenant ownership inventory, context resolution, composite constraints, Meta webhook routing, staged migration and isolation acceptance requirements; no tenant behavior is implemented.
@@ -152,3 +152,10 @@
 - app/staff/PdoStaffInboxRepository.php — SQL-free composition root delegating all capabilities to focused adapters over one shared connection/support instance.
 - tests/run.php — asserts staff focused adapter interface conformance and that the aggregate stores no PDO connection.
 - tests/staff-inbox.php — asserts identity/conversation/message adapter conformance and preserves existing MySQL transactional authorization coverage.
+
+- app/storage/PdoSqlDialect.php — central PDO dialect detection and PostgreSQL translation for common timestamp, string-literal, conflict-ignore and joined-delete syntax.
+- app/support/Utf8.php — standalone UTF-8-safe substring helper used by persistence adapters without depending on WhatsApp transport files.
+- database/postgresql/schema.sql — PostgreSQL 15+ clean-install core schema, including base64-text storage columns for encrypted binary payload/token material.
+- database/postgresql/optional/staff-inbox.sql — optional PostgreSQL staff inbox schema.
+- tests/postgresql-integration.php — PostgreSQL integration coverage for webhook inbox leases/binary data, Meta one-time state and token refresh, outbox completion/status reconciliation and retention statements.
+- .github/workflows/tests.yml — PostgreSQL 16 service job runs the backend-neutral public/staff acceptance suites and PostgreSQL repository integration tests alongside MySQL and WordPress compatibility jobs.
