@@ -276,3 +276,12 @@ Guest authentication compatibility note: the HTTP helper retains the existing 40
 - The optional staff bootstrap loads the identity service explicitly before the inbox service. The staff integration suite exercises the existing authentication, role isolation, assignment and reply policies through the new boundary.
 - Added architecture checks over the application service set to reject HTTP response helpers, request superglobals and direct PDO/SQL access. Added route checks across public and staff API handlers to reject direct PDO/SQL persistence.
 - [GitHub Actions run 45428128763](https://github.com/michaelkage/DimdianChatbot/actions/runs/45428128763) passed all three jobs after the service extraction and route-boundary checks. This includes backend-neutral public/staff acceptance, MySQL integration, widget tests and PHP 7.4/8.2 plugin compatibility.
+
+
+### First physical staff repository slice extracted (2026-11-24)
+
+- Added `StaffIdentityRepository` as a narrow persistence capability for verified staff identity upsert/read, one-time auth nonce consumption, staff listing and owner-managed access changes. `StaffInboxRepository` now composes that capability with the remaining inbox operations.
+- Extracted the MySQL/MariaDB implementation into `PdoStaffIdentityRepository`. Its owner-role transitions still use a transaction, lock the active-owner set and actor/target rows, enforce last-active-owner and self-demotion safeguards, and write the audit event in the same transaction.
+- Added `PdoStaffPersistenceSupport` for shared staff transaction, active-account/assignment and audit primitives. `PdoStaffInboxRepository` retains its existing aggregate interface and delegates the identity capability over the same PDO connection.
+- Added interface conformance coverage. The existing staff integration suite continues to exercise identity resolution, owner role changes, last-owner protections, nonce replay rejection and staff access policies through the aggregate.
+- [GitHub Actions run 45429720336](https://github.com/michaelkage/DimdianChatbot/actions/runs/45429720336) passed all three jobs after the adapter extraction, including MySQL-backed staff integration and PHP 7.4/8.2 plugin compatibility.
