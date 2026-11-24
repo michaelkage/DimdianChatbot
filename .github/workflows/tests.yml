@@ -93,6 +93,9 @@ jobs:
         run: node tests/api-acceptance.mjs
       - name: Run backend-neutral staff API acceptance suite
         run: node tests/staff-api-acceptance.mjs
+      - name: Print local PHP API diagnostics on failure
+        if: failure()
+        run: cat /tmp/dimdian-php-server.log || true
       - name: Run PHP helper, staff inbox and HTTP/database integration tests
         run: |
           php tests/run.php
