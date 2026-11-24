@@ -259,3 +259,6 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - The service receives only `GuestSessionRepository`; it does not read `$_SERVER`, emit JSON or terminate the request. It raises typed failures for malformed token, missing/expired session and closed conversation.
 - `authenticate_guest_session()` remains the HTTP compatibility adapter: it extracts `HTTP_X_DIMDIAN_GUEST_TOKEN` and maps typed failures to the existing 401/409 API error codes and messages.
 - Added unit coverage for hashing, lookup/touch, invalid and missing sessions, and closed-session behavior, plus a dependency-boundary assertion.
+
+
+Guest authentication compatibility note: the HTTP helper retains the existing 401/409 response codes and exact response messages when mapping `GuestSessionAuthenticator` failures. Regression tests assert the established missing-session and closed-conversation message text.
