@@ -17,7 +17,7 @@ final class GuestSessionRateLimitExceeded extends RuntimeException
 /** Creates secure guest sessions without depending on PDO, HTTP globals or response helpers. */
 final class GuestSessionService
 {
-    /** @var ChatRepository */
+    /** @var GuestSessionOperationsRepository */
     private $repository;
     /** @var array<string,mixed> */
     private $config;
