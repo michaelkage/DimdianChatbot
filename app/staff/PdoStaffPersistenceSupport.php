@@ -13,7 +13,7 @@ final class PdoStaffPersistenceSupport
 
     public function requireActiveStaff(string $staffIdentityId): void
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT status FROM staff_identities WHERE id = :id LIMIT 1'
         );
         $query->execute([':id' => $staffIdentityId]);
@@ -25,7 +25,7 @@ final class PdoStaffPersistenceSupport
     /** Must be called after locking the parent conversation row in the same transaction. */
     public function requireActiveAssignment(string $conversationId, string $staffIdentityId): void
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT 1 FROM staff_conversation_assignments
              WHERE conversation_id = :conversation AND staff_identity_id = :staff
                AND ended_at IS NULL LIMIT 1 FOR UPDATE'
@@ -44,7 +44,7 @@ final class PdoStaffPersistenceSupport
         array $metadata,
         ?string $requestId
     ): void {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO staff_audit_events
                 (actor_staff_id, conversation_id, event_type, target_staff_id, metadata_json, request_id, created_at)
              VALUES (:actor, :conversation, :event, :target, :metadata, :request_id, UTC_TIMESTAMP())'
