@@ -128,3 +128,10 @@ When WCFM Marketplace is active, public WooCommerce product-search results can i
 The adapter calls WCFM's in-process `wcfm_get_vendor_id_by_post()` and `wcfm_get_vendor_store()` functions when available. If WCFM is absent or the product has no valid vendor, the field is `null` and ordinary WooCommerce behaviour is unchanged.
 
 This is display attribution only. It does not add vendor login, vendor dashboards, vendor-wide order access, customer PII access, commission information, payouts, or payment-provider integration. The existing order ownership check still applies to the entire parent order; a vendor name never grants access to that order.
+
+
+## Reproducible release package
+
+The repository builds the installable ZIP through GitHub Actions. Push a tag such as `chatbridge-widget-v0.7.0` to run the package workflow, or start **WordPress plugin package** manually from the Actions tab. The workflow validates every plugin PHP file and JavaScript asset, then uploads `chatbridge-widget.zip` as a downloadable build artifact.
+
+The ZIP contains the `chatbridge-widget/` plugin directory at its root. It does not publish to WordPress.org or create a GitHub Release automatically. Review the artifact and release notes before distributing it to a production WordPress site.

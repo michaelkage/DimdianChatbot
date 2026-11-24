@@ -549,7 +549,7 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
     }
 
     // Apply a modest per-IP limit. Only a keyed hash is stored, not the IP itself.
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
     $bucket = 'chatbridge_wc_' . hash_hmac('sha256', $ip, wp_salt('auth'));
     $count = (int) get_transient($bucket);
     if ($count >= 30) {
