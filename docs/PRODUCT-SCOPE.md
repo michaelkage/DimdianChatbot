@@ -36,7 +36,7 @@ The WordPress plugin provides settings, widget injection, health diagnostics and
 
 The WooCommerce adapter may expose public catalogue search and product enquiry handoff. It must expose only published, customer-visible catalogue information.
 
-Private order lookup requires a separate verified flow. Public endpoints must never expose private customer or order data.
+Private order lookup is a separate opt-in flow for signed-in WordPress customers. The route requires WordPress cookie authentication and a REST nonce, then verifies that the requested WooCommerce order belongs to the current user. It returns a bounded summary only; guest checkout and private contact/payment details are excluded. Public catalogue endpoints must never expose private customer or order data.
 
 ### Other platforms
 
@@ -74,7 +74,7 @@ A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, reposi
 - The active reference backend is PHP with PDO and supports MySQL/MariaDB plus PostgreSQL 15+ through dialect-aware repository adapters and separate schemas.
 - Existing guest-session, message, consent, webhook and health endpoints are documented in API.md.
 - The embeddable JavaScript widget is implemented and currently calls the PHP API in API-backed mode.
-- The WordPress connector and optional read-only WooCommerce catalogue integration exist.
+- The WordPress connector, optional read-only WooCommerce catalogue integration, and opt-in customer-owned order summary route exist.
 - The production-hardening branch includes consent lifecycle controls, durable encrypted webhook ingestion, Meta onboarding operator functionality and retention processing.
 - A Supabase-backed mock API and Meta diagnostic Edge Functions exist separately; they do not yet establish complete API parity with PHP.
 - The GitHub Pages demo currently runs the widget in browser-only simulated mode and does not persist conversations.
