@@ -54,6 +54,11 @@ check(
     'PdoConsentRepository directly implements the consent capability'
 );
 
+check(
+    is_subclass_of(PdoGuestSessionRepository::class, GuestSessionRepository::class),
+    'PdoGuestSessionRepository directly implements the guest-session capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
