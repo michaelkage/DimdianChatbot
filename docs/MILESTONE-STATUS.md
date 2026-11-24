@@ -309,3 +309,11 @@ Guest authentication compatibility note: the HTTP helper retains the existing 40
 
 
 PostgreSQL backend validation: [GitHub Actions run 45434520501](https://github.com/michaelkage/DimdianChatbot/actions/runs/45434520501) passed all four jobs. The PostgreSQL 16 job ran the same public and staff API acceptance suites as MySQL, plus repository-level tests for webhook inbox binary preservation/deduplication/lease retry, Meta state replay and encrypted token refresh, early provider-status reconciliation with outbox completion, and the complete retention SQL set. The MySQL 8.4 integration suite, widget tests and PHP 7.4/8.2 WordPress compatibility jobs also passed.
+
+
+### Shared-database tenancy safety gate (2026-11-24)
+
+- The branch had introduced a tenant resolver and tenant-aware service calls before the MySQL/PostgreSQL schemas and all PDO adapters had tenant-scoped columns and predicates. CI exposed PHP interface signature mismatches in the consent and guest-session adapters.
+- Restored the repository contracts to the actually implemented single-tenant persistence API and removed unpersisted tenant fields from application payloads. The default single-tenant path remains one database per business.
+- `TenantResolver` now rejects `shared_database` mode before widget lookup. The presence of `tenants` and `tenant_widgets` alone is not isolation; the data tables, all query paths, staff authorization, provider routing and retention/export must be scoped before enabling it.
+- Added a regression test that the resolver fails closed without querying widget records. Full shared-database tenant isolation remains unimplemented and is explicitly not a supported deployment mode.
