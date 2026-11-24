@@ -29,11 +29,11 @@ final class HealthService
     }
 
     /** @return array<string,mixed> */
-    public function report(bool $opensslAvailable, bool $pdoMysqlAvailable, bool $whatsappEnabled): array
+    public function report(bool $opensslAvailable, bool $pdoAvailable, bool $whatsappEnabled, string $pdoDriver = 'unknown'): array
     {
         $missingTables = $this->repository->missingTables(self::REQUIRED_TABLES);
         $schemaOk = $missingTables === [];
-        $runtimeOk = $opensslAvailable && $pdoMysqlAvailable;
+        $runtimeOk = $opensslAvailable && $pdoAvailable && in_array($pdoDriver, ['mysql', 'pgsql'], true);
         $queues = [
             'webhook_pending' => null,
             'webhook_failed' => null,
@@ -52,7 +52,8 @@ final class HealthService
                 'database' => 'ok',
                 'schema' => $schemaOk ? 'ok' : 'incomplete',
                 'openssl' => $opensslAvailable ? 'ok' : 'missing',
-                'pdo_mysql' => $pdoMysqlAvailable ? 'ok' : 'missing',
+                'pdo' => $pdoAvailable ? 'ok' : 'missing',
+                'pdo_driver' => in_array($pdoDriver, ['mysql', 'pgsql'], true) ? $pdoDriver : 'unsupported',
             ],
             'missing_tables' => $missingTables,
             'queues' => $queues,
