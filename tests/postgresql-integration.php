@@ -156,14 +156,15 @@ try {
     $outboxRepository = new PdoWhatsAppOutboxRepository($pdo, $providerEvents);
     pg_expect($outboxRepository->hasWhatsAppConsent($messageId),
         'PostgreSQL outbox checks current WhatsApp consent before send');
-    $claimedOutbox = $outboxRepository->claimWhatsAppOutbox(uuid_v4());
+    $outboxLease = uuid_v4();
+    $claimedOutbox = $outboxRepository->claimWhatsAppOutbox($outboxLease);
     pg_expect(
         is_array($claimedOutbox['job'] ?? null)
             && $claimedOutbox['job']['id'] === $outboxId
             && (int) $claimedOutbox['job']['attempts'] === 1,
         'PostgreSQL outbox atomically claims a due job under a lease'
     );
-    $lease = (string) $claimedOutbox['job']['lock_token'];
+    $lease = $outboxLease;
     pg_expect(
         $outboxRepository->completeWhatsAppOutbox($outboxId, $lease, $messageId, $providerMessageId),
         'PostgreSQL outbox accepts completion only for the current lease token'
