@@ -202,7 +202,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/HealthResponse'
+                  - $ref: '#/components/schemas/HealthUnavailableResponse'
   /webhook.php:
     get:
       tags: [Meta]
@@ -500,6 +502,35 @@ components:
               type: boolean
             note:
               type: string
+    ConversationMessage:
+      type: object
+      required: [id, sequence_id, sender, message, delivery_status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence_id:
+          type: integer
+          minimum: 1
+        sender:
+          type: string
+          enum: [visitor, staff]
+        message:
+          type: string
+        delivery_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    DeliveryUpdate:
+      type: object
+      required: [id, delivery_status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        delivery_status:
+          type: string
     MessagePageResponse:
       type: object
       required: [data, meta]
@@ -507,7 +538,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/VisitorMessage'
+            $ref: '#/components/schemas/ConversationMessage'
         meta:
           type: object
           required: [after, next_cursor, has_more, poll_after_ms, delivery_updates]
@@ -523,8 +554,7 @@ components:
             delivery_updates:
               type: array
               items:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/DeliveryUpdate'
     UpdateConsentRequest:
       type: object
       required: [whatsapp_opt_in]
@@ -591,6 +621,27 @@ components:
         whatsapp_outbound:
           type: string
           enum: [enabled_in_config, disabled]
+        note:
+          type: string
+    HealthUnavailableResponse:
+      type: object
+      required: [status, service, checks, note]
+      properties:
+        status:
+          type: string
+          const: degraded
+        service:
+          type: string
+        checks:
+          type: object
+          required: [php_api, database, schema]
+          properties:
+            php_api:
+              type: string
+            database:
+              type: string
+            schema:
+              type: string
         note:
           type: string
     WebhookAcknowledgement:
