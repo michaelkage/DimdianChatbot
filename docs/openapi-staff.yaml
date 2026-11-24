@@ -28,6 +28,10 @@ paths:
       operationId: getCurrentStaffIdentity
       summary: Resolve the authenticated local staff identity
       responses:
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
         '200':
           description: Active local identity and authoritative local role.
           content:
@@ -47,6 +51,12 @@ paths:
       summary: List staff identities (administrator only)
       description: Returns at most 250 identities, including disabled identities.
       responses:
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Staff directory.
           content:
@@ -95,6 +105,14 @@ paths:
             type: string
             maxLength: 100
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Conversations visible to the current role and assignment.
           content:
@@ -116,6 +134,14 @@ paths:
         - $ref: '#/components/parameters/SequenceAfter'
         - $ref: '#/components/parameters/Limit'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Ordered message page.
           content:
@@ -144,6 +170,14 @@ paths:
             schema:
               $ref: '#/components/schemas/AssignmentRequest'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Assignment transition completed.
           content:
@@ -174,6 +208,14 @@ paths:
             default: 0
         - $ref: '#/components/parameters/Limit'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Internal note page.
           content:
@@ -200,6 +242,14 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateInternalNoteRequest'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Note creation or idempotent replay result.
           content:
@@ -230,6 +280,14 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateStaffReplyRequest'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Persisted staff reply or idempotent replay.
           content:
@@ -257,6 +315,14 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateStaffAccessRequest'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Staff access updated.
           content:
@@ -286,6 +352,14 @@ paths:
             default: 0
         - $ref: '#/components/parameters/Limit'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Assignment history page.
           content:
@@ -313,6 +387,14 @@ paths:
             default: 0
         - $ref: '#/components/parameters/Limit'
       responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
         '200':
           description: Audit events.
           content:
@@ -383,6 +465,22 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     ValidationError:
       description: Request fields, query values or identifiers are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MethodNotAllowed:
+      description: HTTP method is not supported by this operation.
+      headers:
+        Allow:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Unexpected storage or application failure.
       content:
         application/json:
           schema:
@@ -616,10 +714,19 @@ components:
           properties:
             items:
               type: array
-              items:
-                type: object
-                additionalProperties: true
+              items: { $ref: '#/components/schemas/AssignmentHistoryItem' }
         request_id: { type: string }
+    AssignmentHistoryItem:
+      type: object
+      required: [id, staff_identity_id, assigned_by_staff_id, assigned_at, assignee_name, assigned_by_name]
+      properties:
+        id: { type: integer }
+        staff_identity_id: { type: string, format: uuid }
+        assigned_by_staff_id: { type: string, format: uuid }
+        assigned_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        assignee_name: { type: string }
+        assigned_by_name: { type: string }
     AuditEventListResponse:
       type: object
       required: [data, request_id]
@@ -630,7 +737,17 @@ components:
           properties:
             items:
               type: array
-              items:
-                type: object
-                additionalProperties: true
+              items: { $ref: '#/components/schemas/AuditEvent' }
         request_id: { type: string }
+    AuditEvent:
+      type: object
+      required: [id, event_type, created_at, actor_name]
+      properties:
+        id: { type: integer }
+        event_type: { type: string }
+        target_staff_id: { type: [string, 'null'], format: uuid }
+        metadata_json: { type: [string, 'null'] }
+        request_id: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        actor_name: { type: string }
+        target_name: { type: [string, 'null'] }
