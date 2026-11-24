@@ -245,7 +245,7 @@ staff_http_expect($longReplyStatus === 200, 'replies endpoint accepts multi-byte
 staff_http_expect($messagesStatus === 200 && count($messagesBody['data']['items'] ?? []) === 2, 'staff messages endpoint returns the conversation thread');
 
 [$historyStatus, $historyBody] = staff_http_request('GET', '/api/v1/staff/history.php?conversation_id=' . $conversationId);
-staff_http_expect($historyStatus === 200 && count($historyBody['data']['items'] ?? []) === 3, 'staff history endpoint retains the initial assignment, administrator reassignment and unassignment');
+staff_http_expect($historyStatus === 200 && count($historyBody['data']['items'] ?? []) === 2, 'staff history endpoint retains the initial and replacement assignment rows, including their ended state');
 
 [$auditStatus, $auditBody] = staff_http_request('GET', '/api/v1/staff/audit.php?conversation_id=' . $conversationId);
 staff_http_expect(
