@@ -91,6 +91,8 @@ jobs:
           done
       - name: Run backend-neutral public API acceptance suite
         run: node tests/api-acceptance.mjs
+      - name: Run backend-neutral staff API acceptance suite
+        run: node tests/staff-api-acceptance.mjs
       - name: Run PHP helper, staff inbox and HTTP/database integration tests
         run: |
           php tests/run.php
