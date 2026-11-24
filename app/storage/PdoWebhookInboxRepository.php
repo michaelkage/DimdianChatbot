@@ -20,6 +20,13 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
     public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
     {
         return $this->transaction(function () use ($payloadHash, $encrypted): array {
+            if (PdoSqlDialect::isPostgres($this->pdo)) {
+                $encrypted = [
+                    'ciphertext' => base64_encode($encrypted['ciphertext']),
+                    'nonce' => base64_encode($encrypted['nonce']),
+                    'tag' => base64_encode($encrypted['tag']),
+                ];
+            }
             $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO webhook_inbox
                     (payload_sha256, payload_ciphertext, payload_nonce, payload_tag, status, attempts, available_at, received_at)
@@ -73,6 +80,15 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             $query->execute([':max_attempts' => $maxAttempts]);
             $job = $query->fetch();
             if (!is_array($job)) return null;
+            if (PdoSqlDialect::isPostgres($this->pdo)) {
+                foreach (['payload_ciphertext', 'payload_nonce', 'payload_tag'] as $field) {
+                    $decoded = base64_decode((string) $job[$field], true);
+                    if (!is_string($decoded)) {
+                        throw new RuntimeException('Stored webhook inbox payload material is corrupt.');
+                    }
+                    $job[$field] = $decoded;
+                }
+            }
 
             $attempt = (int) $job['attempts'] + 1;
             PdoSqlDialect::prepare($this->pdo, 
