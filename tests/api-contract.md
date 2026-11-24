@@ -85,3 +85,8 @@ The backend-neutral runner and both OpenAPI structural checks passed in [GitHub 
 ## Backend-neutral staff acceptance
 
 `tests/staff-api-acceptance.mjs` uses Node's built-in crypto/fetch to sign the same per-request HMAC assertions described in `docs/openapi-staff.yaml`. It creates two visitor conversations and two first-seen local agent identities without direct database access, then verifies unassigned visibility, self-assignment, assignment isolation, denial of cross-agent reads and assignment theft, private-note idempotency and isolation from the visitor thread, website-only staff replies, assignment history, administrator-only route denial and immediate access loss after unassignment. The same runner can be pointed at another implementation by setting `DIMDIAN_API_BASE_URL` and `DIMDIAN_STAFF_ASSERTION_SECRET`.
+
+
+### Latest full validation
+
+[GitHub Actions run 45409680687](https://github.com/michaelkage/DimdianChatbot/actions/runs/45409680687) passed on 2026-11-24 after adding the backend-neutral staff runner and fixing the native-PDO assignment parameter defect. It includes both Node acceptance runners, PHP/MySQL and staff HTTP integration suites, widget tests, OpenAPI structural validation and WordPress PHP 7.4/8.2 compatibility.
