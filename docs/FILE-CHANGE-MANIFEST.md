@@ -98,3 +98,7 @@
 - app/storage/ChatRepository.php — split the aggregate contract into session, rate-limit, visitor-message, consent, WhatsApp-identity, webhook-inbox, provider-event and outbox capability interfaces; ChatRepository remains the aggregate compatibility contract.
 - app/chat/* and app/channels/whatsapp/* — narrow application-service and worker constructor dependencies to the capabilities each uses.
 - tests/run.php — verifies ChatRepository still implements each capability interface and asserts that application-service constructors depend on their narrow repository capability rather than PDO or the aggregate ChatRepository.
+
+- app/storage/PdoWebhookInboxRepository.php — dedicated MySQL/MariaDB adapter for encrypted webhook inbox enqueue, atomic lease claim/reclaim, completion and retry/failure transitions.
+- app/storage/PdoChatRepository.php — retains the aggregate compatibility contract and delegates webhook inbox operations to the dedicated adapter on the same PDO connection.
+- app/bootstrap.php — loads the dedicated inbox adapter before the aggregate PDO adapter.
