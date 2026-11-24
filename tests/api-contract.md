@@ -52,3 +52,26 @@ These checks describe the expected behavior. `tests/integration.php` exercises t
 - Verify PHP PDO MySQL and outbound HTTPS are available.
 - Verify the approved template and Meta credentials with a dedicated test number.
 - Verify actual +234 Coexistence eligibility and Business-app echo delivery.
+
+
+## Optional staff inbox
+
+The staff API is specified separately in `docs/openapi-staff.yaml`. It is optional, server-to-server and uses a request-bound HMAC assertion rather than a guest token.
+
+33. Requests without a valid staff assertion return 401; assertions are bound to the exact method, request target including query, raw-body SHA-256, issue time and one-time nonce.
+34. A staff assertion cannot be replayed or reused against another route, query string or modified body.
+35. The authenticated identity is resolved to a local staff identity; external role claims never override the local role.
+36. Owners/admins can list all conversations; agents can see only their active assignments and unassigned conversations.
+37. Agents can self-assign only unassigned open conversations and can unassign only their own active assignment.
+38. Conversation message, note and assignment-history reads enforce the agent's current assignment.
+39. Private notes are stored separately, are idempotent by note ID, and never appear in the visitor message stream or conversation search.
+40. Staff replies are idempotent by client message ID, attributed to the local staff identity, visible in website polling and never added to the WhatsApp outbox.
+41. Only owners can update local roles and account status; the last active owner cannot be demoted or disabled.
+42. Only administrators can list staff identities or read audit events.
+43. A disabled staff inbox returns 404; an enabled module without an assertion secret returns 503.
+
+The existing HTTP acceptance runner is `tests/staff-inbox-http.php`; repository/policy and HMAC replay tests are in `tests/staff-inbox.php`.
+
+## Backend-neutral executable acceptance
+
+`tests/api-acceptance.mjs` uses only Node's built-in fetch and crypto modules. It accepts `DIMDIAN_API_BASE_URL` (default `http://127.0.0.1:8080/api/v1/`) and exercises session creation, message persistence, idempotent replay/conflict, guest-token authorization, polling, WhatsApp opt-in preconditions and opt-out. It does not inspect or require direct database access, so the same runner can be pointed at another backend implementing the v1 contract.
