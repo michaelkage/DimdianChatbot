@@ -13,15 +13,13 @@ final class StaffInboxAssignmentException extends RuntimeException
 {
 }
 
-interface StaffInboxRepository
+interface StaffIdentityRepository
 {
     /** Upsert a verified external identity; never accept a browser-supplied subject. */
     public function upsertStaffIdentity(array $identity): string;
 
     /** @return array<string,mixed>|null */
     public function findStaffIdentityById(string $staffIdentityId): ?array;
-
-    public function getActiveAssignee(string $conversationId): ?string;
 
     /** Atomically consume a one-time authentication nonce until its expiry. */
     public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool;
@@ -37,8 +35,12 @@ interface StaffInboxRepository
         string $status,
         ?string $requestId = null
     ): void;
+}
 
-    /** @return list<array<string,mixed>> */
+interface StaffInboxRepository extends StaffIdentityRepository
+{
+    public function getActiveAssignee(string $conversationId): ?string;
+
     public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array;
 
     /**
