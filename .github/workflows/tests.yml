@@ -48,8 +48,9 @@ jobs:
         run: |
           find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
-      - name: Validate OpenAPI 3.1 YAML syntax
-        run: ruby -e "require 'yaml'; YAML.parse_file('docs/openapi.yaml')"
+      - name: Validate OpenAPI 3.1 documents and route coverage
+        run: |
+          ruby -e 'require "yaml"; core = YAML.load_file("docs/openapi.yaml"); staff = YAML.load_file("docs/openapi-staff.yaml"); expected = %w[/me.php /agents.php /inbox.php /messages.php /assignments.php /notes.php /replies.php /roles.php /history.php /audit.php]; missing = expected - staff.fetch("paths").keys; abort("Staff OpenAPI is missing routes: #{missing.join(", ")}") unless missing.empty?; abort("Staff OpenAPI is missing global HMAC assertion security") unless staff.fetch("security").any? { |scheme| scheme.key?("StaffAssertion") }; abort("Core OpenAPI paths are missing") unless core.fetch("paths").key?("/session.php") && core.fetch("paths").key?("/webhook.php"); puts "OpenAPI documents parse and all implemented staff routes are represented."'
       - name: Prepare disposable database and app config
         run: |
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
