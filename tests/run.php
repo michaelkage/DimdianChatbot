@@ -120,6 +120,74 @@ foreach ($serviceRepositoryContracts as $serviceClass => $expectedRepository) {
     );
 }
 
+final class GuestSessionAuthenticatorTestRepository implements GuestSessionRepository
+{
+    public ?array $session = null;
+    public ?string $lookedUpHash = null;
+    public array $touched = [];
+
+    public function createGuestSession(array $session): void
+    {
+    }
+
+    public function findGuestSessionByTokenHash(string $tokenHash): ?array
+    {
+        $this->lookedUpHash = $tokenHash;
+        return $this->session;
+    }
+
+    public function touchGuestSession(string $sessionId): void
+    {
+        $this->touched[] = $sessionId;
+    }
+}
+
+$authToken = str_repeat('a', 64);
+$authRepository = new GuestSessionAuthenticatorTestRepository();
+$authRepository->session = ['session_id' => 'session-1', 'conversation_status' => 'open'];
+$authenticator = new GuestSessionAuthenticator($authRepository);
+$authenticatedSession = $authenticator->authenticate($authToken);
+check(
+    $authenticatedSession['session_id'] === 'session-1'
+        && $authRepository->lookedUpHash === hash('sha256', $authToken)
+        && $authRepository->touched === ['session-1'],
+    'guest authenticator hashes tokens, resolves the session and updates last-seen state'
+);
+
+$invalidTokenRejected = false;
+try {
+    $authenticator->authenticate('not-a-token');
+} catch (GuestSessionTokenInvalid) {
+    $invalidTokenRejected = true;
+}
+check($invalidTokenRejected, 'guest authenticator rejects malformed tokens before repository lookup');
+
+$missingRepository = new GuestSessionAuthenticatorTestRepository();
+$missingSessionRejected = false;
+try {
+    (new GuestSessionAuthenticator($missingRepository))->authenticate($authToken);
+} catch (GuestSessionNotFound) {
+    $missingSessionRejected = true;
+}
+check($missingSessionRejected, 'guest authenticator rejects expired or unknown sessions');
+
+$closedRepository = new GuestSessionAuthenticatorTestRepository();
+$closedRepository->session = ['session_id' => 'closed-session', 'conversation_status' => 'closed'];
+$closedAuthenticator = new GuestSessionAuthenticator($closedRepository);
+$closedSessionRejected = false;
+try {
+    $closedAuthenticator->authenticate($authToken);
+} catch (GuestConversationClosed) {
+    $closedSessionRejected = true;
+}
+$closedSessionReadable = $closedAuthenticator->authenticate($authToken, false);
+check(
+    $closedSessionRejected
+        && $closedSessionReadable['session_id'] === 'closed-session'
+        && $closedRepository->touched === ['closed-session', 'closed-session'],
+    'guest authenticator enforces open conversations only when requested'
+);
+
 final class HealthServiceTestRepository implements HealthRepository
 {
     private $missing;
