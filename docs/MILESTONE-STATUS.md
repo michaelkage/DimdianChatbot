@@ -246,3 +246,8 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Removed the duplicate `message_outbox` INSERT from `PdoVisitorMessageRepository`. It now invokes the injected `WhatsAppOutboxRepository` capability to enqueue the outbound job.
 - The aggregate composes the outbox adapter first and injects the same adapter into the visitor-message adapter. Both share the same PDO connection; enqueue remains inside the visitor-message transaction, preserving rollback and idempotency behavior.
 - Added a reflection contract check for the outbox capability dependency. Existing MySQL integration tests continue to verify one outbox row on first send, no second row on idempotent replay, and rollback when enqueue fails.
+
+
+### Shared outbox enqueue validation
+
+[GitHub Actions run 45416144989](https://github.com/michaelkage/DimdianChatbot/actions/runs/45416144989) passed all three jobs after the visitor-message adapter began using the injected outbox capability for atomic queue insertion. MySQL integration again passed the idempotent replay and message/outbox rollback assertions; PHP 7.4 and 8.2 WordPress compatibility also passed.
