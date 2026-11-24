@@ -154,6 +154,53 @@ foreach ($serviceRepositoryContracts as $serviceClass => $expectedRepository) {
     );
 }
 
+final class TenantResolverTestRepository implements TenantRepository
+{
+    public ?array $widget = null;
+
+    public function findActiveTenantWidget(string $publicWidgetId): ?array
+    {
+        return $this->widget;
+    }
+}
+
+$tenantRepository = new TenantResolverTestRepository();
+$tenantRepository->widget = [
+    'tenant_id' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'tenant_status' => 'active',
+    'allowed_origins' => '["https://shop.example.test"]',
+];
+$tenantResolver = new TenantResolver($tenantRepository, ['mode' => 'shared_database']);
+$tenantContext = $tenantResolver->resolve('widget_0123456789abcdef', 'https://shop.example.test');
+check(
+    $tenantContext->tenantId === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+        && $tenantContext->publicWidgetId === 'widget_0123456789abcdef',
+    'tenant resolver derives trusted tenant context from an active registered widget'
+);
+
+$tenantOriginRejected = false;
+try {
+    $tenantResolver->resolve('widget_0123456789abcdef', 'https://attacker.example');
+} catch (TenantResolutionException) {
+    $tenantOriginRejected = true;
+}
+check($tenantOriginRejected, 'tenant resolver rejects origins outside the widget allowlist');
+
+$tenantWidgetRejected = false;
+try {
+    $tenantResolver->resolve('unknown_widget_012345', 'https://shop.example.test');
+} catch (TenantResolutionException) {
+    $tenantWidgetRejected = true;
+}
+check($tenantWidgetRejected, 'tenant resolver rejects unknown public widget identifiers');
+
+$singleTenantContext = (new TenantResolver($tenantRepository, ['mode' => 'single_tenant']))
+    ->resolve(null, null);
+check(
+    $singleTenantContext->tenantId === '00000000-0000-4000-8000-000000000001',
+    'single-tenant compatibility mode uses the explicit default tenant identity'
+);
+
 $applicationServiceFiles = [
     'app/chat/GuestSessionAuthenticator.php',
     'app/chat/GuestSessionService.php',
