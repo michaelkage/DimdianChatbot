@@ -1,4 +1,9 @@
-<?php
+<
+\nstaff_expect(
+    is_subclass_of(PdoStaffIdentityRepository::class, StaffIdentityRepository::class),
+    'focused staff identity adapter implements its persistence capability'
+);
+?php
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
