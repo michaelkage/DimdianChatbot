@@ -14,8 +14,9 @@ if (!in_array($method, ['GET', 'POST'], true)) {
 }
 
 try {
+    $tenantContext = tenant_context_from_request();
     $repository = chat_repository();
-    $session = authenticate_guest_session($repository, $method === 'POST');
+    $session = authenticate_guest_session($repository, $tenantContext, $method === 'POST');
     $service = new ChatMessageService($repository, app_config());
 
     if ($method === 'POST') {
