@@ -36,6 +36,7 @@ CREATE TABLE tenant_widgets (
 
 CREATE TABLE guests (
     id CHAR(36) NOT NULL,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     display_name VARCHAR(100) NULL,
     phone VARCHAR(32) NULL,
     phone_normalized VARCHAR(32) NULL,
@@ -43,27 +44,37 @@ CREATE TABLE guests (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_guests_tenant_id (tenant_id, id),
+    KEY idx_guests_tenant_phone (tenant_id, phone),
     KEY idx_guests_phone (phone),
-    KEY idx_guests_phone_normalized (phone_normalized)
+    KEY idx_guests_phone_normalized (phone_normalized),
+    CONSTRAINT fk_guests_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE conversations (
     id CHAR(36) NOT NULL,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     guest_id CHAR(36) NOT NULL,
     status ENUM('open', 'closed') NOT NULL DEFAULT 'open',
     last_message_at DATETIME NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_conversations_tenant_id (tenant_id, id),
+    KEY idx_conversations_tenant_guest_created (tenant_id, guest_id, created_at),
     KEY idx_conversations_guest_created (guest_id, created_at),
     KEY idx_conversations_status_updated (status, updated_at),
+    CONSTRAINT fk_conversations_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_conversations_guest
-        FOREIGN KEY (guest_id) REFERENCES guests (id)
+        FOREIGN KEY (tenant_id, guest_id) REFERENCES guests (tenant_id, id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE guest_sessions (
     id CHAR(36) NOT NULL,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     guest_id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
     token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -72,20 +83,24 @@ CREATE TABLE guest_sessions (
     last_seen_at DATETIME NULL,
     revoked_at DATETIME NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_guest_sessions_tenant_id (tenant_id, id),
     UNIQUE KEY uq_guest_sessions_token_hash (token_hash),
     KEY idx_guest_sessions_guest (guest_id, created_at),
     KEY idx_guest_sessions_expiry (expires_at, revoked_at),
+    CONSTRAINT fk_guest_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_guest_sessions_guest
-        FOREIGN KEY (guest_id) REFERENCES guests (id)
+        FOREIGN KEY (tenant_id, guest_id) REFERENCES guests (tenant_id, id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_guest_sessions_conversation
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id)
+        FOREIGN KEY (tenant_id, conversation_id) REFERENCES conversations (tenant_id, id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE messages (
     sequence_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     id CHAR(36) NOT NULL,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     conversation_id CHAR(36) NOT NULL,
     client_message_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
     sender_type ENUM('visitor', 'business', 'system') NOT NULL,
@@ -95,12 +110,15 @@ CREATE TABLE messages (
     sent_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_messages_tenant_id (tenant_id, id),
     UNIQUE KEY uq_messages_sequence_id (sequence_id),
     UNIQUE KEY uq_messages_provider_message_id (provider_message_id),
-    UNIQUE KEY uq_messages_client_message (conversation_id, client_message_id),
+    UNIQUE KEY uq_messages_client_message (tenant_id, conversation_id, client_message_id),
     KEY idx_messages_conversation_order (conversation_id, sequence_id),
+    CONSTRAINT fk_messages_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_messages_conversation
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id)
+        FOREIGN KEY (tenant_id, conversation_id) REFERENCES conversations (tenant_id, id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -118,16 +136,20 @@ CREATE TABLE webhook_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE rate_limits (
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     bucket_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     window_started_at DATETIME NOT NULL,
     request_count INT UNSIGNED NOT NULL DEFAULT 0,
-    PRIMARY KEY (bucket_key),
-    KEY idx_rate_limits_window (window_started_at)
+    PRIMARY KEY (tenant_id, bucket_key),
+    KEY idx_rate_limits_window (window_started_at),
+    CONSTRAINT fk_rate_limits_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE message_outbox (
     id CHAR(36) NOT NULL,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     message_id CHAR(36) NOT NULL,
     recipient VARCHAR(32) NOT NULL,
     payload_text TEXT NOT NULL,
@@ -141,29 +163,34 @@ CREATE TABLE message_outbox (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_message_outbox_message (message_id),
+    UNIQUE KEY uq_message_outbox_tenant_id (tenant_id, id),
+    UNIQUE KEY uq_message_outbox_message (tenant_id, message_id),
     KEY idx_message_outbox_due (status, available_at, created_at),
     KEY idx_message_outbox_lock (status, locked_at),
+    CONSTRAINT fk_message_outbox_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_message_outbox_message
-        FOREIGN KEY (message_id) REFERENCES messages (id)
+        FOREIGN KEY (tenant_id, message_id) REFERENCES messages (tenant_id, id)
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 CREATE TABLE message_status_events (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     provider_message_id VARCHAR(191) NOT NULL,
     status ENUM('sent', 'delivered', 'read', 'failed') NOT NULL,
     event_timestamp BIGINT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_message_status_event (provider_message_id, status, event_timestamp),
+    UNIQUE KEY uq_message_status_event (tenant_id, provider_message_id, status, event_timestamp),
     KEY idx_message_status_provider (provider_message_id, event_timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Auditable consent lifecycle and unambiguous WhatsApp identity routing.
 CREATE TABLE guest_consent_events (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     guest_id CHAR(36) NOT NULL,
     channel VARCHAR(24) NOT NULL,
     action ENUM('opt_in','opt_out') NOT NULL,
@@ -173,12 +200,15 @@ CREATE TABLE guest_consent_events (
     PRIMARY KEY (id),
     KEY idx_consent_guest_created (guest_id, created_at),
     KEY idx_consent_channel_action (channel, action, created_at),
-    CONSTRAINT fk_consent_guest FOREIGN KEY (guest_id) REFERENCES guests(id)
+    CONSTRAINT fk_consent_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_consent_guest FOREIGN KEY (tenant_id, guest_id) REFERENCES guests(tenant_id, id)
       ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE whatsapp_identity_links (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     phone_normalized VARCHAR(32) NOT NULL,
     guest_id CHAR(36) NOT NULL,
     conversation_id CHAR(36) NOT NULL,
@@ -187,11 +217,13 @@ CREATE TABLE whatsapp_identity_links (
     created_at DATETIME NOT NULL,
     deactivated_at DATETIME NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_whatsapp_active_phone (active_phone),
+    UNIQUE KEY uq_whatsapp_active_phone (tenant_id, active_phone),
     KEY idx_whatsapp_link_conversation (conversation_id, is_active),
-    CONSTRAINT fk_whatsapp_link_guest FOREIGN KEY (guest_id) REFERENCES guests(id)
+    CONSTRAINT fk_whatsapp_link_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
       ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_whatsapp_link_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    CONSTRAINT fk_whatsapp_link_guest FOREIGN KEY (tenant_id, guest_id) REFERENCES guests(tenant_id, id)
+      ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_whatsapp_link_conversation FOREIGN KEY (tenant_id, conversation_id) REFERENCES conversations(tenant_id, id)
       ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
