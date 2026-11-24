@@ -190,6 +190,10 @@ function database(): PDO
     $options[PDO::ATTR_EMULATE_PREPARES] = false;
 
     $pdo = new PDO((string)$db['dsn'], (string)($db['username'] ?? ''), (string)($db['password'] ?? ''), $options);
+    if (PdoSqlDialect::isPostgres($pdo)) {
+        // All persisted timestamps are UTC wall-clock values, matching MySQL DATETIME semantics.
+        $pdo->exec("SET TIME ZONE 'UTC'");
+    }
     return $pdo;
 }
 
