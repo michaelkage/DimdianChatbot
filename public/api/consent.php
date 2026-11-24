@@ -13,8 +13,9 @@ if (strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]))
 }
 
 try {
+    $tenantContext = tenant_context_from_request();
     $repository = chat_repository();
-    $session = authenticate_guest_session($repository, false);
+    $session = authenticate_guest_session($repository, $tenantContext, false);
     $body = request_json(4096);
     $optIn = $body['whatsapp_opt_in'] ?? null;
     if (!is_bool($optIn)) {
