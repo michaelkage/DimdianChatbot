@@ -39,6 +39,11 @@ foreach ([
     check(is_subclass_of(ChatRepository::class, $capability), 'ChatRepository preserves the ' . $capability . ' capability');
 }
 
+check(
+    is_subclass_of(PdoWebhookInboxRepository::class, WebhookInboxRepository::class),
+    'PdoWebhookInboxRepository directly implements the durable inbox capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
