@@ -5,6 +5,32 @@
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
 
+CREATE TABLE tenants (
+    id CHAR(36) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    slug VARCHAR(80) NOT NULL,
+    status ENUM('active', 'suspended') NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tenants_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE tenant_widgets (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL,
+    public_widget_id VARCHAR(128) NOT NULL,
+    allowed_origins JSON NOT NULL,
+    status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tenant_widgets_public_id (public_widget_id),
+    KEY idx_tenant_widgets_tenant_status (tenant_id, status),
+    CONSTRAINT fk_tenant_widgets_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE guests (
     id CHAR(36) NOT NULL,
     display_name VARCHAR(100) NULL,
