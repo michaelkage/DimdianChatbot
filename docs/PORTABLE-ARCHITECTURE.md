@@ -193,3 +193,8 @@ The Meta Cloud API adapter, Meta webhook event mapper and WhatsApp outbox worker
 ### Visitor message application service boundary (2026-11-24)
 
 `ChatMessageService` now owns visitor send/poll use cases. It consumes the session-scoped rate limit, validates the idempotency key after that limit is consumed, determines whether the visitor's persisted WhatsApp consent and configuration permit an outbox job, delegates atomic message/outbox persistence to `ChatRepository`, and composes polling/delivery-update data. The HTTP route retains guest authentication, JSON/field/cursor validation, HTTP status mapping and safe error responses. Existing idempotent replay/conflict and delivery-state behavior is retained.
+
+
+### Visitor consent application service boundary (2026-11-24)
+
+`WhatsAppConsentService` now owns the visitor opt-in/opt-out use case. It requires a persisted normalized phone for opt-in, delegates the append-only consent transition to `ChatRepository`, and returns the resulting state timestamp. The HTTP route retains authentication, JSON validation and mapping of the missing-phone domain signal to HTTP 422. Consent state, audit history, identity-link deactivation and queued-send cancellation remain implemented transactionally by the repository.
