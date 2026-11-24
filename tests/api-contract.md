@@ -75,3 +75,8 @@ The existing HTTP acceptance runner is `tests/staff-inbox-http.php`; repository/
 ## Backend-neutral executable acceptance
 
 `tests/api-acceptance.mjs` uses only Node's built-in fetch and crypto modules. It accepts `DIMDIAN_API_BASE_URL` (default `http://127.0.0.1:8080/api/v1/`) and exercises session creation, message persistence, idempotent replay/conflict, guest-token authorization, polling, WhatsApp opt-in preconditions and opt-out. It does not inspect or require direct database access, so the same runner can be pointed at another backend implementing the v1 contract.
+
+
+### Current CI validation
+
+The backend-neutral runner and both OpenAPI structural checks passed in [GitHub Actions run 45407583097](https://github.com/michaelkage/DimdianChatbot/actions/runs/45407583097) on 2026-11-24. This validates the current PHP/MySQL implementation only; no alternate backend has yet been tested against the same runner.
