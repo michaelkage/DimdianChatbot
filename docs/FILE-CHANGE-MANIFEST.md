@@ -108,3 +108,6 @@
 
 - app/storage/PdoConsentRepository.php — dedicated MySQL/MariaDB adapter for transactional WhatsApp consent, identity routing and opt-out cancellation.
 - app/storage/PdoChatRepository.php — delegates consent transitions to PdoConsentRepository while preserving aggregate compatibility and nested transaction behavior.
+
+- app/storage/PdoGuestSessionRepository.php — dedicated MySQL/MariaDB adapter for guest, conversation and guest-session persistence; shares the consent adapter for atomic initial opt-in.
+- app/storage/PdoChatRepository.php — delegates guest-session creation, token lookup and touch operations to PdoGuestSessionRepository.
