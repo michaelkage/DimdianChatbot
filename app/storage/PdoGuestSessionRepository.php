@@ -21,7 +21,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
     public function createGuestSession(array $session): void
     {
         $this->transaction(function () use ($session): void {
-            $guest = $this->pdo->prepare(
+            $guest = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO guests (id, display_name, phone, phone_normalized, whatsapp_opt_in_at, created_at, updated_at)
                  VALUES (:id, :name, :phone, :phone_normalized, :whatsapp_opt_in_at, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
@@ -33,7 +33,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
                 ':whatsapp_opt_in_at' => $session['whatsapp_opt_in'] ? $session['created_at']->format('Y-m-d H:i:s') : null,
             ]);
 
-            $conversation = $this->pdo->prepare(
+            $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO conversations (id, guest_id, status, created_at, updated_at)
                  VALUES (:id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
@@ -42,7 +42,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
                 ':guest_id' => $session['guest_id'],
             ]);
 
-            $guestSession = $this->pdo->prepare(
+            $guestSession = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO guest_sessions (id, guest_id, conversation_id, token_hash, created_at, expires_at)
                  VALUES (:id, :guest_id, :conversation_id, :token_hash, UTC_TIMESTAMP(), :expires_at)'
             );
@@ -69,7 +69,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
 
     public function findGuestSessionByTokenHash(string $tokenHash): ?array
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'SELECT gs.id AS session_id, gs.guest_id, gs.conversation_id,
                     g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
                     c.status AS conversation_status
@@ -88,7 +88,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
 
     public function touchGuestSession(string $sessionId): void
     {
-        $touch = $this->pdo->prepare('UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
+        $touch = PdoSqlDialect::prepare($this->pdo, 'UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id');
         $touch->execute([':id' => $sessionId]);
     }
 
