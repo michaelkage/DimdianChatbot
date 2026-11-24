@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID, createHmac } from "node:crypto";
+import { randomBytes, randomUUID, createHmac, createHash } from "node:crypto";
 
 const publicBase = new URL(process.env.DIMDIAN_API_BASE_URL || "http://127.0.0.1:8080/api/v1/");
 if (!publicBase.pathname.endsWith("/")) publicBase.pathname += "/";
@@ -45,20 +45,12 @@ function makeAssertion(identity, method, target, rawBody) {
     nonce: randomBytes(32).toString("base64url"),
     method: method.toUpperCase(),
     target,
-    body_sha256: createHmac("sha256", "unused").update("").digest("hex"),
+    body_sha256: createHash("sha256").update(rawBody).digest("hex"),
   };
-  // The API requires an ordinary SHA-256 digest of the exact body, not an HMAC.
-  payload.body_sha256 = createHash(rawBody);
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
   return encoded + "." + signature;
 }
-
-function createHash(value) {
-  return requireHash(value);
-}
-
-import { createHash as requireHash } from "node:crypto";
 
 async function staffRequest(path, identity, method = "GET", body) {
   const url = new URL(path, staffBase);
