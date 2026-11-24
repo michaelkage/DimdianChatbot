@@ -22,6 +22,9 @@ CREATE TABLE tenant_widgets (
 );
 CREATE INDEX idx_tenant_widgets_tenant_status ON tenant_widgets(tenant_id, status);
 
+INSERT INTO tenants (id, name, slug, status, created_at, updated_at)
+VALUES ('00000000-0000-4000-8000-000000000001', 'Default business', 'default', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
 CREATE TABLE guests (
     id UUID PRIMARY KEY,
     display_name VARCHAR(100),
