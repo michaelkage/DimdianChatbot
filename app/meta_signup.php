@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/channels/whatsapp/MetaTokenCipher.php';
+require_once __DIR__ . '/channels/whatsapp/MetaGraphApi.php';
 require_once __DIR__ . '/channels/whatsapp/MetaGraphApiClient.php';
 require_once __DIR__ . '/channels/whatsapp/MetaEmbeddedSignupService.php';
 
