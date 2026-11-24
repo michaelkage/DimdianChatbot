@@ -234,3 +234,6 @@ The fixed-window rate-limit capability now also has a dedicated physical adapter
 
 
 The consent capability now has its own `PdoConsentRepository`. It owns the atomic transition across the consent ledger, guest opt-in state, WhatsApp identity links and cancellation of queued outbound jobs. The aggregate delegates on the same PDO connection, preserving nested transaction participation when initial consent is recorded as part of guest-session creation.
+
+
+Guest/session persistence now has a dedicated `PdoGuestSessionRepository` for guest, conversation and session creation, token-hash lookup and last-seen updates. It shares the `PdoConsentRepository` and same PDO connection so initial opt-in is still atomic with session creation. The aggregate retains the legacy interface and delegates those operations.
