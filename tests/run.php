@@ -78,7 +78,7 @@ final class MetaServiceTestRepository implements MetaConnectionRepository
     }
 }
 
-final class MetaServiceTestGraph extends MetaGraphApiClient
+final class MetaServiceTestGraph implements MetaGraphApi
 {
     public $getResponses = [];
     public $postResult = true;
