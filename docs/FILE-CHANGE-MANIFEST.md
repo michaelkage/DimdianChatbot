@@ -111,3 +111,6 @@
 
 - app/storage/PdoGuestSessionRepository.php — dedicated MySQL/MariaDB adapter for guest, conversation and guest-session persistence; shares the consent adapter for atomic initial opt-in.
 - app/storage/PdoChatRepository.php — delegates guest-session creation, token lookup and touch operations to PdoGuestSessionRepository.
+
+- app/storage/PdoVisitorMessageRepository.php — dedicated MySQL/MariaDB adapter for visitor message creation/idempotency, atomic WhatsApp outbox insertion, polling and delivery-state reads.
+- app/storage/PdoChatRepository.php — delegates visitor message and polling methods to PdoVisitorMessageRepository.
