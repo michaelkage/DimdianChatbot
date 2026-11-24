@@ -177,3 +177,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - `PdoChatRepository` delegates `consumeRateLimit()` to the new adapter using the same PDO connection, preserving the aggregate contract and existing transaction semantics.
 - Added a direct adapter-interface contract assertion. Existing session and visitor-message integration tests continue to exercise rate limiting through the aggregate.
 - The remaining guest/session, consent, visitor-message, provider-event and outbox SQL has not yet been physically split from `PdoChatRepository`.
+
+
+### Dedicated consent PDO adapter (2026-11-24)
+
+- Extracted WhatsApp consent validation, active identity-route replacement/deactivation, guest opt-in state, consent-ledger writes and opt-out cancellation of pending/processing outbox jobs into `PdoConsentRepository`.
+- `PdoChatRepository` delegates the consent transition to this adapter on the same PDO connection. Guest-session creation can still include initial opt-in in its existing outer transaction; the adapter detects and participates in that transaction rather than committing independently.
+- Added a direct adapter-interface contract assertion. Existing consent and session integration tests exercise aggregate delegation, including opt-out/outbox cancellation semantics.
+- Visitor/session and outbox SQL remain partially in the aggregate; this is not full persistence decomposition.
