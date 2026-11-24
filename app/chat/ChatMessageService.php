@@ -17,7 +17,7 @@ final class MessageRateLimitExceeded extends RuntimeException
 /** Visitor message send/poll use cases, independent of PDO and HTTP globals. */
 final class ChatMessageService
 {
-    /** @var ChatRepository */
+    /** @var VisitorMessagingRepository */
     private $repository;
     /** @var array<string,mixed> */
     private $config;
