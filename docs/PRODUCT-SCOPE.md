@@ -22,7 +22,7 @@ The product direction supports managed, self-hosted and hybrid deployments.
 
 Potential backend runtimes include PHP, Node.js, containers and compatible serverless environments. Potential storage targets include MySQL, MariaDB, PostgreSQL, PostgreSQL-compatible services such as Neon and Supabase, and SQLite where operational constraints permit.
 
-These are target compatibility options, not a claim that every adapter is already implemented. The current PHP application is PDO-based and uses MySQL/MariaDB-oriented SQL. PostgreSQL, SQLite and alternative backend runtimes must not be advertised as supported until their implementations, migrations and integration tests exist.
+These are target compatibility options, not a claim that every adapter is already implemented. The PHP/PDO reference backend currently supports MySQL/MariaDB and PostgreSQL 15+ through separate schemas and dialect-aware repository SQL. CI runs the backend-neutral public and staff acceptance suites against PostgreSQL 16, alongside additional PostgreSQL repository integration checks. SQLite and alternative backend runtimes are not implemented and must not be advertised as supported.
 
 Supabase is one existing hosted demonstration backend. It is not a mandatory runtime or database dependency.
 
@@ -71,14 +71,16 @@ A staff inbox is an optional capability. Its opt-in MySQL/MariaDB schema, reposi
 
 ## Current repository status
 
-- The active reference backend is PHP with PDO and MySQL/MariaDB-oriented SQL.
+- The active reference backend is PHP with PDO and supports MySQL/MariaDB plus PostgreSQL 15+ through dialect-aware repository adapters and separate schemas.
 - Existing guest-session, message, consent, webhook and health endpoints are documented in API.md.
 - The embeddable JavaScript widget is implemented and currently calls the PHP API in API-backed mode.
 - The WordPress connector and optional read-only WooCommerce catalogue integration exist.
 - The production-hardening branch includes consent lifecycle controls, durable encrypted webhook ingestion, Meta onboarding operator functionality and retention processing.
 - A Supabase-backed mock API and Meta diagnostic Edge Functions exist separately; they do not yet establish complete API parity with PHP.
 - The GitHub Pages demo currently runs the widget in browser-only simulated mode and does not persist conversations.
-- A full storage-adapter architecture, PostgreSQL implementation, alternative backend runtimes, NPM distribution, self-service tenant portal and complete helpdesk-grade staff inbox/AI provider system are not yet complete.
+- The focused PDO storage boundary and MySQL/PostgreSQL adapters are implemented, but shared-database tenant isolation is not. Tenant resolution currently fails closed outside single-tenant mode; widget registration alone is not sufficient to enable shared-database operation.
+- The optional WordPress staff inbox is implemented as a WordPress admin UI backed by the staff API; it is not a standalone admin dashboard and is not enabled for the Dimdian deployment.
+- Attachments/image uploads and AI-generated replies/triage are not implemented in the active chat flow. Alternative backend runtimes, SQLite, NPM distribution, a self-service tenant portal and a complete helpdesk-grade platform remain future work.
 
 ## Technical and release constraints
 
