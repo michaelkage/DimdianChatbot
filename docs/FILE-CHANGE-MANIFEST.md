@@ -120,3 +120,6 @@
 
 - app/storage/PdoWhatsAppOutboxRepository.php — dedicated MySQL/MariaDB adapter for durable WhatsApp outbox lifecycle and lease-fenced state transitions; reconciles provider status through ProviderEventRepository.
 - app/storage/PdoChatRepository.php — delegates outbox lifecycle operations to PdoWhatsAppOutboxRepository.
+
+- app/storage/PdoChatRepository.php — delegates active WhatsApp phone-number lookup to PdoMetaConnectionRepository rather than maintaining duplicate Meta connection SQL.
+- app/bootstrap.php — loads Meta connection contracts/adapters before the ChatRepository aggregate that composes them.
