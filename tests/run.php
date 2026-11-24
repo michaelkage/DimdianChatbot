@@ -23,6 +23,19 @@ function check(bool $condition, string $name): void
     }
 }
 
+foreach ([
+    GuestSessionOperationsRepository::class,
+    VisitorMessagingRepository::class,
+    ConsentRepository::class,
+    WhatsAppIdentityRepository::class,
+    WebhookInboxRepository::class,
+    ProviderEventRepository::class,
+    WebhookProcessingRepository::class,
+    WhatsAppOutboxRepository::class,
+] as $capability) {
+    check(is_subclass_of(ChatRepository::class, $capability), 'ChatRepository preserves the ' . $capability . ' capability');
+}
+
 final class HealthServiceTestRepository implements HealthRepository
 {
     private $missing;
