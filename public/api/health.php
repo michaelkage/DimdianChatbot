@@ -18,11 +18,17 @@ require_method('GET');
 try {
     $whatsapp = app_config('whatsapp') ?? [];
     $whatsappEnabled = is_array($whatsapp) && !empty($whatsapp['outbound_enabled']);
-    $service = new HealthService(health_repository(database()));
+    $connection = database();
+    $driver = (string) $connection->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $pdoAvailable = in_array($driver, ['mysql', 'pgsql'], true)
+        && ($driver !== 'mysql' || extension_loaded('pdo_mysql'))
+        && ($driver !== 'pgsql' || extension_loaded('pdo_pgsql'));
+    $service = new HealthService(health_repository($connection));
     $report = $service->report(
         extension_loaded('openssl'),
-        extension_loaded('pdo_mysql'),
-        $whatsappEnabled
+        $pdoAvailable,
+        $whatsappEnabled,
+        $driver
     );
 
     $httpStatus = (int) $report['http_status'];
