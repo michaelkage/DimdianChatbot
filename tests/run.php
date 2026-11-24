@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/app/bootstrap.php';
 require_once dirname(__DIR__) . '/app/webhook_inbox.php';
 require_once dirname(__DIR__) . '/app/meta_signup.php';
 require_once dirname(__DIR__) . '/app/maintenance/RetentionService.php';
+require_once dirname(__DIR__) . '/app/operations/HealthService.php';
 
 $passed = 0;
 $failed = 0;
@@ -19,6 +20,30 @@ function check(bool $condition, string $name): void
     } else {
         $failed++;
         fwrite(STDERR, "FAIL {$name}\n");
+    }
+}
+
+final class HealthServiceTestRepository implements HealthRepository
+{
+    private $missing;
+    private $metrics;
+    public $metricsRead = false;
+
+    public function __construct(array $missing, array $metrics)
+    {
+        $this->missing = $missing;
+        $this->metrics = $metrics;
+    }
+
+    public function missingTables(array $requiredTables): array
+    {
+        return $this->missing;
+    }
+
+    public function queueMetrics(): array
+    {
+        $this->metricsRead = true;
+        return $this->metrics;
     }
 }
 
@@ -169,6 +194,31 @@ try {
     $metaGraphHeaderRejected = true;
 }
 check($metaGraphHeaderRejected, 'Meta Graph client rejects CR/LF in bearer tokens');
+$healthMetrics = [
+    'webhook_pending' => 2,
+    'webhook_failed' => 0,
+    'outbox_pending' => 1,
+    'outbox_failed' => 3,
+];
+$healthyHealthRepository = new HealthServiceTestRepository([], $healthMetrics);
+$healthyHealth = (new HealthService($healthyHealthRepository))->report(true, true, true);
+check(
+    $healthyHealth['status'] === 'healthy'
+        && $healthyHealth['http_status'] === 200
+        && $healthyHealth['queues'] === $healthMetrics
+        && $healthyHealth['whatsapp_outbound'] === 'enabled_in_config',
+    'Health service composes healthy runtime, schema and queue diagnostics'
+);
+$incompleteHealthRepository = new HealthServiceTestRepository(['meta_connections'], $healthMetrics);
+$incompleteHealth = (new HealthService($incompleteHealthRepository))->report(true, true, false);
+check(
+    $incompleteHealth['status'] === 'degraded'
+        && $incompleteHealth['http_status'] === 503
+        && $incompleteHealth['queues']['outbox_pending'] === null
+        && !$incompleteHealthRepository->metricsRead,
+    'Health service suppresses queue queries when required schema is incomplete'
+);
+
 $retentionTestRepository = new RetentionServiceTestRepository();
 $retentionService = new RetentionService($retentionTestRepository, [
     'privacy' => [
