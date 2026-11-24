@@ -46,7 +46,7 @@ If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does
 - Admin settings require `manage_options` and use the WordPress Settings API nonce.
 - The health-check action uses a WordPress nonce, an 8-second timeout and TLS certificate verification.
 - The frontend uses `wp_enqueue_script`; no theme file edits are needed.
-- WooCommerce is optional. Its adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. SKU matches are retrieved with WooCommerce's product query API; partial product-name searches use the WooCommerce Store API. It does not expose customer/order data or exact inventory counts.
+- WooCommerce is optional. Its public catalogue adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. SKU matches are retrieved with WooCommerce's product query API; partial product-name searches use the WooCommerce Store API. A separate opt-in order route is available only to authenticated customers and returns a bounded summary of their own orders.
 - Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.
 - WCFM, Paystack and Mobex APIs are not called.
 - The plugin does not create a chat backend or make the service public automatically.
@@ -73,7 +73,15 @@ This code is an initial internal connector. Before submitting it to the WordPres
 
 The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/products?search=...`. It returns a maximum of eight published products and excludes products with catalogue visibility set to hidden. The endpoint is disabled unless the administrator enables the integration, even if someone calls the REST URL directly. Search results are cached briefly and the endpoint applies a modest per-IP request limit. Only public catalogue information is returned.
 
-**Order questions are not enabled yet.** Order status, customer addresses, email addresses and other private order data must never be exposed through a public product-search endpoint. A future order lookup must use an ownership-verification flow and server-side WooCommerce permissions.
+**Customer order lookup (0.6.0)**
+
+1. Confirm WooCommerce is active and open **Settings → ChatBridge Widget**.
+2. Enable **Customer order lookup (signed-in customers only)** and save.
+3. A customer must sign in to the same WordPress account that placed the order. The widget then exposes **Order question** and sends a same-origin request with the WordPress REST nonce.
+4. The REST route checks that the requested order's `customer_id` exactly matches the current WordPress user. An order belonging to another account returns the same not-found response as an unknown order.
+5. The response contains only order number, status, creation date, currency, formatted total and up to 20 item names/quantities.
+
+Guest checkout, email-only verification, order keys, addresses, billing/email data, payment tokens, notes, refunds, vendor dashboards and custom sequential order-number plugins are not supported. The input is a WooCommerce order ID; stores with custom public order numbers need a separate compatibility adapter. WordPress cookie authentication requires the REST nonce, and the endpoint independently enforces order ownership.
 
 This adapter runs on the WordPress site itself. The remote chat backend does not need direct database access or WooCommerce API keys. It is deliberately compatible with a store that also uses Paystack and WCFM, but it does not yet read payment-provider state or vendor-private data.
 

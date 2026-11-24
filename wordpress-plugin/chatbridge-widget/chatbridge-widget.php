@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ChatBridge Widget
  * Description: Add a lightweight website support chat widget connected to your ChatBridge service. Optional WhatsApp continuation is handled by your service.
- * Version: 0.5.1
+ * Version: 0.6.0
  * Requires at least: 6.3
  * Requires PHP: 7.4
  * Author: ChatBridge
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CHATBRIDGE_WIDGET_VERSION', '0.5.1');
+define('CHATBRIDGE_WIDGET_VERSION', '0.6.0');
 define('CHATBRIDGE_WIDGET_FILE', __FILE__);
 
 function chatbridge_widget_defaults(): array
@@ -22,6 +22,7 @@ function chatbridge_widget_defaults(): array
     return [
         'enabled' => 0,
         'woocommerce_enabled' => 0,
+        'woocommerce_orders_enabled' => 0,
         'staff_inbox_enabled' => 0,
         'api_base' => '',
         'title' => 'Chat with us',
@@ -61,6 +62,7 @@ function chatbridge_widget_sanitize_settings($input): array
     return [
         'enabled' => !empty($input['enabled']) ? 1 : 0,
         'woocommerce_enabled' => !empty($input['woocommerce_enabled']) ? 1 : 0,
+        'woocommerce_orders_enabled' => !empty($input['woocommerce_orders_enabled']) ? 1 : 0,
         'staff_inbox_enabled' => !empty($input['staff_inbox_enabled']) ? 1 : 0,
         'api_base' => $api_base,
         'title' => isset($input['title']) ? sanitize_text_field($input['title']) : $defaults['title'],
@@ -178,6 +180,16 @@ function chatbridge_widget_render_settings_page(): void
                         <?php else : ?>
                             <p class="description"><?php esc_html_e('Read-only catalogue search. It does not change stock, prices, carts, checkout or orders.', 'chatbridge-widget'); ?></p>
                         <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Customer order lookup (signed-in customers only)', 'chatbridge-widget'); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="chatbridge_widget_settings[woocommerce_orders_enabled]" value="1" <?php checked($settings['woocommerce_orders_enabled'], 1); ?> <?php disabled(!class_exists('WooCommerce')); ?>>
+                            <?php esc_html_e('Allow customers to check orders placed by their own WordPress account', 'chatbridge-widget'); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e('Requires WooCommerce, a signed-in customer account and a WordPress REST nonce. Guest-checkout orders are not supported.', 'chatbridge-widget'); ?></p>
                     </td>
                 </tr>
                 <tr>
@@ -415,18 +427,28 @@ add_action('wp_enqueue_scripts', static function (): void {
         $commerce_api = rest_url('chatbridge/v1/products');
     }
 
+    // Expose the order route and REST nonce only to authenticated customers when explicitly enabled.
+    $orders_api = '';
+    $rest_nonce = '';
+    if (!empty($settings['woocommerce_orders_enabled']) && class_exists('WooCommerce') && is_user_logged_in()) {
+        $orders_api = rest_url('chatbridge/v1/orders/');
+        $rest_nonce = wp_create_nonce('wp_rest');
+    }
+
     // Add data attributes to the one external script tag; no inline executable code or theme edits.
-    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings, $commerce_api): string {
+    add_filter('script_loader_tag', static function (string $tag, string $handle_name, string $src) use ($handle, $api_base, $settings, $commerce_api, $orders_api, $rest_nonce): string {
         if ($handle_name !== $handle) {
             return $tag;
         }
 
         $attributes = sprintf(
-            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s"',
+            ' data-api-base="%1$s" data-title="%2$s" data-subtitle="%3$s" data-commerce-api="%4$s" data-orders-api="%5$s" data-rest-nonce="%6$s"',
             esc_attr($api_base),
             esc_attr($settings['title']),
             esc_attr($settings['subtitle']),
-            esc_url($commerce_api)
+            esc_url($commerce_api),
+            esc_url($orders_api),
+            esc_attr($rest_nonce)
         );
 
         return preg_replace('/<script\b/', '<script' . $attributes, $tag, 1) ?: $tag;
@@ -442,6 +464,15 @@ add_action('wp_enqueue_scripts', static function (): void {
  * or store credentials. Order lookup requires a separate verified flow.
  */
 add_action('rest_api_init', static function (): void {
+    register_rest_route('chatbridge/v1', '/orders/(?P<order_id>\\d+)', [
+        'methods' => WP_REST_Server::READABLE,
+        'permission_callback' => 'chatbridge_widget_can_read_own_order',
+        'callback' => 'chatbridge_widget_get_own_order',
+        'args' => [
+            'order_id' => ['required' => true, 'validate_callback' => static function ($value): bool { return ctype_digit((string) $value) && (int) $value > 0; }],
+        ],
+    ]);
+
     register_rest_route('chatbridge/v1', '/products', [
         'methods' => WP_REST_Server::READABLE,
         'permission_callback' => '__return_true',
@@ -581,3 +612,70 @@ function chatbridge_widget_search_products(WP_REST_Request $request): WP_REST_Re
 }
 
 require_once __DIR__ . '/staff-inbox.php';
+
+
+/**
+ * Read-only WooCommerce order lookup for the authenticated customer only.
+ * WordPress cookie authentication requires the REST nonce supplied to the
+ * browser; ownership is independently enforced against the order customer ID.
+ */
+function chatbridge_widget_can_read_own_order(): bool
+{
+    $settings = chatbridge_widget_settings();
+    return !empty($settings['woocommerce_orders_enabled'])
+        && class_exists('WooCommerce')
+        && function_exists('wc_get_order')
+        && class_exists('WC_Order')
+        && is_user_logged_in()
+        && get_current_user_id() > 0;
+}
+
+function chatbridge_widget_get_own_order(WP_REST_Request $request): WP_REST_Response
+{
+    if (!chatbridge_widget_can_read_own_order()) {
+        return new WP_REST_Response([
+            'code' => 'order_lookup_unavailable',
+            'message' => 'Secure order lookup is unavailable. Sign in to your customer account and try again.',
+        ], 403);
+    }
+
+    $orderId = (int) $request->get_param('order_id');
+    if ($orderId < 1) {
+        return new WP_REST_Response(['code' => 'invalid_order', 'message' => 'A valid order number is required.'], 400);
+    }
+
+    $order = wc_get_order($orderId);
+    if (!$order instanceof WC_Order) {
+        return new WP_REST_Response(['code' => 'order_not_found', 'message' => 'We could not find that order.'], 404);
+    }
+
+    if ((int) $order->get_customer_id() !== (int) get_current_user_id()) {
+        return new WP_REST_Response(['code' => 'order_not_found', 'message' => 'We could not find that order.'], 404);
+    }
+
+    $items = [];
+    foreach ($order->get_items() as $item) {
+        if (!is_object($item) || !method_exists($item, 'get_name') || !method_exists($item, 'get_quantity')) {
+            continue;
+        }
+        $items[] = [
+            'name' => sanitize_text_field((string) $item->get_name()),
+            'quantity' => max(1, (int) $item->get_quantity()),
+        ];
+        if (count($items) >= 20) {
+            break;
+        }
+    }
+
+    $dateCreated = $order->get_date_created();
+    return new WP_REST_Response([
+        'order' => [
+            'number' => sanitize_text_field((string) $order->get_order_number()),
+            'status' => sanitize_key((string) $order->get_status()),
+            'date_created' => $dateCreated instanceof DateTimeInterface ? $dateCreated->format(DATE_ATOM) : null,
+            'currency' => sanitize_key((string) $order->get_currency()),
+            'total' => html_entity_decode(wp_strip_all_tags((string) $order->get_formatted_order_total()), ENT_QUOTES, get_bloginfo('charset') ?: 'UTF-8'),
+            'items' => $items,
+        ],
+    ], 200);
+}
