@@ -27,6 +27,49 @@ function expect(bool $condition, string $label): void
     }
 }
 
+// Meta connection repository contract: one-time state consumption and durable token lifecycle.
+$metaRepository = meta_connection_repository($pdo);
+$metaStateHash = hash('sha256', bin2hex(random_bytes(32)));
+$metaRepository->createSignupState($metaStateHash, 600);
+expect($metaRepository->consumeSignupState($metaStateHash), 'Meta signup state is consumed once while valid');
+expect(!$metaRepository->consumeSignupState($metaStateHash), 'Meta signup state cannot be replayed');
+
+$metaPhoneId = (string) random_int(100000000000000000, 999999999999999999);
+$metaWabaId = (string) random_int(100000000000000000, 999999999999999999);
+$metaRepository->saveActiveConnection([
+    'waba_id' => $metaWabaId,
+    'phone_number_id' => $metaPhoneId,
+    'token_ciphertext' => 'integration-ciphertext',
+    'token_nonce' => str_repeat('n', 12),
+    'token_tag' => str_repeat('t', 16),
+    'token_expires_at' => gmdate('Y-m-d H:i:s', time() + 3600),
+]);
+$metaConnection = $metaRepository->findActiveConnection();
+expect(
+    is_array($metaConnection)
+        && (string) $metaConnection['phone_number_id'] === $metaPhoneId
+        && (string) $metaConnection['waba_id'] === $metaWabaId
+        && $metaRepository->activePhoneNumberId() === $metaPhoneId,
+    'Meta repository persists and resolves the active WABA and phone connection'
+);
+$metaRepository->updateAccessToken((int) $metaConnection['id'], [
+    'ciphertext' => 'refreshed-integration-ciphertext',
+    'nonce' => str_repeat('r', 12),
+    'tag' => str_repeat('u', 16),
+], gmdate('Y-m-d H:i:s', time() + 7200));
+$metaRefreshed = $metaRepository->findActiveConnection();
+expect(
+    is_array($metaRefreshed)
+        && (string) $metaRefreshed['access_token_ciphertext'] === 'refreshed-integration-ciphertext',
+    'Meta repository persists refreshed encrypted token material'
+);
+$metaRepository->markConnectionExpired((int) $metaConnection['id']);
+$metaStatus = $pdo->prepare('SELECT status FROM meta_connections WHERE id = :id');
+$metaStatus->execute([':id' => $metaConnection['id']]);
+expect($metaStatus->fetchColumn() === 'expired', 'Meta repository marks an expired connection without deleting its audit record');
+$pdo->prepare('DELETE FROM meta_connections WHERE phone_number_id = :phone')->execute([':phone' => $metaPhoneId]);
+$pdo->prepare('DELETE FROM meta_signup_states WHERE state_sha256 = :hash')->execute([':hash' => $metaStateHash]);
+
 function request_api(string $method, string $path, ?array $body = null, array $headers = []): array
 {
     global $base;
