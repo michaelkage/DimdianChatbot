@@ -25,9 +25,9 @@ final class PdoChatRepository implements ChatRepository
         $this->rateLimits = new PdoRateLimitRepository($pdo);
         $this->consent = new PdoConsentRepository($pdo);
         $this->guestSessions = new PdoGuestSessionRepository($pdo, $this->consent);
-        $this->visitorMessages = new PdoVisitorMessageRepository($pdo);
         $this->providerEvents = new PdoProviderEventRepository($pdo);
         $this->whatsAppOutbox = new PdoWhatsAppOutboxRepository($pdo, $this->providerEvents);
+        $this->visitorMessages = new PdoVisitorMessageRepository($pdo, $this->whatsAppOutbox);
         $this->metaConnections = new PdoMetaConnectionRepository($pdo);
     }
 
