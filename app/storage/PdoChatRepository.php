@@ -31,9 +31,9 @@ final class PdoChatRepository implements ChatRepository
         $this->metaConnections = new PdoMetaConnectionRepository($pdo);
     }
 
-    public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void
+    public function enqueueWhatsAppOutbox(string $tenantId, string $messageId, string $recipient, string $text, string $outboxId): void
     {
-        $this->whatsAppOutbox->enqueueWhatsAppOutbox($messageId, $recipient, $text, $outboxId);
+        $this->whatsAppOutbox->enqueueWhatsAppOutbox($tenantId, $messageId, $recipient, $text, $outboxId);
     }
 
     public function claimWhatsAppOutbox(string $lockToken, int $maxAttempts = 6, int $leaseSeconds = 300): array
@@ -61,14 +61,14 @@ final class PdoChatRepository implements ChatRepository
         return $this->whatsAppOutbox->failWhatsAppOutbox($id, $lockToken, $messageId, $retry, $delaySeconds, $error);
     }
 
-    public function recordWhatsAppConsent(string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void
+    public function recordWhatsAppConsent(string $tenantId, string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void
     {
-        $this->consent->recordWhatsAppConsent($guestId, $conversationId, $normalizedPhone, $action, $source);
+        $this->consent->recordWhatsAppConsent($tenantId, $guestId, $conversationId, $normalizedPhone, $action, $source);
     }
 
-    public function consumeRateLimit(string $bucket, int $maxRequests, int $windowSeconds): bool
+    public function consumeRateLimit(string $tenantId, string $bucket, int $maxRequests, int $windowSeconds): bool
     {
-        return $this->rateLimits->consumeRateLimit($bucket, $maxRequests, $windowSeconds);
+        return $this->rateLimits->consumeRateLimit($tenantId, $bucket, $maxRequests, $windowSeconds);
     }
 
     public function createGuestSession(array $session): void
@@ -76,14 +76,14 @@ final class PdoChatRepository implements ChatRepository
         $this->guestSessions->createGuestSession($session);
     }
 
-    public function findGuestSessionByTokenHash(string $tokenHash): ?array
+    public function findGuestSessionByTokenHash(string $tokenHash, string $tenantId): ?array
     {
-        return $this->guestSessions->findGuestSessionByTokenHash($tokenHash);
+        return $this->guestSessions->findGuestSessionByTokenHash($tokenHash, $tenantId);
     }
 
-    public function touchGuestSession(string $sessionId): void
+    public function touchGuestSession(string $sessionId, string $tenantId): void
     {
-        $this->guestSessions->touchGuestSession($sessionId);
+        $this->guestSessions->touchGuestSession($sessionId, $tenantId);
     }
 
     public function createVisitorMessage(array $message): array
@@ -91,14 +91,14 @@ final class PdoChatRepository implements ChatRepository
         return $this->visitorMessages->createVisitorMessage($message);
     }
 
-    public function listConversationMessages(string $conversationId, int $after, int $limit): array
+    public function listConversationMessages(string $tenantId, string $conversationId, int $after, int $limit): array
     {
-        return $this->visitorMessages->listConversationMessages($conversationId, $after, $limit);
+        return $this->visitorMessages->listConversationMessages($tenantId, $conversationId, $after, $limit);
     }
 
-    public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array
+    public function listVisitorDeliveryUpdates(string $tenantId, string $conversationId, int $limit = 50): array
     {
-        return $this->visitorMessages->listVisitorDeliveryUpdates($conversationId, $limit);
+        return $this->visitorMessages->listVisitorDeliveryUpdates($tenantId, $conversationId, $limit);
     }
 
 
