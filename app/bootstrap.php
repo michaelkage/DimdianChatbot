@@ -53,6 +53,8 @@ date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
 require_once __DIR__ . '/storage/ChatRepository.php';
 require_once __DIR__ . '/storage/PdoChatRepository.php';
+require_once __DIR__ . '/storage/MetaConnectionRepository.php';
+require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
 
 function app_config(?string $key = null): mixed
 {
@@ -186,6 +188,13 @@ function database(): PDO
 function chat_repository(?PDO $connection = null): ChatRepository
 {
     return new PdoChatRepository($connection ?? database());
+}
+
+
+/** Resolve the configured Meta connection persistence adapter. */
+function meta_connection_repository(?PDO $connection = null): MetaConnectionRepository
+{
+    return new PdoMetaConnectionRepository($connection ?? database());
 }
 
 function client_fingerprint(): string
