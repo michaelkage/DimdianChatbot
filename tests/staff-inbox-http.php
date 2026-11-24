@@ -103,6 +103,26 @@ $targetStaffId = $repository->upsertStaffIdentity([
     'email' => 'http-agent@example.test',
 ]);
 
+[$ownerAssignStatus, $ownerAssignBody] = staff_http_request('POST', '/api/v1/staff/assignments.php', [
+    'conversation_id' => $conversationId,
+    'staff_identity_id' => $targetStaffId,
+]);
+staff_http_expect(
+    $ownerAssignStatus === 200
+        && ($ownerAssignBody['data']['assigned'] ?? false) === true
+        && $repository->getActiveAssignee($conversationId) === $targetStaffId,
+    'owner can assign an open conversation to another active staff identity through HTTP'
+);
+[$ownerUnassignStatus, $ownerUnassignBody] = staff_http_request('POST', '/api/v1/staff/assignments.php', [
+    'conversation_id' => $conversationId,
+    'action' => 'unassign',
+]);
+staff_http_expect(
+    $ownerUnassignStatus === 200
+        && ($ownerUnassignBody['data']['unassigned'] ?? false) === true
+        && $repository->getActiveAssignee($conversationId) === null,
+    'owner can unassign a conversation through HTTP'
+);
 
 [$missingAuthStatus] = staff_http_request('GET', '/api/v1/staff/inbox.php?status=open', null, false);
 staff_http_expect($missingAuthStatus === 401, 'staff API rejects requests without a signed identity assertion');
