@@ -49,7 +49,7 @@ function enqueue_meta_webhook(WebhookInboxRepository $repository, string $rawBod
  * Process a due inbox batch without coupling the worker to PDO or HTTP routing.
  *
  * The legacy PDO parameter remains accepted for existing cron/deployment
- * scripts. Active connection lookup now goes through ChatRepository.
+ * scripts. Active connection lookup now goes through WebhookProcessingRepository.
  *
  * @return array{processed:int,retried:int,failed:int,empty:bool}
  */
@@ -60,7 +60,7 @@ function process_webhook_inbox(PDO $pdo, WebhookProcessingRepository $repository
 
 /** @return WebhookInboxWorker */
 function webhook_inbox_worker(
-    ChatRepository $repository,
+    WebhookProcessingRepository $repository,
     ?WebhookPayloadCipher $cipher = null
 ): WebhookInboxWorker {
     $resolver = static function () use ($repository): string {
