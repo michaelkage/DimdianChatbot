@@ -264,3 +264,6 @@ Staff identity resolution is a separate application service. `StaffIdentityServi
 
 
 Staff persistence is being split into focused capabilities. `StaffIdentityRepository` owns identity lifecycle and owner-managed access; `PdoStaffIdentityRepository` implements it for MySQL/MariaDB. The legacy `PdoStaffInboxRepository` remains the aggregate compatibility adapter and delegates identity operations over the same PDO connection. Shared transaction and audit primitives live in `PdoStaffPersistenceSupport`. Owner access changes continue to lock the active-owner set and write the audit event in the same transaction.
+
+
+The optional staff inbox persistence layer is now physically decomposed into three capabilities: `StaffIdentityRepository`, `StaffConversationRepository` and `StaffMessageRepository`. Their MySQL/MariaDB implementations are `PdoStaffIdentityRepository`, `PdoStaffConversationRepository` and `PdoStaffMessageRepository`. The legacy `PdoStaffInboxRepository` is a SQL-free composition root that injects one PDO connection and one shared `PdoStaffPersistenceSupport` instance into all three adapters. This preserves transaction/audit boundaries while keeping the public application contract stable.
