@@ -140,7 +140,7 @@ function scheduleQueueRetry(){
 function queueMessage(text,id){
  if(!offlineQueueEnabled)return false;
  const queue=readQueue();
- if(queue.some(item=>item.id===id)){showQueued(queue.find(item=>item.id===id));return true;}
+ if(queue.some(item=>item.id===id)){const existing=queue.find(item=>item.id===id);showQueued(existing);input.value='';$('.count').textContent='0 / 4000';status('Message is already saved on this device and waiting to send.','warning');return true;}
  if(queue.length>=20){status('Your saved-message queue is full. Reconnect and send those messages before adding another.','warning');return false;}
  const item={id,text,createdAt:new Date().toISOString()};
  if(!writeQueue(queue.concat(item)))return false;
