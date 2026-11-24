@@ -10,7 +10,7 @@ declare(strict_types=1);
 final class MetaWebhookEndpoint
 {
     public function __construct(
-        private readonly ChatRepository $repository,
+        private readonly WebhookInboxRepository $repository,
         private readonly WebhookPayloadCipher $cipher,
         private readonly WebhookInboxWorker $worker
     ) {}
