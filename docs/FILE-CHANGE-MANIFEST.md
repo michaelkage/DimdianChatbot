@@ -145,3 +145,10 @@
 - app/staff/PdoStaffInboxRepository.php — delegates identity persistence to PdoStaffIdentityRepository while retaining the aggregate contract for remaining inbox operations.
 - app/staff/bootstrap.php — loads focused staff persistence dependencies in order.
 - tests/staff-inbox.php — asserts focused identity adapter contract while preserving staff lifecycle and owner-safety integration coverage.
+
+- app/staff/StaffInboxRepository.php — defines focused identity, conversation and message persistence capabilities; legacy StaffInboxRepository composes all three.
+- app/staff/PdoStaffConversationRepository.php — focused MySQL/MariaDB adapter for conversation visibility, assignment lifecycle and assignment history.
+- app/staff/PdoStaffMessageRepository.php — focused MySQL/MariaDB adapter for staff message reads, private notes, website-only replies and audit reads.
+- app/staff/PdoStaffInboxRepository.php — SQL-free composition root delegating all capabilities to focused adapters over one shared connection/support instance.
+- tests/run.php — asserts staff focused adapter interface conformance and that the aggregate stores no PDO connection.
+- tests/staff-inbox.php — asserts identity/conversation/message adapter conformance and preserves existing MySQL transactional authorization coverage.
