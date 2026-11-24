@@ -245,7 +245,13 @@ staff_http_expect($longReplyStatus === 200, 'replies endpoint accepts multi-byte
 staff_http_expect($messagesStatus === 200 && count($messagesBody['data']['items'] ?? []) === 2, 'staff messages endpoint returns the conversation thread');
 
 [$historyStatus, $historyBody] = staff_http_request('GET', '/api/v1/staff/history.php?conversation_id=' . $conversationId);
-staff_http_expect($historyStatus === 200 && count($historyBody['data']['items'] ?? []) === 2, 'staff history endpoint retains the initial and replacement assignment rows, including their ended state');
+$historyItems = $historyBody['data']['items'] ?? [];
+staff_http_expect(
+    $historyStatus === 200
+        && count($historyItems) === 2
+        && count(array_filter($historyItems, static fn(array $item): bool => !empty($item['ended_at']))) === 2,
+    'staff history endpoint retains both assignment rows and their ended timestamps'
+);
 
 [$auditStatus, $auditBody] = staff_http_request('GET', '/api/v1/staff/audit.php?conversation_id=' . $conversationId);
 staff_http_expect(
