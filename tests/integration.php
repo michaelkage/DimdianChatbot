@@ -579,7 +579,7 @@ $repositoryReplayInput['id'] = uuid_v4();
 $repositoryReplayInput['outbox_id'] = uuid_v4();
 $repositoryReplay = $repository->createVisitorMessage($repositoryReplayInput);
 expect($repositoryReplay['inserted'] === false && $repositoryReplay['message']['id'] === $repositoryMessageId, 'repository returns the original message for an idempotent replay');
-$outboxCount->execute([':message_id' => $repositoryMessageId]);
+$outboxCount->execute([':tenant_id' => $repositoryTenantId, ':message_id' => $repositoryMessageId]);
 expect((int) $outboxCount->fetchColumn() === 1, 'idempotent replay does not create a duplicate WhatsApp outbox job');
 
 $atomicityClientMessageId = '760e8400-e29b-41d4-a716-446655440001';
@@ -617,7 +617,7 @@ $repositoryConsentAudit = $pdo->prepare('SELECT COUNT(*) FROM guest_consent_even
 $repositoryConsentAudit->execute([':tenant_id' => $repositoryTenantId, ':guest' => $repositoryGuestId]);
 expect((int) $repositoryConsentAudit->fetchColumn() === 1, 'repository consent transition appends its audit event');
 $repository->recordWhatsAppConsent($repositoryTenantId, $repositoryGuestId, $repositoryConversationId, $repositoryPhone, 'opt_in', 'repository_contract_test');
-$repositoryConsentState->execute([':id' => $repositoryGuestId]);
+$repositoryConsentState->execute([':tenant_id' => $repositoryTenantId, ':id' => $repositoryGuestId]);
 expect($repositoryConsentState->fetchColumn() !== false && $repositoryConsentState->fetchColumn() !== null, 'repository consent transition can restore opt-in');
 
 $rateBucket = 'integration-contract:' . uuid_v4();
