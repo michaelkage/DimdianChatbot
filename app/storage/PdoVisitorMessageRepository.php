@@ -24,12 +24,13 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
         return $this->transaction(function () use ($message): array {
             $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO messages
-                    (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
+                    (id, tenant_id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES
-                    (:id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    (:id, :tenant_id, :conversation_id, :client_message_id, "visitor", :body, :delivery_status, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
             $insert->execute([
                 ':id' => $message['id'],
+                ':tenant_id' => $message['tenant_id'],
                 ':conversation_id' => $message['conversation_id'],
                 ':client_message_id' => $message['client_message_id'],
                 ':body' => $message['body'],
@@ -40,11 +41,12 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
             $lookup = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, sequence_id, sent_at, delivery_status, body
                  FROM messages
-                 WHERE conversation_id = :conversation_id
+                 WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id
                    AND client_message_id = :client_message_id
                  LIMIT 1'
             );
             $lookup->execute([
+                ':tenant_id' => $message['tenant_id'],
                 ':conversation_id' => $message['conversation_id'],
                 ':client_message_id' => $message['client_message_id'],
             ]);
@@ -60,14 +62,15 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
                 $update = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE conversations
                      SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
-                     WHERE id = :id AND status = "open"'
+                     WHERE id = :id AND tenant_id = :tenant_id AND status = "open"'
                 );
-                $update->execute([':id' => $message['conversation_id']]);
+                $update->execute([':id' => $message['conversation_id'], ':tenant_id' => $message['tenant_id']]);
 
                 if ($message['outbound_enabled']) {
                     // The outbox adapter uses this same PDO connection; its insert
                     // participates in the message transaction and rolls back with it.
                     $this->outbox->enqueueWhatsAppOutbox(
+                        (string) $message['tenant_id'],
                         (string) $saved['id'],
                         (string) $message['recipient'],
                         (string) $message['outbox_payload'],
@@ -86,15 +89,16 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
         });
     }
 
-    public function listConversationMessages(string $conversationId, int $after, int $limit): array
+    public function listConversationMessages(string $tenantId, string $conversationId, int $after, int $limit): array
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT sequence_id, id, sender_type, body, delivery_status, sent_at
              FROM messages
-             WHERE conversation_id = :conversation_id AND sequence_id > :after
+             WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND sequence_id > :after
              ORDER BY sequence_id ASC
              LIMIT ' . ($limit + 1)
         );
+        $query->bindValue(':tenant_id', $tenantId);
         $query->bindValue(':conversation_id', $conversationId);
         $query->bindValue(':after', $after, PDO::PARAM_INT);
         $query->execute();
@@ -118,14 +122,14 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
         return ['items' => $items, 'has_more' => $hasMore, 'next_cursor' => $nextCursor];
     }
 
-    public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array
+    public function listVisitorDeliveryUpdates(string $tenantId, string $conversationId, int $limit = 50): array
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id, delivery_status FROM messages
-             WHERE conversation_id = :conversation_id AND sender_type = "visitor"
+             WHERE tenant_id = :tenant_id AND conversation_id = :conversation_id AND sender_type = "visitor"
              ORDER BY sequence_id DESC LIMIT ' . max(1, min(100, $limit))
         );
-        $query->execute([':conversation_id' => $conversationId]);
+        $query->execute([':tenant_id' => $tenantId, ':conversation_id' => $conversationId]);
         return array_map(static fn(array $row): array => [
             'id' => (string) $row['id'],
             'delivery_status' => (string) $row['delivery_status'],
