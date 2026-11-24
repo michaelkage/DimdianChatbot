@@ -16,6 +16,9 @@ require_once dirname(__DIR__) . '/app/staff/StaffIdentityService.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
 require_once dirname(__DIR__) . '/app/staff/PdoStaffPersistenceSupport.php';
 require_once dirname(__DIR__) . '/app/staff/PdoStaffIdentityRepository.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffConversationRepository.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffMessageRepository.php';
+require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
 
 $passed = 0;
 $failed = 0;
@@ -91,6 +94,24 @@ check(
 check(
     is_subclass_of(PdoStaffIdentityRepository::class, StaffIdentityRepository::class),
     'PdoStaffIdentityRepository directly implements the staff identity persistence capability'
+);
+
+check(
+    is_subclass_of(PdoStaffConversationRepository::class, StaffConversationRepository::class),
+    'PdoStaffConversationRepository directly implements the staff conversation capability'
+);
+check(
+    is_subclass_of(PdoStaffMessageRepository::class, StaffMessageRepository::class),
+    'PdoStaffMessageRepository directly implements the staff message capability'
+);
+$staffAggregateProperties = array_map(
+    static fn(ReflectionProperty $property): string => $property->getName(),
+    (new ReflectionClass(PdoStaffInboxRepository::class))->getProperties()
+);
+check(
+    is_subclass_of(PdoStaffInboxRepository::class, StaffInboxRepository::class)
+        && !in_array('pdo', $staffAggregateProperties, true),
+    'PdoStaffInboxRepository is a SQL-free aggregate composition root'
 );
 
 $aggregateProperties = array_map(
