@@ -60,9 +60,9 @@ Subscribe to the WhatsApp webhook fields needed for:
 - `messages`: inbound visitor messages and sent/delivered/read/failed statuses.
 - `smb_message_echoes`: messages sent from the WhatsApp Business app on supported Coexistence integrations.
 
-Inbound text messages are matched to an open website conversation using the normalized visitor phone number. Business-app text echoes are matched using the echo's `to` number. The matching visitor must have supplied the same international phone number. Unsupported message types and unmatched phone numbers are safely ignored; media is not implemented.
+Inbound text messages are matched through the active, consent-backed phone-to-conversation link using the normalized sender number. Business-app text echoes are matched through that same explicit link using the echo's `to` number. The link table enforces one active conversation per phone number; the backend no longer guesses by selecting the most recently updated open conversation. Unsupported message types and unmatched phone numbers are safely ignored; media is not implemented.
 
-Webhook events are persisted with unique event keys so Meta retries do not duplicate messages. The raw payload is hashed, not stored. Status events are also stored separately so a fast status callback that arrives before the send worker records its WAMID can be reconciled when the send response is saved. Status transitions do not downgrade a delivered/read state.
+The webhook first stores the verified raw payload encrypted with AES-256-GCM in `webhook_inbox`, then acknowledges Meta. It attempts inline processing for responsiveness; `public/cron/process-webhook-inbox.php` recovers jobs left pending after a crash. Unique payload hashes and provider event keys prevent duplicate processing. Status events remain separate so an early callback can be reconciled when the send worker records the WAMID. Status transitions do not downgrade a delivered/read state.
 
 ## Coexistence caveat
 
@@ -86,8 +86,7 @@ FB.login(callback, {
   extras: {
     setup: {
       solutionID: "YOUR_PARTNER_SOLUTION_ID"
-    },
-    featureType: "whatsapp_business_app_onboarding"
+    }
   }
 });
 ```
@@ -96,4 +95,11 @@ The page must also listen for the `WA_EMBEDDED_SIGNUP` window message and handle
 
 The authorization code must be exchanged server-side. Never send the Meta App Secret to the browser or commit it to Git. The App ID, v4 Configuration ID and Partner Solution ID are identifiers, not secrets, but the Meta app still needs the appropriate Tech Provider/partner setup and permissions before the flow can complete.
 
-**Current state:** the Supabase webhook receiver and owner-only event monitor are scaffolded in this repository. The Embedded Signup launcher and server-side authorization-code exchange are not yet enabled. They require the actual Meta App ID, v4 Configuration ID and Partner Solution ID. Do not start onboarding the live Dimdian number until the owner explicitly approves the exact flow and a safe test number/account is selected.
+**Current state:** the repository includes an administrator-key-protected server endpoint for Embedded Signup `begin` and `exchange`. It consumes one-time state, exchanges the authorization code server-side, stores the access token encrypted, and subscribes the WABA to webhook events. If subscription fails, an administrator can retry with the endpoint's `subscribe` action. The outbox worker attempts a Meta-supported 60-day token refresh during the final seven days before expiry. The endpoint is not a complete operator UI: a secure server-side admin proxy must call it, because the administrator key must never be embedded in a public browser bundle. Configure the real Meta App ID, v4 Configuration ID, App Secret, Graph API version and allowed domains before testing. The Partner Solution ID remains part of the Meta SDK launch configuration. Do not onboard the live Dimdian number until the owner approves the exact flow and a safe test number/account is selected.
+
+
+## Consent withdrawal and data lifecycle
+
+A visitor can withdraw WhatsApp continuation from the widget after starting a chat. The API appends an `opt_out` event, clears the current opt-in timestamp, disables the active identity link and cancels queued outbound sends for that guest. The outbox worker rechecks consent immediately before sending. A request already in flight at the provider cannot be recalled. Website chat remains available. The consent history is stored in MySQL and is not sent to the demo Supabase project.
+
+Run `public/cron/process-webhook-inbox.php` every minute and `public/cron/retention.php` daily. The retention defaults remove closed conversations after 365 days, processed webhook records after 30 days, and expired sessions after 30 days. Confirm those periods against the business privacy notice before production. AES-GCM encryption keys derive from `app.app_key`; rotating that key while encrypted inbox jobs or Meta connection rows exist will make those records undecryptable. Reconnect Meta and drain the inbox before a planned key rotation.

@@ -53,3 +53,8 @@ The functions are Deno/Edge Runtime code. Test them with the Supabase CLI's loca
 - an invalid HMAC POST returns 401 and writes nothing;
 - repeated provider message IDs do not create duplicate rows;
 - the monitor rejects a missing/incorrect access key and any Origin other than the GitHub Pages origin.
+
+
+## Diagnostic data minimization
+
+The demo receiver stores masked phone-number suffixes and message metadata by default. Message bodies are not persisted unless the operator explicitly sets the Edge Function secret `META_STORE_MESSAGE_TEXT=true`. Leave this unset for normal operation. The Supabase project is a separate test/diagnostic sink, not the production PHP/MySQL conversation database. Keep the table's RLS enabled and do not add `anon` or `authenticated` read policies. The private monitor key is not a substitute for table-level RLS.

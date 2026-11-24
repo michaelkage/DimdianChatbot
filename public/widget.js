@@ -5,7 +5,8 @@ if (!script) return;
 const demo = script.dataset.demo === 'true';
 const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace(/\/+$/, '');
 const commerceApi = script.dataset.commerceApi || '';
-const key = 'dimdian-chat:' + api + ':' + location.origin;
+const widgetId = script.dataset.widgetId || '';
+const key = 'dimdian-chat:' + api + ':' + (widgetId || 'single-tenant') + ':' + location.origin;
 const root = document.createElement('div');
 root.id = 'dimdian-chat-widget';
 const shadow = root.attachShadow({mode:'open'});
@@ -18,13 +19,13 @@ wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false" a
 '<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">CUSTOMER SUPPORT</span><h3>How can we help?</h3><p>Ask a question, find a product, or get help with an order.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-action="products" data-prompt="I need help finding a product.">Find a product</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-prompt="I have a question about an order.">Order question</button></div>' +
 '<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
 '<section class="commerce" aria-label="Product search" hidden><div class="commerce-head"><h3>Find a product</h3><button class="commerce-back" type="button">Back to chat</button></div><form class="commerce-search"><label class="sr" for="chatbridge-product-search">Search products</label><input id="chatbridge-product-search" type="search" minlength="2" maxlength="80" placeholder="Search the catalogue…" required><button type="submit">Search</button></form><p class="commerce-status" role="status"></p><div class="product-results"></div></section><div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
-'<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by ChatBridge</footer></section>';
+'<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by ChatBridge <button class="consent-revoke" type="button" hidden>Stop WhatsApp continuation</button></footer></section>';
 shadow.append(wrap); document.body.append(root);
 const $ = s => shadow.querySelector(s);
-const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome');
+const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome'), consentRevoke=$('.consent-revoke');
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
-if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;}
+if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;consentRevoke.hidden=true;}
 shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
  if(button.dataset.action==='products'&&commerceApi){openProductSearch();return;}
  input.value=button.dataset.prompt||'';$('.count').textContent=input.value.length+' / 4000';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
@@ -72,10 +73,10 @@ $('.commerce-search').addEventListener('submit',async event=>{
 function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
- if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null};cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
+ if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null,whatsappOptIn:saved.whatsappOptIn===true,whatsappOptInKnown:typeof saved.whatsappOptIn==='boolean'};consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
  }
 } catch (_) {}
-function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,cursor}));}catch(_){}}}
+function persist(){if(session){try{sessionStorage.setItem(key,JSON.stringify({token:session.token,expiresAt:session.expiresAt,whatsappOptIn:session.whatsappOptInKnown?session.whatsappOptIn:null,cursor}));}catch(_){}}}
 function status(t,kind){$('.status').textContent=t;$('.status').dataset.kind=kind||'normal';}
 async function request(path,opts){
  const headers=Object.assign({Accept:'application/json'},opts&&opts.headers);
@@ -113,11 +114,11 @@ async function startSession(){
  if(optedIn&&!phone){status('Add your WhatsApp number before choosing WhatsApp continuation.','warning');$('.phone').focus();throw new Error('A WhatsApp number is required for WhatsApp continuation.');}
  const body=await request('/session.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('.name').value.trim()||null,phone:rawPhone||null,whatsapp_opt_in:optedIn})});
  if(!body.data||!/^[a-f0-9]{64}$/.test(body.data.session_token||''))throw new Error('Could not initialize a chat session.');
- session={token:body.data.session_token,expiresAt:body.data.expires_at||null};cursor=0;persist();
+ session={token:body.data.session_token,expiresAt:body.data.expires_at||null,whatsappOptIn:body.data.whatsapp_opt_in===true,whatsappOptInKnown:true};cursor=0;consentRevoke.hidden=!session.whatsappOptIn;persist();
  $('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;welcome.hidden=true;
 }
 function expired(){
- session=null;cursor=0;try{sessionStorage.removeItem(key);}catch(_){}
+ session=null;consentRevoke.hidden=true;cursor=0;try{sessionStorage.removeItem(key);}catch(_){}
  $('.name').disabled=false;$('.phone').disabled=false;$('.wa-opt-in').disabled=false;clear();
  notice('Your previous chat session expired. Send a new message to start again.');
 }
@@ -168,8 +169,18 @@ async function send(text){
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
 }
-function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
+function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
 function close(){opened=false;panel.hidden=true;launcher.hidden=false;launcher.setAttribute('aria-expanded','false');stop();launcher.focus();}
+consentRevoke.addEventListener('click',async()=>{
+ if(!session||(session.whatsappOptInKnown&&!session.whatsappOptIn))return;
+ consentRevoke.disabled=true;
+ try{
+  await request('/consent.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({whatsapp_opt_in:false})});
+  session.whatsappOptIn=false;session.whatsappOptInKnown=true;persist();consentRevoke.hidden=true;
+  status('WhatsApp continuation has been turned off. Website chat remains available.');
+ }catch(e){status(e.message||'Could not update your WhatsApp preference.','warning');}
+ finally{consentRevoke.disabled=false;}
+});
 launcher.addEventListener('click',open);$('.close').addEventListener('click',close);
 panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close();}});
 form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.trim();if(text)send(text);});

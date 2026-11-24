@@ -1,0 +1,767 @@
+openapi: 3.1.0
+info:
+  title: Dimdian Optional Staff Inbox API
+  version: 1.0.0
+  summary: Server-to-server API for the optional staff inbox
+  description: >-
+    This API is available only when staff_inbox.enabled is true and the
+    optional staff-inbox.sql schema is installed. It assumes one business
+    per database installation and is not a shared-database multi-tenant API.
+    Every request must carry a fresh HMAC-signed staff assertion. The shared
+    secret belongs only on trusted servers and must never reach browser code.
+servers:
+  - url: https://chat.example.com/api/v1/staff
+    description: Replace with the deployed Dimdian API origin.
+tags:
+  - name: Identity
+  - name: Conversations
+  - name: Assignments
+  - name: Notes
+  - name: Replies
+  - name: Administration
+security:
+  - StaffAssertion: []
+paths:
+  /me.php:
+    get:
+      tags: [Identity]
+      operationId: getCurrentStaffIdentity
+      summary: Resolve the authenticated local staff identity
+      responses:
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '200':
+          description: Active local identity and authoritative local role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentIdentityResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+  /agents.php:
+    get:
+      tags: [Administration]
+      operationId: listStaffIdentities
+      summary: List staff identities (administrator only)
+      description: Returns at most 250 identities, including disabled identities.
+      responses:
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Staff directory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffIdentityListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+  /inbox.php:
+    get:
+      tags: [Conversations]
+      operationId: listStaffInboxConversations
+      summary: List conversations visible to the authenticated staff member
+      description: >-
+        Owners and administrators can see all conversations. Agents can see
+        their active assignments and unassigned conversations only. Search
+        matches visitor name, phone and message body without widening visibility.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, all]
+            default: open
+        - name: after
+          in: query
+          description: Message sequence cursor used by the inbox ordering.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Conversations visible to the current role and assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /messages.php:
+    get:
+      tags: [Conversations]
+      operationId: listStaffConversationMessages
+      summary: Read visitor-visible messages in a conversation
+      description: Agents may read only conversations currently assigned to them.
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - $ref: '#/components/parameters/SequenceAfter'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Ordered message page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMessagePageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /assignments.php:
+    post:
+      tags: [Assignments]
+      operationId: changeConversationAssignment
+      summary: Assign or unassign a conversation
+      description: >-
+        Administrators may assign to any active staff identity or unassign.
+        Agents may only self-assign an unassigned conversation or unassign
+        their own active assignment. Assignment requires an open conversation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentRequest'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Assignment transition completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /notes.php:
+    get:
+      tags: [Notes]
+      operationId: listInternalNotes
+      summary: Read private internal notes
+      description: Notes are never exposed as visitor messages.
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Internal note page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalNoteListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags: [Notes]
+      operationId: createInternalNote
+      summary: Create a private internal note
+      description: >-
+        Notes are immutable and never enter the customer-visible message stream.
+        Reuse the same id when retrying an uncertain request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInternalNoteRequest'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Note creation or idempotent replay result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateInternalNoteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /replies.php:
+    post:
+      tags: [Replies]
+      operationId: createStaffReply
+      summary: Create a website-visible staff reply
+      description: >-
+        The reply is persisted as a business message with a staff-author link.
+        It is website-only and never enqueued for WhatsApp delivery. Reuse
+        client_message_id to make retries idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffReplyRequest'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Persisted staff reply or idempotent replay.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStaffReplyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /roles.php:
+    post:
+      tags: [Administration]
+      operationId: updateStaffIdentityAccess
+      summary: Change a staff member role or access status (owner only)
+      description: Roles are owner, admin or agent; status is active or disabled. The final active owner cannot be demoted or disabled.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffAccessRequest'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Staff access updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /history.php:
+    get:
+      tags: [Assignments]
+      operationId: listAssignmentHistory
+      summary: Read assignment history
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Assignment history page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /audit.php:
+    get:
+      tags: [Administration]
+      operationId: listConversationAuditEvents
+      summary: Read conversation audit events (administrator only)
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+        - name: after
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '404':
+          $ref: '#/components/responses/ModuleDisabled'
+        '405':
+          $ref: '#/components/responses/MethodNotAllowed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotConfigured'
+        '200':
+          description: Audit events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+components:
+  securitySchemes:
+    StaffAssertion:
+      type: apiKey
+      in: header
+      name: X-ChatBridge-Staff-Assertion
+      description: >-
+        Per-request token is base64url(payload JSON) followed by a dot and
+        base64url(HMAC-SHA256(encoded payload, shared secret)). The payload
+        includes auth_provider, external_subject, display_name, optional email,
+        iat (Unix seconds), nonce (32-128 URL-safe characters), method (HTTP
+        method), target (exact request URI including query), and body_sha256
+        (lowercase SHA-256 hex of the exact request body). The nonce is
+        one-time-use. The secret must remain server-side.
+  parameters:
+    ConversationId:
+      name: conversation_id
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SequenceAfter:
+      name: after
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+  responses:
+    Unauthorized:
+      description: Staff assertion missing, invalid, expired or replayed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated staff member lacks the required role or assignment.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflicting idempotency key, closed conversation or rejected transition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request fields, query values or identifiers are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    MethodNotAllowed:
+      description: HTTP method is not supported by this operation.
+      headers:
+        Allow:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Unexpected storage or application failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ModuleDisabled:
+      description: Optional staff inbox is disabled.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotConfigured:
+      description: Staff assertion secret is not configured.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+      additionalProperties: true
+    CurrentIdentityResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [id, role, display_name]
+          properties:
+            id: { type: string, format: uuid }
+            role: { type: string, enum: [owner, admin, agent] }
+            display_name: { type: string }
+        request_id: { type: string }
+    StaffIdentity:
+      type: object
+      required: [id, display_name, role, status]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+        email: { type: [string, 'null'] }
+        role: { type: string, enum: [owner, admin, agent] }
+        status: { type: string, enum: [active, disabled] }
+    StaffIdentityListResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/StaffIdentity' }
+        request_id: { type: string }
+    Conversation:
+      type: object
+      required: [id, status, created_at, updated_at, latest_sequence]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [open, closed] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        last_message_at: { type: [string, 'null'], format: date-time }
+        visitor_name: { type: [string, 'null'] }
+        visitor_phone: { type: [string, 'null'] }
+        latest_sequence: { type: integer }
+        assigned_staff_id: { type: [string, 'null'], format: uuid }
+        assigned_staff_name: { type: [string, 'null'] }
+    ConversationListResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Conversation' }
+        request_id: { type: string }
+    StaffMessage:
+      type: object
+      required: [id, sequence_id, sender_type, body, delivery_status, sent_at]
+      properties:
+        id: { type: string, format: uuid }
+        sequence_id: { type: integer }
+        sender_type: { type: string, enum: [visitor, business] }
+        body: { type: string }
+        delivery_status: { type: string }
+        sent_at: { type: string, format: date-time }
+        staff_author_name: { type: [string, 'null'] }
+    StaffMessagePageResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items, has_more, next_cursor]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/StaffMessage' }
+            has_more: { type: boolean }
+            next_cursor: { type: integer }
+        request_id: { type: string }
+    AssignmentRequest:
+      oneOf:
+        - type: object
+          required: [conversation_id, staff_identity_id]
+          properties:
+            conversation_id: { type: string, format: uuid }
+            action: { type: string, const: assign, default: assign }
+            staff_identity_id: { type: string, format: uuid }
+          additionalProperties: false
+        - type: object
+          required: [conversation_id, action]
+          properties:
+            conversation_id: { type: string, format: uuid }
+            action: { type: string, const: unassign }
+          additionalProperties: false
+    AssignmentResponse:
+      oneOf:
+        - type: object
+          required: [data, request_id]
+          properties:
+            data:
+              type: object
+              required: [assigned]
+              properties:
+                assigned: { type: boolean, const: true }
+            request_id: { type: string }
+        - type: object
+          required: [data, request_id]
+          properties:
+            data:
+              type: object
+              required: [unassigned]
+              properties:
+                unassigned: { type: boolean }
+            request_id: { type: string }
+    InternalNote:
+      type: object
+      required: [id, sequence_id, body, created_at, author_id, author_name]
+      properties:
+        id: { type: string, format: uuid }
+        sequence_id: { type: integer }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+        author_id: { type: string, format: uuid }
+        author_name: { type: string }
+    InternalNoteListResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/InternalNote' }
+        request_id: { type: string }
+    CreateInternalNoteRequest:
+      type: object
+      required: [conversation_id, body]
+      properties:
+        id: { type: string, format: uuid, description: Optional idempotency identifier }
+        conversation_id: { type: string, format: uuid }
+        body: { type: string, minLength: 1, maxLength: 10000 }
+      additionalProperties: false
+    CreateInternalNoteResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [id, created]
+          properties:
+            id: { type: string, format: uuid }
+            created: { type: boolean }
+        request_id: { type: string }
+    CreateStaffReplyRequest:
+      type: object
+      required: [conversation_id, message, client_message_id]
+      properties:
+        conversation_id: { type: string, format: uuid }
+        message: { type: string, minLength: 1, maxLength: 5000 }
+        client_message_id: { type: string, format: uuid }
+      additionalProperties: false
+    StaffReplyMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        client_message_id: { type: string, format: uuid }
+        sender_type: { type: string, const: business }
+        body: { type: string }
+        delivery_status: { type: string, const: web_only }
+        sent_at: { type: string, format: date-time }
+        sequence_id: { type: integer }
+    CreateStaffReplyResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [message, inserted, transport]
+          properties:
+            message: { $ref: '#/components/schemas/StaffReplyMessage' }
+            inserted: { type: boolean }
+            transport: { type: string, const: web_only }
+        request_id: { type: string }
+    UpdateStaffAccessRequest:
+      type: object
+      required: [staff_identity_id, role, status]
+      properties:
+        staff_identity_id: { type: string, format: uuid }
+        role: { type: string, enum: [owner, admin, agent] }
+        status: { type: string, enum: [active, disabled] }
+      additionalProperties: false
+    UpdatedResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [updated]
+          properties:
+            updated: { type: boolean, const: true }
+        request_id: { type: string }
+    AssignmentHistoryResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/AssignmentHistoryItem' }
+        request_id: { type: string }
+    AssignmentHistoryItem:
+      type: object
+      required: [id, staff_identity_id, assigned_by_staff_id, assigned_at, assignee_name, assigned_by_name]
+      properties:
+        id: { type: integer }
+        staff_identity_id: { type: string, format: uuid }
+        assigned_by_staff_id: { type: string, format: uuid }
+        assigned_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        assignee_name: { type: string }
+        assigned_by_name: { type: string }
+    AuditEventListResponse:
+      type: object
+      required: [data, request_id]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/AuditEvent' }
+        request_id: { type: string }
+    AuditEvent:
+      type: object
+      required: [id, event_type, created_at, actor_name]
+      properties:
+        id: { type: integer }
+        event_type: { type: string }
+        target_staff_id: { type: [string, 'null'], format: uuid }
+        metadata_json: { type: [string, 'null'] }
+        request_id: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        actor_name: { type: string }
+        target_name: { type: [string, 'null'] }

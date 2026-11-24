@@ -9,55 +9,37 @@ declare(strict_types=1);
  * It checks the chat database only; it does not test WordPress, Paystack or Meta.
  */
 require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
+require_once dirname(__DIR__, 2) . '/app/operations/HealthService.php';
 
 enforce_allowed_origin();
 handle_preflight();
 require_method('GET');
 
-$requiredTables = [
-    'guests',
-    'conversations',
-    'guest_sessions',
-    'messages',
-    'rate_limits',
-    'webhook_events',
-    'message_outbox',
-    'message_status_events',
-];
-
 try {
-    $pdo = database();
-
-    // Compare the installed schema with the tables the active chat code needs.
-    $placeholders = implode(',', array_fill(0, count($requiredTables), '?'));
-    $statement = $pdo->prepare(
-        'SELECT table_name
-         FROM information_schema.tables
-         WHERE table_schema = DATABASE()
-           AND table_type = "BASE TABLE"
-           AND table_name IN (' . $placeholders . ')'
-    );
-    $statement->execute($requiredTables);
-    $foundTables = $statement->fetchAll(PDO::FETCH_COLUMN);
-    $missingTables = array_values(array_diff($requiredTables, $foundTables));
-
-    $schemaOk = $missingTables === [];
     $whatsapp = app_config('whatsapp') ?? [];
     $whatsappEnabled = is_array($whatsapp) && !empty($whatsapp['outbound_enabled']);
+    $connection = database();
+    $driver = (string) $connection->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $pdoAvailable = in_array($driver, ['mysql', 'pgsql'], true)
+        && ($driver !== 'mysql' || extension_loaded('pdo_mysql'))
+        && ($driver !== 'pgsql' || extension_loaded('pdo_pgsql'));
+    $service = new HealthService(health_repository($connection));
+    $report = $service->report(
+        extension_loaded('openssl'),
+        $pdoAvailable,
+        $whatsappEnabled,
+        $driver
+    );
 
-    json_response([
-        'status' => $schemaOk ? 'healthy' : 'degraded',
+    $httpStatus = (int) $report['http_status'];
+    unset($report['http_status']);
+
+    json_response(array_merge($report, [
+        'request_id' => app_request_id(),
         'service' => 'Dimdian website chat',
         'checked_at' => gmdate(DateTimeInterface::ATOM),
-        'checks' => [
-            'php_api' => 'ok',
-            'database' => 'ok',
-            'schema' => $schemaOk ? 'ok' : 'incomplete',
-        ],
-        'missing_tables' => $missingTables,
-        'whatsapp_outbound' => $whatsappEnabled ? 'enabled_in_config' : 'disabled',
         'note' => 'This check does not test WordPress, WooCommerce, WCFM, Paystack, Meta connectivity or live WhatsApp delivery.',
-    ], $schemaOk ? 200 : 503);
+    ]), $httpStatus);
 } catch (Throwable $error) {
     // Detailed diagnostics belong in the private hosting error log, not HTTP.
     error_log('[DimdianChatbot] Health check failed: ' . $error->getMessage());
@@ -69,6 +51,6 @@ try {
             'database' => 'unavailable',
             'schema' => 'not_checked',
         ],
-        'note' => 'Ask the technical maintainer to inspect the private Hostinger PHP error log.',
+        'note' => 'Ask the technical maintainer to inspect the private server error log.',
     ], 503);
 }

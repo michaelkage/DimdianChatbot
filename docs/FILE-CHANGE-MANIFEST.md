@@ -1,21 +1,19 @@
 # File-change manifest — production hardening
 
 ## New files
-- app/staff/StaffIdentityProvider.php — trusted external identity adapter contract.
-- app/staff/HmacStaffIdentityProvider.php — short-lived, method/path-bound HMAC assertion verification with one-time nonce replay protection.
-- app/staff/StaffInboxService.php — local owner/admin/agent authorization and assignment-scoped access policy.
-- app/staff/bootstrap.php — disabled-by-default staff API bootstrap and safe error handling.
-- public/api/v1/staff/inbox.php — staff conversation listing.
-- public/api/v1/staff/assignments.php — assignment and unassignment operations.
-- public/api/v1/staff/notes.php — private note read/write API.
-- public/api/v1/staff/replies.php — website-only staff reply API.
-- public/api/v1/staff/history.php / audit.php — assignment and audit history APIs.
-- tests/staff-inbox-http.php — signed HTTP route integration tests.
 - app/staff/StaffInboxRepository.php — optional staff persistence contract.
-- app/staff/PdoStaffInboxRepository.php — MySQL/MariaDB staff identity, assignment, private-note, website-reply and audit persistence.
+- app/staff/PdoStaffInboxRepository.php — MySQL/MariaDB staff identity, assignment, private-note, website-reply, audit, owner-safe role updates and conversation search persistence.
+- app/staff/HmacStaffIdentityProvider.php — signed server assertion verification, exact request/body binding and replay protection.
+- app/staff/StaffInboxService.php — local role, assignment and staff-operation authorization.
+- app/staff/bootstrap.php — optional staff module wiring.
+- public/api/v1/staff/ — versioned staff inbox, notes, replies, assignments, audit and identity routes.
+- wordpress-plugin/chatbridge-widget/staff-inbox.php — authenticated WordPress AJAX proxy and admin inbox integration.
+- wordpress-plugin/chatbridge-widget/assets/staff-inbox-admin.js / staff-inbox-admin.css — separate staff inbox UI.
+- bin/set-staff-role.php — CLI-only local staff role provisioning.
+- tests/staff-inbox-http.php — signed staff API route integration tests.
 - database/optional/staff-inbox.sql — opt-in staff inbox schema, excluded from the default install.
 - docs/STAFF-INBOX-ARCHITECTURE.md — optional module boundaries, security model and implementation sequence.
-- tests/staff-inbox.php — staff persistence, HMAC authentication and role-policy integration tests.
+- tests/staff-inbox.php — staff persistence integration tests.
 - app/consent.php — append-only consent audit and opt-in/opt-out lifecycle.
 - app/webhook_inbox.php — encrypted durable webhook inbox, payload deduplication and retry worker.
 - app/meta_signup.php — one-time Embedded Signup state, server-side code exchange, WABA subscription, encrypted token storage and token renewal.
@@ -23,17 +21,18 @@
 - public/api/consent.php — guest-authenticated consent preference endpoint.
 - public/api/meta-embedded-signup.php — administrator-only Meta onboarding endpoint.
 - public/cron/process-webhook-inbox.php — CLI webhook recovery worker.
-- public/cron/retention.php — CLI data-retention job, including optional staff data and expired assertion nonce cleanup.
+- public/cron/retention.php — CLI data-retention job.
 - wordpress-plugin/chatbridge-widget/assets/meta-signup-admin.js — administrator-only Meta Embedded Signup v4 UI.
+- wordpress-plugin/chatbridge-widget/assets/staff-inbox-admin.js / .css — optional staff inbox UI, conversation search and owner staff-access panel.
 - database/migrations/004_production_hardening.sql — existing-database upgrade and legacy opt-in backfill.
 - docs/PRODUCTION-HARDENING.md — deployment and operations guide.
 - docs/MILESTONE-STATUS.md — milestone status and production acceptance gates.
 - docs/MANUAL-SETUP-CHECKLIST.md — full Hostinger, MySQL, WordPress, Meta, cron, privacy and regression-test runbook.
 
 ## Updated files
-- app/bootstrap.php — private environment-variable overrides and request-ID initialization.
+- app/bootstrap.php — private environment-variable overrides, request-ID initialization and raw request-body preservation for HMAC verification.
 - app/whatsapp.php — exact active identity-link correlation, immediate pre-send consent recheck and PII-minimized outbox failure events.
-- config.example.php — privacy, Meta onboarding, message-rate and disabled-by-default staff inbox configuration.
+- config.example.php — privacy, Meta onboarding and message-rate configuration.
 - database/schema.sql — fresh-install schema for all hardening tables.
 - public/api/health.php — required-table/runtime checks, queue counts and request ID.
 - public/api/messages.php — structured failure events without raw exception messages.
@@ -41,19 +40,133 @@
 - public/api/webhook.php — signature verification, encrypted durable queueing before Meta acknowledgement.
 - public/cron/process-outbox.php — encrypted Embedded Signup credentials and structured worker logs.
 - public/widget.js / public/widget.css — post-session WhatsApp opt-out control, including access for pre-upgrade sessions.
-- wordpress-plugin/chatbridge-widget/chatbridge-widget.php — version 0.4.0, safe remote health request, private non-autoloaded Meta key storage and server-side AJAX proxy.
+- wordpress-plugin/chatbridge-widget/chatbridge-widget.php — version 0.5.1, safe remote health request, private non-autoloaded Meta key storage, server-side Meta proxy and optional staff inbox integration.
 - wordpress-plugin/chatbridge-widget/readme.txt — plugin stable version and changelog.
-- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle, staff persistence/authentication/HTTP and private admin-key regression coverage.
-- .github/workflows/tests.yml — imports the opt-in staff schema only in the disposable CI database, enables the module only for tests, and runs staff persistence plus signed HTTP integration tests.
+- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/wordpress-plugin.php — encryption, PII-safe logging, consent lifecycle, staff persistence and private admin-key regression coverage.
+- .github/workflows/tests.yml — imports the opt-in staff schema only in the disposable CI database and runs staff inbox integration tests.
 - .github/workflows/tests.yml — checks admin/customer widget JavaScript syntax.
 - docs/API.md / docs/WHATSAPP.md / docs/WORDPRESS-PLUGIN.md / README.md — updated contracts and operations.
 - supabase/functions/meta-webhook/index.ts — message-body persistence disabled by default.
 - supabase/README.md — diagnostic data minimization and existing service-role-only RLS boundary.
 
+## Additional service and repository decomposition
+
+### New files
+- app/channels/whatsapp/MetaGraphApi.php — injectable provider API contract for Meta onboarding.
+- app/channels/whatsapp/MetaEmbeddedSignupService.php — injected Embedded Signup state machine, code exchange, WABA subscription and token lifecycle.
+- app/channels/whatsapp/MetaTokenCipher.php / MetaGraphApiClient.php — encrypted token boundary and HTTPS-pinned Meta Graph transport.
+- app/storage/MetaConnectionRepository.php / PdoMetaConnectionRepository.php — atomic signup-state consumption and connected-account/token lifecycle persistence.
+- app/maintenance/RetentionService.php — bounded retention policy and optional staff-module gating.
+- app/storage/RetentionRepository.php / PdoRetentionRepository.php — dependency-ordered cleanup in one transaction.
+- app/operations/HealthService.php — runtime/schema readiness and queue-metric composition.
+- app/storage/HealthRepository.php / PdoHealthRepository.php — read-only required-table and queue diagnostics.
+- app/chat/GuestSessionService.php — session creation, one-time token generation/hash persistence, expiry and rate-limit signaling.
+- app/chat/ChatMessageService.php — visitor message send/poll orchestration, consent-aware outbound eligibility and idempotency.
+- app/chat/WhatsAppConsentService.php — visitor opt-in/opt-out application service and missing-phone domain signal.
+- docs/openapi.yaml / docs/openapi-staff.yaml — separate OpenAPI 3.1 contracts for the core v1 widget API and optional server-to-server staff API.
+- tests/validate-openapi.rb — dependency-free structural validation of OpenAPI version, expected route coverage, operation IDs, responses, request-body content, security schemes and local references.
+- tests/api-acceptance.mjs — backend-neutral HTTP acceptance runner for guest sessions, messages, idempotency, authentication, polling and consent.
+- tests/staff-api-acceptance.mjs — backend-neutral HMAC-authenticated staff API runner for role/assignment isolation, notes, replies, history and forbidden operations.
+- app/staff/PdoStaffInboxRepository.php — uses distinct PDO parameter names for conversation and active-conversation assignment columns, compatible with native prepared statements.
+
+### Additional updated files
+- app/meta_signup.php — compatibility functions now delegate to MetaEmbeddedSignupService and MetaConnectionRepository.
+- app/bootstrap.php — repository contracts/adapters and factories for Meta connection, retention and health.
+- public/api/session.php / messages.php / consent.php / health.php — thin HTTP adapters over application services.
+- public/api/meta-embedded-signup.php — correct supported-action guidance for begin, exchange and subscribe.
+- public/api/v1/*.php — refreshed compatibility-alias architecture notes; all aliases delegate to shared handlers.
+- public/cron/retention.php — CLI-only adapter over RetentionService and RetentionRepository.
+- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php — service policy, encryption, token lifecycle, health, retention, session token, rate-limit and staff HTTP regression coverage, including owner assignment/unassignment and retained assignment history.
+- tests/api-contract.md — documents the core and optional staff acceptance requirements and how to run the backend-neutral suite.
+- .github/workflows/tests.yml — runs the OpenAPI structural validator and both backend-neutral public/staff API acceptance runners, alongside the MySQL-specific integration suite and PostgreSQL 16 acceptance/integration job.
+- docs/API-V1.md / API.md — links to both OpenAPI contracts and updates current service/storage boundaries.
+- docs/PORTABLE-ARCHITECTURE.md / MILESTONE-STATUS.md — documents extracted service/repository boundaries and remaining portability work.
+- docs/FILE-CHANGE-MANIFEST.md — this additional implementation inventory.
+
 ## Deliberately not included / external gates
-- The optional staff inbox backend is implemented but not yet a complete product feature: turnkey WordPress assertion proxy and staff UI remain unimplemented. Its schema is opt-in and is not part of the default deployment. Current isolation assumes one business per database; no shared-database multi-tenant support is claimed.
+- The optional staff inbox core is implemented: opt-in schema, HMAC assertion authentication, local role/assignment authorization, versioned API, WordPress server-side proxy and separate admin UI. Initial owner provisioning is CLI-only; owners then manage staff roles and account status in-product. Conversation search is bounded to visitor name, phone and message body. Export/restore and shared-database multi-tenant isolation remain incomplete. Its schema is opt-in and is not part of the default deployment.
 - No media/voice-note/reaction/edit/delete synchronization; WhatsApp sync is text and delivery-status scoped.
 - Meta token renewal is attempted automatically within the final seven days; operator reconnection is still required after an unrecoverable expiry.
 - Meta business verification, app review and Partner/Solution eligibility must be completed by the business in Meta.
-- The legacy app/whatsapp.php has not been fully decomposed into smaller service classes.
-- No live Meta, Hostinger or WordPress production configuration was changed by these repository commits.
+- app/whatsapp.php remains a compatibility facade with some procedural transport/utility helpers; the webhook, outbox, Meta onboarding, retention, health, guest-session, message and consent use cases have been extracted, but the entire legacy file is not yet decomposed.
+- The two OpenAPI 3.1 documents cover the core v1 widget/operator routes and all ten optional staff routes. Reusable request/response fixtures and deeper schema/conformance testing remain outstanding.
+- PostgreSQL 15+ is supported through dialect-aware PDO repositories and separate core/optional schemas; SQLite remains unsupported.
+- No live Meta, hosting-provider or WordPress production configuration was changed by these repository commits.
+
+- docs/TENANCY-ARCHITECTURE.md — design-only tenant ownership inventory, context resolution, composite constraints, Meta webhook routing, staged migration and isolation acceptance requirements; no tenant behavior is implemented.
+
+- app/storage/ChatRepository.php — split the aggregate contract into session, rate-limit, visitor-message, consent, WhatsApp-identity, webhook-inbox, provider-event and outbox capability interfaces; ChatRepository remains the aggregate compatibility contract.
+- app/chat/* and app/channels/whatsapp/* — narrow application-service and worker constructor dependencies to the capabilities each uses.
+- tests/run.php — verifies ChatRepository still implements each capability interface and asserts that application-service constructors depend on their narrow repository capability rather than PDO or the aggregate ChatRepository.
+
+- app/storage/PdoWebhookInboxRepository.php — dedicated MySQL/MariaDB adapter for encrypted webhook inbox enqueue, atomic lease claim/reclaim, completion and retry/failure transitions.
+- app/storage/PdoChatRepository.php — retains the aggregate compatibility contract and delegates webhook inbox operations to the dedicated adapter on the same PDO connection.
+- app/bootstrap.php — loads the dedicated inbox adapter before the aggregate PDO adapter.
+
+- app/storage/PdoRateLimitRepository.php — dedicated MySQL/MariaDB fixed-window rate-limit adapter.
+- app/storage/PdoChatRepository.php — delegates rate-limit operations to PdoRateLimitRepository while preserving ChatRepository.
+
+- app/storage/PdoConsentRepository.php — dedicated MySQL/MariaDB adapter for transactional WhatsApp consent, identity routing and opt-out cancellation.
+- app/storage/PdoChatRepository.php — delegates consent transitions to PdoConsentRepository while preserving aggregate compatibility and nested transaction behavior.
+
+- app/storage/PdoGuestSessionRepository.php — dedicated MySQL/MariaDB adapter for guest, conversation and guest-session persistence; shares the consent adapter for atomic initial opt-in.
+- app/storage/PdoChatRepository.php — delegates guest-session creation, token lookup and touch operations to PdoGuestSessionRepository.
+
+- app/storage/PdoVisitorMessageRepository.php — dedicated MySQL/MariaDB adapter for visitor message creation/idempotency, atomic WhatsApp outbox insertion, polling and delivery-state reads.
+- app/storage/PdoChatRepository.php — delegates visitor message and polling methods to PdoVisitorMessageRepository.
+
+- app/storage/PdoProviderEventRepository.php — dedicated MySQL/MariaDB adapter for provider event deduplication, inbound/echo message routing, status-event storage and delivery-state reconciliation.
+- app/storage/PdoChatRepository.php — delegates provider event operations to PdoProviderEventRepository while preserving the aggregate reconciliation method used by outbox completion.
+
+- app/storage/PdoWhatsAppOutboxRepository.php — dedicated MySQL/MariaDB adapter for durable WhatsApp outbox lifecycle and lease-fenced state transitions; reconciles provider status through ProviderEventRepository.
+- app/storage/PdoChatRepository.php — delegates outbox lifecycle operations to PdoWhatsAppOutboxRepository.
+
+- app/storage/PdoChatRepository.php — delegates active WhatsApp phone-number lookup to PdoMetaConnectionRepository rather than maintaining duplicate Meta connection SQL.
+- app/bootstrap.php — loads Meta connection contracts/adapters before the ChatRepository aggregate that composes them.
+
+- app/storage/PdoChatRepository.php — composition-only compatibility aggregate; wires focused PDO capability adapters and delegates the legacy ChatRepository contract without SQL or direct PDO state.
+
+- app/storage/PdoVisitorMessageRepository.php — composes WhatsAppOutboxRepository for the optional outbox insert inside the visitor-message transaction, eliminating duplicate outbox SQL.
+- app/storage/PdoChatRepository.php — constructs the outbox adapter before the visitor-message adapter and injects the shared outbox capability.
+
+- app/chat/GuestSessionAuthenticator.php — request-independent guest-token validation, hashing, session lookup/touch and open-conversation policy with typed failures.
+- app/bootstrap.php — loads GuestSessionAuthenticator and retains the legacy HTTP adapter that extracts the token header and maps failures to existing API responses.
+- tests/run.php — covers guest authenticator token hashing, repository lookup/touch, invalid/missing sessions and closed-conversation policy.
+
+- app/staff/StaffIdentityService.php — resolves verified external principals to active locally persisted staff identities; ignores external role claims.
+- app/staff/StaffInboxService.php — delegates authentication and identity lifecycle to StaffIdentityService while retaining staff inbox authorization and use cases.
+- app/staff/bootstrap.php — loads the new staff identity service before the inbox application service.
+- tests/run.php — adds architecture regression checks for application-service HTTP/PDO/SQL boundaries and API route persistence boundaries; includes StaffIdentityService repository contract.
+- tests/staff-inbox.php — loads the identity service for the existing staff authorization and lifecycle integration suite.
+
+- app/staff/StaffInboxRepository.php — adds StaffIdentityRepository and makes the aggregate staff inbox contract extend the identity capability.
+- app/staff/PdoStaffPersistenceSupport.php — shared staff PDO transaction, active-staff/assignment validation and audit primitives.
+- app/staff/PdoStaffIdentityRepository.php — focused MySQL/MariaDB staff identity, nonce, listing and owner access adapter.
+- app/staff/PdoStaffInboxRepository.php — delegates identity persistence to PdoStaffIdentityRepository while retaining the aggregate contract for remaining inbox operations.
+- app/staff/bootstrap.php — loads focused staff persistence dependencies in order.
+- tests/staff-inbox.php — asserts focused identity adapter contract while preserving staff lifecycle and owner-safety integration coverage.
+
+- app/staff/StaffInboxRepository.php — defines focused identity, conversation and message persistence capabilities; legacy StaffInboxRepository composes all three.
+- app/staff/PdoStaffConversationRepository.php — focused MySQL/MariaDB adapter for conversation visibility, assignment lifecycle and assignment history.
+- app/staff/PdoStaffMessageRepository.php — focused MySQL/MariaDB adapter for staff message reads, private notes, website-only replies and audit reads.
+- app/staff/PdoStaffInboxRepository.php — SQL-free composition root delegating all capabilities to focused adapters over one shared connection/support instance.
+- tests/run.php — asserts staff focused adapter interface conformance and that the aggregate stores no PDO connection.
+- tests/staff-inbox.php — asserts identity/conversation/message adapter conformance and preserves existing MySQL transactional authorization coverage.
+
+- app/storage/PdoSqlDialect.php — central PDO dialect detection and PostgreSQL translation for common timestamp, string-literal, conflict-ignore and joined-delete syntax.
+- app/support/Utf8.php — standalone UTF-8-safe substring helper used by persistence adapters without depending on WhatsApp transport files.
+- database/postgresql/schema.sql — PostgreSQL 15+ clean-install core schema, including base64-text storage columns for encrypted binary payload/token material.
+- database/postgresql/optional/staff-inbox.sql — optional PostgreSQL staff inbox schema.
+- tests/postgresql-integration.php — PostgreSQL integration coverage for webhook inbox leases/binary data, Meta one-time state and token refresh, outbox completion/status reconciliation and retention statements.
+- .github/workflows/tests.yml — PostgreSQL 16 service job runs the backend-neutral public/staff acceptance suites and PostgreSQL repository integration tests alongside MySQL and WordPress compatibility jobs.
+
+- app/storage/ChatRepository.php — tenant-scoped guest session, rate-limit, consent, message polling and WhatsApp outbox capability signatures.
+- app/storage/PdoGuestSessionRepository.php — tenant-scoped guest/conversation/session creation, token lookup and session touch.
+- app/storage/PdoRateLimitRepository.php — tenant-aware composite rate-limit key.
+- app/storage/PdoConsentRepository.php — tenant-scoped consent ledger, WhatsApp identity routing and outbox cancellation.
+- app/storage/PdoVisitorMessageRepository.php — tenant-scoped message insert, idempotency lookup, conversation update and polling; tenant-aware outbox enqueue.
+- app/storage/PdoWhatsAppOutboxRepository.php — tenant ID persisted with initial outbox enqueue.
+- app/storage/PdoChatRepository.php — forwards tenant IDs through the aggregate adapter.
+- app/chat/GuestSessionService.php, ChatMessageService.php, GuestSessionAuthenticator.php, WhatsAppConsentService.php — propagate resolved tenant context through visitor-facing application operations.
+- app/bootstrap.php and app/whatsapp.php — tenant-aware helper contracts with a default-tenant compatibility path for legacy outbox callers.
+- tests/integration.php, tests/run.php, tests/staff-inbox.php — tenant boundary and updated repository-contract assertions.
