@@ -37,6 +37,9 @@ jobs:
       - name: Install WordPress Coding Standards
         run: composer require --dev wp-coding-standards/wpcs:^3.0
 
+      - name: Verify centralized AJAX nonce and capability guards
+        run: node --test tests/wordpress-security.test.mjs
+
       - name: Run targeted WordPress security sniffs
         run: >-
           vendor/bin/phpcs --standard=WordPress
