@@ -145,3 +145,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - The backend-neutral staff API runner exposed a native-PDO-prepares defect: the owner and agent assignment INSERT statements reused the same named parameter for both `conversation_id` and `active_conversation_id`, causing SQLSTATE `HY093` in production-style native prepares.
 - Updated both statements to use distinct bound parameter names. Added HTTP coverage for owner assignment and unassignment, plus assertions that both assignment-history rows remain with their ended timestamps.
 - GitHub Actions run [45409680687](https://github.com/michaelkage/DimdianChatbot/actions/runs/45409680687) passed all three jobs on commit `ea52fa105028c6d214d619229aa10bc7a411e1dc`. The backend-neutral public and staff runners, PHP/MySQL integration, staff repository/HTTP suites, widget tests and WordPress compatibility on PHP 7.4/8.2 all passed.
+
+
+### Tenant-aware domain model — design boundary (2026-11-24)
+
+- Inspected the actual core and optional staff DDL, widget bootstrap and repository contracts. The current schema has no tenant/business root or tenant keys; ChatRepository, MetaConnectionRepository and StaffInboxRepository are installation-scoped; the widget currently sends no tenant-resolving public identifier.
+- Added [TENANCY-ARCHITECTURE.md](TENANCY-ARCHITECTURE.md) with the current table ownership inventory, tenant-context resolution rules, composite foreign-key/unique-index requirements, the multi-entry Meta webhook routing exception, staged migration sequence and cross-tenant negative acceptance suite.
+- This is a design and migration guardrail only. No tenant columns, resolver, tenant-scoped SQL or shared-database mode have been implemented. The supported boundary remains one business per database.
