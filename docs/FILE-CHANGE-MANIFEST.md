@@ -114,3 +114,6 @@
 
 - app/storage/PdoVisitorMessageRepository.php — dedicated MySQL/MariaDB adapter for visitor message creation/idempotency, atomic WhatsApp outbox insertion, polling and delivery-state reads.
 - app/storage/PdoChatRepository.php — delegates visitor message and polling methods to PdoVisitorMessageRepository.
+
+- app/storage/PdoProviderEventRepository.php — dedicated MySQL/MariaDB adapter for provider event deduplication, inbound/echo message routing, status-event storage and delivery-state reconciliation.
+- app/storage/PdoChatRepository.php — delegates provider event operations to PdoProviderEventRepository while preserving the aggregate reconciliation method used by outbox completion.
