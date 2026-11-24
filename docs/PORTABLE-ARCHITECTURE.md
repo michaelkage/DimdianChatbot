@@ -231,3 +231,6 @@ The first capability now has a dedicated physical adapter: `PdoWebhookInboxRepos
 
 
 The fixed-window rate-limit capability now also has a dedicated physical adapter, `PdoRateLimitRepository`. It owns bucket hashing, window reset, atomic increment/check and transaction handling. `PdoChatRepository` delegates the aggregate method to this adapter using the same PDO connection. This is an incremental extraction; the rest of the chat SQL is not yet fully decomposed.
+
+
+The consent capability now has its own `PdoConsentRepository`. It owns the atomic transition across the consent ledger, guest opt-in state, WhatsApp identity links and cancellation of queued outbound jobs. The aggregate delegates on the same PDO connection, preserving nested transaction participation when initial consent is recorded as part of guest-session creation.
