@@ -25,11 +25,11 @@ These checks govern the transition from the current PHP/MySQL implementation to 
 
 ## Storage
 
-- [ ] Application services depend on repository interfaces, not PDO or database-specific SQL.
-- [ ] Repository contracts define transaction boundaries and concurrency guarantees.
-- [ ] The MySQL/MariaDB implementation passes the existing integration suite.
-- [ ] Migrations are versioned per SQL dialect where dialects differ.
-- [ ] A second database is not advertised until its repositories, migrations and CI integration tests pass.
+- [x] Application services depend on repository interfaces, not PDO or database-specific SQL.
+- [x] Repository contracts define transaction boundaries and concurrency guarantees.
+- [x] The MySQL/MariaDB implementation passes the existing integration suite.
+- [x] Clean-install schemas are versioned per SQL dialect; existing-database PostgreSQL upgrades remain a separate migration task.
+- [x] PostgreSQL 15+ is supported through the dialect-aware PDO repositories, separate clean-install schemas and PostgreSQL 16 CI acceptance/integration tests. Existing-database PostgreSQL upgrade migrations remain outstanding.
 - [ ] Export/import preserves tenant, conversation, message, consent and provider relationships.
 
 ## Backend runtime portability
