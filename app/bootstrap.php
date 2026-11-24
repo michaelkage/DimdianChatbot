@@ -52,6 +52,8 @@ app_request_id();
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
 require_once __DIR__ . '/storage/ChatRepository.php';
+require_once __DIR__ . '/storage/MetaConnectionRepository.php';
+require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
 require_once __DIR__ . '/storage/PdoConsentRepository.php';
 require_once __DIR__ . '/storage/PdoGuestSessionRepository.php';
 require_once __DIR__ . '/storage/PdoProviderEventRepository.php';
@@ -60,8 +62,6 @@ require_once __DIR__ . '/storage/PdoVisitorMessageRepository.php';
 require_once __DIR__ . '/storage/PdoWhatsAppOutboxRepository.php';
 require_once __DIR__ . '/storage/PdoWebhookInboxRepository.php';
 require_once __DIR__ . '/storage/PdoChatRepository.php';
-require_once __DIR__ . '/storage/MetaConnectionRepository.php';
-require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
 require_once __DIR__ . '/storage/RetentionRepository.php';
 require_once __DIR__ . '/storage/PdoRetentionRepository.php';
 require_once __DIR__ . '/storage/HealthRepository.php';
