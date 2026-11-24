@@ -239,3 +239,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 ### PDO aggregate composition validation
 
 [GitHub Actions run 45415674271](https://github.com/michaelkage/DimdianChatbot/actions/runs/45415674271) passed all three jobs after converting `PdoChatRepository` to a composition-only adapter and adding the reflection regression assertion. [Run 45415643135](https://github.com/michaelkage/DimdianChatbot/actions/runs/45415643135) also passed on the composition refactor commit itself.
+
+
+### Shared outbox adapter used by visitor-message transaction (2026-11-24)
+
+- Removed the duplicate `message_outbox` INSERT from `PdoVisitorMessageRepository`. It now invokes the injected `WhatsAppOutboxRepository` capability to enqueue the outbound job.
+- The aggregate composes the outbox adapter first and injects the same adapter into the visitor-message adapter. Both share the same PDO connection; enqueue remains inside the visitor-message transaction, preserving rollback and idempotency behavior.
+- Added a reflection contract check for the outbox capability dependency. Existing MySQL integration tests continue to verify one outbox row on first send, no second row on idempotent replay, and rollback when enqueue fails.
