@@ -94,3 +94,9 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Added `MetaConnectionRepository` / `PdoMetaConnectionRepository` for atomic one-time signup-state consumption, connection upsert/lookup, encrypted token refresh persistence and expiry transitions. Existing table definitions and encrypted token formats are unchanged.
 - Refactored the existing Embedded Signup procedural entry points to delegate all Meta connection/state SQL to the repository. `MetaEmbeddedSignupService` now owns the higher-level workflow behind injected repository, cipher, Graph client and configuration dependencies; the procedural functions are compatibility facades.
 - Added MySQL integration coverage for state replay rejection, active connection persistence, token refresh persistence and expiry transitions, plus isolated application-service tests for code exchange, encrypted token storage, replay rejection, refresh and WABA subscription. Added regression tests for token ciphertext tampering, non-Meta hosts and non-HTTPS Graph URLs. Earlier transport/cipher CI runs [45259832664](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259832664) and [45259935499](https://github.com/michaelkage/DimdianChatbot/actions/runs/45259935499) passed all three jobs; validation for the repository extraction is pending.
+
+
+### Meta Embedded Signup extraction validation (2026-11-24)
+
+- GitHub Actions run [45394603873](https://github.com/michaelkage/DimdianChatbot/actions/runs/45394603873) passed all three jobs on commit `adeea59e8b5e92ce901c9edc50d9e991dfbec15f`: PHP lint/MySQL integration and WordPress compatibility on PHP 7.4 and 8.2.
+- The run includes the Meta repository lifecycle integration cases and isolated application-service tests for state issuance/consumption, code exchange, token encryption, replay rejection, refresh and WABA subscription.
