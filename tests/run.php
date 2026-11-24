@@ -21,6 +21,83 @@ function check(bool $condition, string $name): void
     }
 }
 
+final class MetaServiceTestRepository implements MetaConnectionRepository
+{
+    public $states = [];
+    public $connection = null;
+    public $expired = [];
+
+    public function createSignupState(string $stateHash, int $ttlSeconds = 600): void
+    {
+        $this->states[$stateHash] = true;
+    }
+
+    public function consumeSignupState(string $stateHash): bool
+    {
+        if (empty($this->states[$stateHash])) return false;
+        unset($this->states[$stateHash]);
+        return true;
+    }
+
+    public function saveActiveConnection(array $connection): void
+    {
+        $this->connection = [
+            'id' => 1,
+            'waba_id' => $connection['waba_id'],
+            'phone_number_id' => $connection['phone_number_id'],
+            'access_token_ciphertext' => $connection['token_ciphertext'],
+            'access_token_nonce' => $connection['token_nonce'],
+            'access_token_tag' => $connection['token_tag'],
+            'token_expires_at' => $connection['token_expires_at'],
+        ];
+    }
+
+    public function findActiveConnection(): ?array
+    {
+        return $this->connection;
+    }
+
+    public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void
+    {
+        if ($this->connection === null || $connectionId !== 1) throw new RuntimeException('Missing fake connection.');
+        $this->connection['access_token_ciphertext'] = $encrypted['ciphertext'];
+        $this->connection['access_token_nonce'] = $encrypted['nonce'];
+        $this->connection['access_token_tag'] = $encrypted['tag'];
+        $this->connection['token_expires_at'] = $expiresAt;
+    }
+
+    public function markConnectionExpired(int $connectionId): void
+    {
+        $this->expired[] = $connectionId;
+        $this->connection = null;
+    }
+
+    public function activePhoneNumberId(): ?string
+    {
+        return $this->connection['phone_number_id'] ?? null;
+    }
+}
+
+final class MetaServiceTestGraph extends MetaGraphApiClient
+{
+    public $getResponses = [];
+    public $postResult = true;
+    public $posts = [];
+
+    public function get(string $url): array
+    {
+        $response = array_shift($this->getResponses);
+        if ($response instanceof Throwable) throw $response;
+        return is_array($response) ? $response : [];
+    }
+
+    public function post(string $url, string $token): bool
+    {
+        $this->posts[] = ['url' => $url, 'token' => $token];
+        return $this->postResult;
+    }
+}
+
 $raw = '{"object":"whatsapp_business_account","entry":[]}';
 $secret = 'unit-test-meta-app-secret';
 $signature = 'sha256=' . hash_hmac('sha256', $raw, $secret);
@@ -80,6 +157,61 @@ try {
     $metaGraphHeaderRejected = true;
 }
 check($metaGraphHeaderRejected, 'Meta Graph client rejects CR/LF in bearer tokens');
+$serviceRepository = new MetaServiceTestRepository();
+$serviceGraph = new MetaServiceTestGraph();
+$serviceConfig = [
+    'meta' => ['app_id' => 'test-app-id', 'config_id' => 'test-config-id'],
+    'whatsapp' => ['graph_api_version' => 'v20.0', 'app_secret' => 'test-app-secret'],
+    'app' => ['app_key' => (string) app_config('app.app_key')],
+];
+$metaService = new MetaEmbeddedSignupService(
+    $serviceRepository,
+    new MetaTokenCipher((string) app_config('app.app_key')),
+    $serviceGraph,
+    $serviceConfig
+);
+$signup = $metaService->begin();
+check(
+    strlen($signup['state']) === 64
+        && $signup['app_id'] === 'test-app-id'
+        && $signup['expires_in_seconds'] === 600
+        && isset($serviceRepository->states[hash('sha256', $signup['state'])]),
+    'Meta signup service creates a short-lived opaque state without exposing its hash'
+);
+$serviceGraph->getResponses[] = ['access_token' => 'service-access-token', 'expires_in' => 3600];
+$serviceExchange = $metaService->exchange($signup['state'], 'one-time-code', '123456789012345', '987654321098765');
+check(
+    ($serviceExchange['connected'] ?? false) === true
+        && ($serviceExchange['webhook_subscribed'] ?? false) === true
+        && $serviceRepository->connection !== null
+        && (new MetaTokenCipher((string) app_config('app.app_key')))->open(
+            $serviceRepository->connection['access_token_ciphertext'],
+            $serviceRepository->connection['access_token_nonce'],
+            $serviceRepository->connection['access_token_tag']
+        ) === 'service-access-token',
+    'Meta signup service exchanges the code, encrypts the token and subscribes the WABA'
+);
+$metaStateReplayRejected = false;
+try {
+    $metaService->exchange($signup['state'], 'one-time-code', '123456789012345', '987654321098765');
+} catch (RuntimeException) {
+    $metaStateReplayRejected = true;
+}
+check($metaStateReplayRejected, 'Meta signup service rejects replayed state before another Graph request');
+$serviceGraph->getResponses[] = ['access_token' => 'refreshed-service-token', 'expires_in' => 86400];
+$loadedMetaConfig = $metaService->loadWhatsAppConfig(['phone_number_id' => 'fallback', 'access_token' => 'fallback']);
+check(
+    ($loadedMetaConfig['phone_number_id'] ?? '') === '123456789012345'
+        && ($loadedMetaConfig['access_token'] ?? '') === 'refreshed-service-token'
+        && (new MetaTokenCipher((string) app_config('app.app_key')))->open(
+            $serviceRepository->connection['access_token_ciphertext'],
+            $serviceRepository->connection['access_token_nonce'],
+            $serviceRepository->connection['access_token_tag']
+        ) === 'refreshed-service-token',
+    'Meta signup service refreshes near-expiry credentials and persists the new encrypted token'
+);
+check($metaService->subscribeActiveWaba(), 'Meta signup service can subscribe the persisted active WABA');
+
 $logContext = app_sanitize_log_context(['attempt' => 3, 'exception_class' => 'PDOException', 'phone_number' => '+2348012345678', 'message' => 'private chat content']);
 check($logContext === ['attempt' => 3, 'exception_class' => 'PDOException'], 'structured operational logs allow only non-PII diagnostic fields');
 
