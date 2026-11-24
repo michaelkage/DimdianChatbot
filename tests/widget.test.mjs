@@ -64,6 +64,7 @@ test('composer clears only after the outbox write succeeds', () => {
 test('queued delivery reuses the same idempotency key and avoids treating a content conflict as session expiry', () => {
   assert.match(widget, /client_message_id:item\.id/);
   assert.match(widget, /error\.code!=='idempotency_conflict'/);
+  assert.match(widget, /e\.code!=='idempotency_conflict'/);
 });
 
 test('transient API failures schedule bounded retries while permanent failures remain queued', () => {
