@@ -53,6 +53,8 @@ WhatsApp transport is disabled by default. With the staff inbox also disabled, t
 
 **Important:** This flow depends on Meta supporting WhatsApp Business App Coexistence for the actual Dimdian number and delivering the `smb_message_echoes` webhook events. Do not migrate the live number or enable outbound sending until eligibility and a real app-originated reply have been tested. Country code +234 alone is not proof of eligibility. If Coexistence/echoes do not work, the current design cannot mirror replies from the Business app into the website chat.
 
+**Fallback if Coexistence is unavailable:** enable the optional WordPress staff inbox instead of creating a separate password-only reply page. The existing inbox uses WordPress-authenticated staff identities, a server-side HMAC assertion bridge, locally provisioned roles and website-only replies; it works without WhatsApp. Import its opt-in schema, provision the initial owner and configure the WordPress connector as described in [Optional Staff Inbox Architecture](docs/STAFF-INBOX-ARCHITECTURE.md). This is not enabled in Dimdian's current deployment.
+
 ## 3. Live demo
 
 The public demo is a mock Dimdian website with the actual widget code running in browser-only demo mode:
