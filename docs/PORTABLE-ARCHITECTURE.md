@@ -93,6 +93,12 @@ A self-hosted installation must not require a central control-plane request for 
 
 The first canonical API version should use resource-oriented paths under /api/v1, but routes become normative only when the specification and implementation tests are committed together.
 
+## Current tenancy release gate
+
+The current deployment contract is **one business per database**. The `tenants` and `tenant_widgets` tables currently support tenant identity and widget-routing metadata, but the core conversation, guest, session, message, consent, provider-event and outbox records are not yet consistently tenant-scoped in both schemas and repository queries. A widget identifier plus an origin allowlist is not a substitute for row-level tenant isolation.
+
+Accordingly, `shared_database` tenancy mode is deliberately rejected by `TenantResolver` until the complete data model, every repository query, staff authorization, provider routing, retention and export paths are tenant-scoped and pass cross-tenant isolation tests. Do not enable this mode in production. Use a separate database per business in the meantime.
+
 ## Incremental migration plan
 
 ### Foundation (current milestone)
