@@ -38,9 +38,12 @@ function webhook_timestamp(string $timestamp): string
     return gmdate('Y-m-d H:i:s');
 }
 
-function enqueue_whatsapp_notification(PDO $pdo, string $messageId, string $recipient, string $text): void
+function enqueue_whatsapp_notification(PDO $pdo, string $messageId, string $recipient, string $text, ?string $tenantId = null): void
 {
-    chat_repository($pdo)->enqueueWhatsAppOutbox($messageId, $recipient, $text, uuid_v4());
+    // Legacy callers are pinned to the configured default tenant. New
+    // application flows must pass the authenticated tenant explicitly.
+    $tenantId = $tenantId ?? (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
+    chat_repository($pdo)->enqueueWhatsAppOutbox($tenantId, $messageId, $recipient, $text, uuid_v4());
 }
 
 function process_whatsapp_outbox(PDO $pdo, WhatsAppTextTransport $transport, int $batchSize = 10, int $maxAttempts = 6): array
