@@ -4,7 +4,7 @@ ChatBridge is being developed as a platform-independent customer communication p
 
 The current repository is the first Dimdian pilot. Its PHP + PDO backend now supports MySQL/MariaDB and PostgreSQL through dialect-aware repository adapters and separate schemas; its separate Supabase Edge Functions support the hosted demonstration and Meta diagnostics. These are current implementations, not mandatory infrastructure choices. Shared-database tenant isolation and export/restore remain future engineering milestones.
 
-This README retains the operational handover for the current Dimdian PHP/MySQL pilot. For the product architecture and compatibility boundaries, read [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md), [Product Scope](docs/PRODUCT-SCOPE.md) and [Versioned API](docs/API-V1.md).
+This README retains the operational handover for the current Dimdian PHP/MySQL pilot. For the product architecture and compatibility boundaries, read [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md), [Product Scope](docs/PRODUCT-SCOPE.md), [Versioned API](docs/API-V1.md) and the [standalone embed guide](docs/EMBED-INTEGRATION.md).
 
 > **Product architecture:** [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md) · [Product Scope](docs/PRODUCT-SCOPE.md) · [Portability Acceptance Criteria](tests/PORTABILITY-ACCEPTANCE.md). **Current pilot operations:** start with the [Owner's Quick Fix Guide](docs/OWNER-GUIDE.md); see the [Production Hardening Guide](docs/PRODUCTION-HARDENING.md) and [WordPress Integration Notes](docs/WORDPRESS-INTEGRATION.md).
 
