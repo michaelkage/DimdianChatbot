@@ -44,6 +44,11 @@ check(
     'PdoWebhookInboxRepository directly implements the durable inbox capability'
 );
 
+check(
+    is_subclass_of(PdoRateLimitRepository::class, RateLimitRepository::class),
+    'PdoRateLimitRepository directly implements the rate-limit capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
