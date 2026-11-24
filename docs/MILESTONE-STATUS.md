@@ -128,5 +128,6 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 
 ### Versioned API contract status (2026-11-24)
 
-- `docs/openapi.yaml` publishes an OpenAPI 3.1 contract for the core v1 widget/operator endpoints: guest session, message send/poll, consent, health, Meta webhook and administrator Embedded Signup.
-- CI parses the YAML document on every test run. The optional staff inbox routes remain documented in `API-V1.md` and `STAFF-INBOX-ARCHITECTURE.md`, but are deliberately not claimed as part of the current OpenAPI surface. Reusable cross-backend conformance fixtures and staff schemas remain future work.
+- `docs/openapi.yaml` publishes the OpenAPI 3.1 contract for the core v1 widget/operator endpoints: guest session, message send/poll, consent, health, Meta webhook and administrator Embedded Signup.
+- `docs/openapi-staff.yaml` separately specifies all ten implemented optional staff routes, including the request-bound HMAC assertion, role and assignment restrictions, private notes, website-only replies and administrator audit access.
+- CI parses both YAML documents and checks that every implemented staff route plus the global HMAC security scheme is present. Reusable request/response fixtures, deeper schema conformance and cross-backend acceptance tests remain future work.
