@@ -7,6 +7,7 @@ const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace
 const commerceApi = script.dataset.commerceApi || '';
 const ordersApi = script.dataset.ordersApi || '';
 const restNonce = script.dataset.restNonce || '';
+const offlineQueueEnabled = script.dataset.offlineQueue === 'true';
 const widgetId = script.dataset.widgetId || '';
 const key = 'dimdian-chat:' + api + ':' + (widgetId || 'single-tenant') + ':' + location.origin;
 const root = document.createElement('div');
@@ -37,6 +38,9 @@ shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener(
  input.value=button.dataset.prompt||'';$('.count').textContent=input.value.length+' / 4000';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
 }));
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
+let queueFlushPromise=null, queueRetryTimer=null, queueRetryDelay=3000;
+const queueKey=key+':offline-outbox';
+const queuedNodes=new Map();
 const seen=new Set();
 const messageNodes=new Map();
 let pendingSubmission=null;
@@ -104,6 +108,92 @@ $('.commerce-search').addEventListener('submit',async event=>{
  }catch(error){$('.commerce-status').textContent=error.message||'Product search is temporarily unavailable.';}
 });
 function newMessageId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
+
+function readQueue(){
+ if(!offlineQueueEnabled)return [];
+ try{
+  const value=JSON.parse(localStorage.getItem(queueKey)||'[]');
+  if(!Array.isArray(value))return [];
+  return value.filter(item=>item&&typeof item.id==='string'&&/^[0-9a-f-]{36}$/i.test(item.id)&&typeof item.text==='string'&&item.text.trim()!==''&&item.text.length<=4000).slice(0,20);
+ }catch(_){return [];}
+}
+function writeQueue(items){
+ try{localStorage.setItem(queueKey,JSON.stringify(items.slice(0,20)));return true;}
+ catch(_){status('This browser could not save the message locally. Your text is still in the message box.','warning');return false;}
+}
+function showQueued(item){
+ if(queuedNodes.has(item.id))return;
+ const article=document.createElement('article');article.className='message visitor pending-local';article.dataset.queueId=item.id;
+ const body=document.createElement('p');body.className='body';body.textContent=item.text;
+ const meta=document.createElement('div');meta.className='message-meta';
+ const label=document.createElement('span');label.textContent='Saved on this device · waiting to send';meta.append(label);
+ article.append(body,meta);messages.append(article);queuedNodes.set(item.id,article);welcome.hidden=true;scroll();
+}
+function removeQueuedBubble(id){
+ const node=queuedNodes.get(id);if(node)node.remove();queuedNodes.delete(id);
+}
+function scheduleQueueRetry(){
+ if(!offlineQueueEnabled||!navigator.onLine||queueRetryTimer)return;
+ const wait=queueRetryDelay;queueRetryDelay=Math.min(30000,queueRetryDelay*2);
+ queueRetryTimer=setTimeout(()=>{queueRetryTimer=null;flushQueue();},wait);
+}
+function queueMessage(text,id){
+ if(!offlineQueueEnabled)return false;
+ const queue=readQueue();
+ if(queue.some(item=>item.id===id)){showQueued(queue.find(item=>item.id===id));return true;}
+ if(queue.length>=20){status('Your saved-message queue is full. Reconnect and send those messages before adding another.','warning');return false;}
+ const item={id,text,createdAt:new Date().toISOString()};
+ if(!writeQueue(queue.concat(item)))return false;
+ showQueued(item);
+ input.value='';$('.count').textContent='0 / 4000';
+ status(navigator.onLine?'Message saved on this device. Retrying shortly.':'Message saved on this device. It will send when you reconnect.','warning');
+ if(navigator.onLine)scheduleQueueRetry();
+ return true;
+}
+async function deliverQueued(item){
+ let renewed=false;
+ while(true){
+  if(!session)await startSession();
+  try{
+   const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:item.text,client_message_id:item.id})});
+   if(result.data)render(result.data);
+   return;
+  }catch(error){
+   const expiredSession=error.status===401||(error.status===409&&error.code!=='idempotency_conflict');
+   if(expiredSession&&!renewed){expired();renewed=true;continue;}
+   throw error;
+  }
+ }
+}
+async function flushQueue(){
+ if(!offlineQueueEnabled||demo||!navigator.onLine)return;
+ if(queueFlushPromise)return queueFlushPromise;
+ queueFlushPromise=(async()=>{
+  const pending=readQueue();
+  for(const item of pending){
+   if(!navigator.onLine)break;
+   try{
+    await deliverQueued(item);
+    const remaining=readQueue().filter(saved=>saved.id!==item.id);
+    if(!writeQueue(remaining)){
+     status('The message reached support, but this browser could not update its local queue. It will retry safely with the same message ID.','warning');
+     scheduleQueueRetry();break;
+    }
+    removeQueuedBubble(item.id);queueRetryDelay=3000;
+    status('Saved message sent. Waiting for a reply.');
+   }catch(error){
+    if(!error.status||error.status===408||error.status===425||error.status===429||error.status>=500){
+     status('A saved message is waiting for the service. Retrying automatically.','warning');scheduleQueueRetry();
+    }else{
+     status('A saved message needs attention and remains stored on this device. '+(error.message||''),'warning');
+    }
+    break;
+   }
+  }
+  if(readQueue().length===0&&opened&&session)poll().finally(schedule);
+ })().finally(()=>{queueFlushPromise=null;});
+ return queueFlushPromise;
+}
 try {
  const saved=JSON.parse(sessionStorage.getItem(key)||'null');
  if(saved&&/^[a-f0-9]{64}$/.test(saved.token)){session={token:saved.token,expiresAt:saved.expiresAt||null,whatsappOptIn:saved.whatsappOptIn===true,whatsappOptInKnown:typeof saved.whatsappOptIn==='boolean'};consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;cursor=0; // Re-fetch history after a page reload; cursor only advances during this page lifetime.
@@ -188,8 +278,10 @@ async function send(text){
   busy=false;$('.send').disabled=false;input.disabled=false;input.focus();
   return;
  }
+ if(!pendingSubmission||pendingSubmission.text!==text)pendingSubmission={id:newMessageId(),text};
+ if(offlineQueueEnabled&&!navigator.onLine){if(queueMessage(text,pendingSubmission.id))pendingSubmission=null;return;}
  busy=true;
- if(!pendingSubmission||pendingSubmission.text!==text)pendingSubmission={id:newMessageId(),text};$('.send').disabled=true;input.disabled=true;status('Sending…');
+ $('.send').disabled=true;input.disabled=true;status('Sending…');
  try{
   if(!session)await startSession();
   const result=await request('/messages.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,client_message_id:pendingSubmission.id})});
@@ -199,6 +291,7 @@ async function send(text){
   delay=1000;await poll();schedule();
  }catch(e){
   if((e.status===401||e.status===409)&&session){expired();input.value=text;status('Your chat session ended. Send again to start a new chat.','warning');}
+  else if(offlineQueueEnabled&&(!e.status||e.status===408||e.status===425||e.status===429||e.status>=500)){if(queueMessage(text,pendingSubmission.id))pendingSubmission=null;else status(e.message||'Message could not be sent. Your text remains in the message box.','warning');}
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
 }
@@ -220,6 +313,12 @@ form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.tri
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
+if(offlineQueueEnabled&&!demo){
+ readQueue().forEach(showQueued);
+ window.addEventListener('online',()=>flushQueue());
+ window.addEventListener('offline',()=>status('You are offline. New messages can be saved on this device.','warning'));
+ if(navigator.onLine&&readQueue().length)scheduleQueueRetry();
+}
 if(demo)status('Preview only — messages are simulated and not saved.');
 else if(session)status('Your conversation is ready.');
 if(script.dataset.open==='true')open();
