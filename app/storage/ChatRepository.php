@@ -117,7 +117,7 @@ interface ProviderEventRepository
 interface WhatsAppOutboxRepository
 {
     /** Create an outbound WhatsApp job; normally called in the message transaction. */
-    public function enqueueWhatsAppOutbox(string $tenantId, string $messageId, string $recipient, string $text, string $outboxId): void;
+    public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void;
 
     /**
      * Lease one due outbound job and terminally fail expired jobs at the attempt limit.
