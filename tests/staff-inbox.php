@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/app/staff/PdoStaffInboxRepository.php';
 require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
 require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
 require_once dirname(__DIR__) . '/app/staff/HmacStaffIdentityProvider.php';
+require_once dirname(__DIR__) . '/app/staff/StaffIdentityService.php';
 
 $pdo = new PDO(
     getenv('DIMDIAN_TEST_DSN') ?: 'mysql:host=127.0.0.1;dbname=dimdian_test;charset=utf8mb4',
