@@ -46,6 +46,23 @@ expect(
         && $serviceGuestSession['expires_at'] !== '',
     'guest session service returns a one-time token while persisting only its SHA-256 hash'
 );
+
+$defaultTenantId = (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
+$otherTenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$tenantScopedRepository = chat_repository($pdo);
+$serviceTokenHash = hash('sha256', $serviceGuestSession['session_token']);
+expect(
+    $tenantScopedRepository->findGuestSessionByTokenHash($serviceTokenHash, $defaultTenantId) !== null,
+    'guest session is visible inside its owning tenant'
+);
+expect(
+    $tenantScopedRepository->findGuestSessionByTokenHash($serviceTokenHash, $otherTenantId) === null,
+    'guest session token cannot resolve under another tenant'
+);
+expect(
+    $tenantScopedRepository->listConversationMessages($otherTenantId, $serviceGuestSession['conversation_id'], 0, 50)['items'] === [],
+    'conversation polling cannot expose messages across tenant boundaries'
+);
 $limitedSessionService = new GuestSessionService(chat_repository($pdo), [
     'app' => [
         'session_rate_limit' => ['max_requests' => 1, 'window_seconds' => 60],
