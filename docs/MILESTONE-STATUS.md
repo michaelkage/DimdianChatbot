@@ -161,3 +161,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Narrowed application dependencies: session service, visitor message service, consent service, Meta webhook processor, webhook inbox worker, WhatsApp outbox worker and HTTP helper functions now depend only on the capabilities they call.
 - Added contract tests asserting that the aggregate retains every capability. This is interface segregation, not a second database adapter; the implementation remains MySQL/MariaDB PDO and milestone 17 remains partial.
 - GitHub Actions run [45411946544](https://github.com/michaelkage/DimdianChatbot/actions/runs/45411946544) passed all three jobs on the latest capability-interface and documentation head.
+
+
+### Dedicated webhook inbox PDO adapter (2026-11-24)
+
+- Extracted encrypted inbox enqueue, atomic lease claim/reclaim, lease-fenced completion and retry/failure persistence into `PdoWebhookInboxRepository`.
+- `PdoChatRepository` remains the backward-compatible aggregate and delegates the four inbox capability methods to the dedicated adapter using the same PDO connection. Provider-event interpretation and provider-event persistence remain separate concerns.
+- The shared integration suite continues to exercise the aggregate path, so existing cron and HTTP composition do not change. The new adapter is also checked directly against `WebhookInboxRepository`.
+- This is the first physical PDO adapter split; other chat persistence capabilities still live in `PdoChatRepository` and are not claimed as extracted.
