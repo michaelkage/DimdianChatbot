@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Coordinates durable WhatsApp outbox jobs.
  *
- * Persistence and lease fencing belong to ChatRepository. Provider I/O is
+ * Persistence and lease fencing belong to WhatsAppOutboxRepository. Provider I/O is
  * deliberately performed after a claim transaction has committed.
  */
 final class WhatsAppOutboxWorker
