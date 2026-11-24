@@ -138,3 +138,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - GitHub Actions run [45407583097](https://github.com/michaelkage/DimdianChatbot/actions/runs/45407583097) passed on PR head `eba66dc1b2be96287b72a8887e52f33f134e14aa`.
 - The new Node acceptance runner executed against the PHP/MySQL test deployment and passed session creation, token shape, message persistence, idempotent replay/conflict, invalid-token rejection, polling/cursor output, opt-in phone precondition and consent withdrawal.
 - The same run passed the OpenAPI structural validator, PHP/MySQL integration and staff inbox HTTP/policy suites, widget tests and WordPress compatibility on PHP 7.4 and 8.2.
+
+
+### Staff assignment SQL compatibility and acceptance validation (2026-11-24)
+
+- The backend-neutral staff API runner exposed a native-PDO-prepares defect: the owner and agent assignment INSERT statements reused the same named parameter for both `conversation_id` and `active_conversation_id`, causing SQLSTATE `HY093` in production-style native prepares.
+- Updated both statements to use distinct bound parameter names. Added HTTP coverage for owner assignment and unassignment, plus assertions that both assignment-history rows remain with their ended timestamps.
+- GitHub Actions run [45409680687](https://github.com/michaelkage/DimdianChatbot/actions/runs/45409680687) passed all three jobs on commit `ea52fa105028c6d214d619229aa10bc7a411e1dc`. The backend-neutral public and staff runners, PHP/MySQL integration, staff repository/HTTP suites, widget tests and WordPress compatibility on PHP 7.4/8.2 all passed.
