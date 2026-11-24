@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/StaffInboxRepository.php';
+require_once __DIR__ . '/PdoStaffPersistenceSupport.php';
+require_once __DIR__ . '/PdoStaffIdentityRepository.php';
+
 /**
  * MySQL/MariaDB implementation of the optional staff inbox repository.
  *
