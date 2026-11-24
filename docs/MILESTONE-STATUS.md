@@ -220,3 +220,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - The adapter receives `ProviderEventRepository` and reconciles an early-arriving provider status in the same PDO transaction when send acceptance is persisted. Provider network I/O remains outside database transactions in `WhatsAppOutboxWorker`.
 - `PdoChatRepository` delegates the full outbox capability to the new adapter; visitor-message atomic enqueue remains owned by `PdoVisitorMessageRepository` within its own message/outbox transaction.
 - Added a direct adapter-interface contract assertion. Existing integration coverage exercises retry, terminal failure, consent withdrawal, lease fencing and status reconciliation through the aggregate.
+
+
+### Meta connection lookup consolidation (2026-11-24)
+
+- Removed the duplicate active-phone-number SQL from `PdoChatRepository`; its `WhatsAppIdentityRepository` compatibility method now delegates to `PdoMetaConnectionRepository::activePhoneNumberId()` on the same PDO connection.
+- Reordered bootstrap loading so the Meta connection contract and adapter are loaded before the aggregate adapter that composes them.
+- This keeps active connection selection in one storage implementation while preserving the webhook worker's existing identity capability.
