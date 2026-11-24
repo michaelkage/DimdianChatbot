@@ -5,6 +5,8 @@ if (!script) return;
 const demo = script.dataset.demo === 'true';
 const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace(/\/+$/, '');
 const commerceApi = script.dataset.commerceApi || '';
+const ordersApi = script.dataset.ordersApi || '';
+const restNonce = script.dataset.restNonce || '';
 const widgetId = script.dataset.widgetId || '';
 const key = 'dimdian-chat:' + api + ':' + (widgetId || 'single-tenant') + ':' + location.origin;
 const root = document.createElement('div');
@@ -16,8 +18,9 @@ const wrap = document.createElement('div');
 wrap.innerHTML = '<button class="launcher" type="button" aria-expanded="false" aria-controls="dimdian-chat-panel"><span class="spark">✦</span> Message us</button>' +
 '<section class="panel" id="dimdian-chat-panel" role="dialog" aria-label="Customer support chat" aria-modal="false" hidden>' +
 '<header><div class="mark">D</div><div class="heading"><h2></h2><p></p></div><button class="close" type="button" aria-label="Close chat">×</button></header>' +
-'<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">CUSTOMER SUPPORT</span><h3>How can we help?</h3><p>Ask a question, find a product, or get help with an order.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-action="products" data-prompt="I need help finding a product.">Find a product</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-prompt="I have a question about an order.">Order question</button></div>' +
+'<main class="conversation" aria-live="polite"><div class="welcome"><span class="eyebrow">CUSTOMER SUPPORT</span><h3>How can we help?</h3><p>Ask a question, find a product, or get help with an order.</p><div class="quick-replies" aria-label="Common questions"><button class="quick-reply" type="button" data-action="products" data-prompt="I need help finding a product.">Find a product</button><button class="quick-reply" type="button" data-prompt="Can you check availability for a part?">Check availability</button><button class="quick-reply" type="button" data-action="orders" data-prompt="I have a question about an order.">Order question</button></div>' +
 '<div class="fields"><label>Name <small>optional</small><input class="name" maxlength="100" autocomplete="name" placeholder="Your name"></label><label>Phone <small>optional</small><input class="phone" type="tel" maxlength="32" autocomplete="tel" placeholder="+234…"></label></div><label class="wa-consent"><input class="wa-opt-in" type="checkbox"><span>Send my messages to this number on WhatsApp so I can continue the conversation there.</span></label></div>' +
+'<section class="orders" aria-label="Order lookup" hidden><div class="commerce-head"><h3>Check an order</h3><button class="orders-back" type="button">Back to chat</button></div><form class="orders-search"><label for="chatbridge-order-number">Order ID</label><input id="chatbridge-order-number" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="20" placeholder="Enter your order ID" required><button type="submit">Check order</button></form><p class="orders-status" role="status"></p><div class="order-result"></div></section>' +
 '<section class="commerce" aria-label="Product search" hidden><div class="commerce-head"><h3>Find a product</h3><button class="commerce-back" type="button">Back to chat</button></div><form class="commerce-search"><label class="sr" for="chatbridge-product-search">Search products</label><input id="chatbridge-product-search" type="search" minlength="2" maxlength="80" placeholder="Search the catalogue…" required><button type="submit">Search</button></form><p class="commerce-status" role="status"></p><div class="product-results"></div></section><div class="messages"></div><p class="privacy">Please avoid sharing passwords or sensitive payment details.</p></main>' +
 '<div class="composer-wrap"><form class="composer"><label class="sr" for="dimdian-message">Your message</label><textarea id="dimdian-message" rows="1" maxlength="4000" placeholder="Write a message…" required></textarea><button class="send" type="submit" aria-label="Send message">↑</button></form><div class="meta"><span class="status" role="status">Replies appear here.</span><span class="count">0 / 4000</span></div></div><footer>Powered by ChatBridge <button class="consent-revoke" type="button" hidden>Stop WhatsApp continuation</button></footer></section>';
 shadow.append(wrap); document.body.append(root);
@@ -26,14 +29,44 @@ const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;consentRevoke.hidden=true;}
+const orderQuickReply=shadow.querySelector('[data-action="orders"]');
+if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
 shadow.querySelectorAll('.quick-reply').forEach(button=>button.addEventListener('click',()=>{
  if(button.dataset.action==='products'&&commerceApi){openProductSearch();return;}
+ if(button.dataset.action==='orders'&&ordersApi&&restNonce){openOrderLookup();return;}
  input.value=button.dataset.prompt||'';$('.count').textContent=input.value.length+' / 4000';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();
 }));
 let session=null, cursor=0, opened=false, busy=false, timer=null, delay=3000;
 const seen=new Set();
 const messageNodes=new Map();
 let pendingSubmission=null;
+function openOrderLookup(){
+ $('.welcome').hidden=true;$('.orders').hidden=false;$('.orders-status').textContent='You can only view orders placed by your signed-in account.';$('.order-result').replaceChildren();$('.orders-search input').focus();scroll();
+}
+function renderOrder(order){
+ const result=$('.order-result');result.replaceChildren();
+ const heading=document.createElement('strong');heading.textContent='Order #'+String(order.number||'');result.append(heading);
+ const status=document.createElement('p');status.textContent='Status: '+String(order.status||'unknown');result.append(status);
+ if(order.date_created){const date=document.createElement('p');const parsed=new Date(order.date_created);date.textContent='Placed: '+(Number.isNaN(parsed.getTime())?'Date unavailable':parsed.toLocaleDateString());result.append(date);}
+ if(order.total){const total=document.createElement('p');total.textContent='Total: '+String(order.total);result.append(total);}
+ const list=document.createElement('ul');
+ (Array.isArray(order.items)?order.items:[]).forEach(item=>{const li=document.createElement('li');li.textContent=String(item.name||'Item')+' × '+String(item.quantity||1);list.append(li);});
+ result.append(list);
+}
+$('.orders-back').addEventListener('click',()=>{$('.orders').hidden=true;$('.welcome').hidden=false;input.focus();});
+$('.orders-search').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const orderId=$('.orders-search input').value.trim();
+ if(!/^\\d{1,20}$/.test(orderId))return;
+ $('.orders-status').textContent='Checking your order…';$('.order-result').replaceChildren();
+ try{
+  const response=await fetch(ordersApi+encodeURIComponent(orderId),{headers:{Accept:'application/json','X-WP-Nonce':restNonce},credentials:'same-origin',cache:'no-store'});
+  const body=await response.json();
+  if(!response.ok)throw new Error(body.message||body.code||'Order lookup is unavailable.');
+  renderOrder(body.order||{});
+  $('.orders-status').textContent='Order information retrieved from this store.';
+ }catch(error){$('.orders-status').textContent=error.message||'Could not check this order. Please sign in and try again.';}
+});
 function openProductSearch(){
  $('.welcome').hidden=true;$('.commerce').hidden=false;$('.commerce-status').textContent='Search the products available on this website.';$('.product-results').replaceChildren();$('.commerce-search input').focus();scroll();
 }
