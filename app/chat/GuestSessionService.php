@@ -21,12 +21,14 @@ final class GuestSessionService
     private $repository;
     /** @var array<string,mixed> */
     private $config;
+    private TenantContext $tenantContext;
 
     /** @param array<string,mixed> $config */
-    public function __construct(GuestSessionOperationsRepository $repository, array $config)
+    public function __construct(GuestSessionOperationsRepository $repository, array $config, TenantContext $tenantContext)
     {
         $this->repository = $repository;
         $this->config = $config;
+        $this->tenantContext = $tenantContext;
     }
 
     /**
@@ -58,7 +60,7 @@ final class GuestSessionService
         }
         $maxRequests = max(1, (int) ($rateConfig['max_requests'] ?? 10));
         $windowSeconds = max(60, (int) ($rateConfig['window_seconds'] ?? 900));
-        if (!$this->repository->consumeRateLimit('session:' . $rateLimitFingerprint, $maxRequests, $windowSeconds)) {
+        if (!$this->repository->consumeRateLimit($this->tenantContext->tenantId, 'session:' . $rateLimitFingerprint, $maxRequests, $windowSeconds)) {
             throw new GuestSessionRateLimitExceeded($windowSeconds);
         }
 
@@ -74,6 +76,7 @@ final class GuestSessionService
         $expiresAt = $createdAt->modify('+' . $ttlHours . ' hours');
 
         $this->repository->createGuestSession([
+            'tenant_id' => $this->tenantContext->tenantId,
             'session_id' => $sessionId,
             'conversation_id' => $conversationId,
             'guest_id' => $guestId,
