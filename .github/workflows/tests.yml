@@ -131,3 +131,96 @@ jobs:
           php -l tests/wordpress-plugin.php
       - name: Run WooCommerce adapter contract tests
         run: php tests/wordpress-plugin.php
+  postgres-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dimdian
+          POSTGRES_PASSWORD: dimdian
+          POSTGRES_DB: dimdian_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U dimdian -d dimdian_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DIMDIAN_TEST_DSN: pgsql:host=127.0.0.1;port=5432;dbname=dimdian_test
+      DIMDIAN_TEST_DB_USER: dimdian
+      DIMDIAN_TEST_DB_PASSWORD: dimdian
+      DIMDIAN_API_BASE_URL: http://127.0.0.1:8080/api/v1/
+      DIMDIAN_CONTRACT_ORIGIN: https://website.example.test
+      DIMDIAN_STAFF_ASSERTION_SECRET: ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_pgsql
+          coverage: none
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Lint active PHP source and validate API contract
+        run: |
+          find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l config.example.php
+          ruby tests/validate-openapi.rb
+      - name: Prepare PostgreSQL schemas and app config
+        run: |
+          PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/schema.sql
+          PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/optional/staff-inbox.sql
+          cat > config.php <<'PHP'
+          <?php
+          return [
+              'app' => [
+                  'app_key' => str_repeat('a', 32),
+                  'timezone' => 'UTC',
+                  'allowed_origins' => ['https://website.example.test'],
+                  'guest_session_ttl_hours' => 168,
+                  'session_rate_limit' => ['max_requests' => 100, 'window_seconds' => 900],
+                  'message_rate_limit' => ['max_requests' => 100, 'window_seconds' => 60],
+              ],
+              'database' => [
+                  'dsn' => getenv('DIMDIAN_TEST_DSN'),
+                  'username' => getenv('DIMDIAN_TEST_DB_USER'),
+                  'password' => getenv('DIMDIAN_TEST_DB_PASSWORD'),
+              ],
+              'staff_inbox' => [
+                  'enabled' => true,
+                  'assertion_secret' => getenv('DIMDIAN_STAFF_ASSERTION_SECRET'),
+              ],
+              'whatsapp' => [
+                  'outbound_enabled' => false,
+                  'app_secret' => 'test-meta-app-secret',
+                  'verify_token' => 'test-webhook-token',
+              ],
+          ];
+          PHP
+      - name: Start local PHP API
+        run: |
+          php -S 127.0.0.1:8080 -t public > /tmp/dimdian-postgres-php.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:8080/api/v1/health.php; then break; fi
+            sleep 1
+          done
+      - name: Run the same backend-neutral public API acceptance suite
+        run: node tests/api-acceptance.mjs
+      - name: Run the same backend-neutral staff API acceptance suite
+        run: node tests/staff-api-acceptance.mjs
+      - name: Run database-independent architecture and service tests
+        run: php tests/run.php
+      - name: Print PostgreSQL API diagnostics on failure
+        if: failure()
+        run: cat /tmp/dimdian-postgres-php.log || true
+      - name: Check and test widget JavaScript
+        run: |
+          node --check public/widget.js
+          node --test tests/widget.test.mjs
+
