@@ -240,3 +240,6 @@ Guest/session persistence now has a dedicated `PdoGuestSessionRepository` for gu
 
 
 Visitor-visible message persistence now has a dedicated `PdoVisitorMessageRepository` for message creation, idempotency, atomic optional outbox insertion, polling and delivery updates. The adapter retains the message-plus-outbox transaction and the aggregate delegates using the same PDO connection.
+
+
+Provider-event persistence now has a dedicated `PdoProviderEventRepository` for provider-event deduplication, inbound message routing/insertion, ignored events, status-event storage and delivery-state reconciliation. The aggregate delegates these operations while retaining a compatibility method used by outbox completion to reconcile provider callbacks that arrive before send acceptance is persisted.
