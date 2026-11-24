@@ -7,6 +7,9 @@ require_once dirname(__DIR__) . '/app/webhook_inbox.php';
 require_once dirname(__DIR__) . '/app/meta_signup.php';
 require_once dirname(__DIR__) . '/app/maintenance/RetentionService.php';
 require_once dirname(__DIR__) . '/app/operations/HealthService.php';
+require_once dirname(__DIR__) . '/app/chat/GuestSessionService.php';
+require_once dirname(__DIR__) . '/app/chat/ChatMessageService.php';
+require_once dirname(__DIR__) . '/app/chat/WhatsAppConsentService.php';
 
 $passed = 0;
 $failed = 0;
@@ -34,6 +37,34 @@ foreach ([
     WhatsAppOutboxRepository::class,
 ] as $capability) {
     check(is_subclass_of(ChatRepository::class, $capability), 'ChatRepository preserves the ' . $capability . ' capability');
+}
+
+$serviceRepositoryContracts = [
+    GuestSessionService::class => GuestSessionOperationsRepository::class,
+    ChatMessageService::class => VisitorMessagingRepository::class,
+    WhatsAppConsentService::class => ConsentRepository::class,
+    MetaWebhookProcessor::class => ProviderEventRepository::class,
+    WebhookInboxWorker::class => WebhookInboxRepository::class,
+    WhatsAppOutboxWorker::class => WhatsAppOutboxRepository::class,
+    MetaEmbeddedSignupService::class => MetaConnectionRepository::class,
+    RetentionService::class => RetentionRepository::class,
+    HealthService::class => HealthRepository::class,
+];
+foreach ($serviceRepositoryContracts as $serviceClass => $expectedRepository) {
+    $constructor = (new ReflectionClass($serviceClass))->getConstructor();
+    $repositoryTypes = [];
+    $hasInfrastructureLeak = false;
+    foreach ($constructor?->getParameters() ?? [] as $parameter) {
+        $type = $parameter->getType();
+        if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) continue;
+        $name = $type->getName();
+        if ($name === $expectedRepository) $repositoryTypes[] = $name;
+        if ($name === PDO::class || $name === ChatRepository::class) $hasInfrastructureLeak = true;
+    }
+    check(
+        count($repositoryTypes) === 1 && !$hasInfrastructureLeak,
+        $serviceClass . ' depends on ' . $expectedRepository . ' rather than PDO or aggregate ChatRepository'
+    );
 }
 
 final class HealthServiceTestRepository implements HealthRepository
