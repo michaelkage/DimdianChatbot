@@ -26,6 +26,7 @@ final class WhatsAppConsentService
         }
 
         $this->repository->recordWhatsAppConsent(
+            (string) $session['tenant_id'],
             (string) $session['guest_id'],
             (string) $session['conversation_id'],
             $phone,
