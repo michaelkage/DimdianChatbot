@@ -212,3 +212,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Extracted provider event deduplication, active WhatsApp identity routing, inbound/Business App message insertion, ignored-event accounting, provider status-event persistence and delivery-state precedence reconciliation into `PdoProviderEventRepository`.
 - `PdoChatRepository` delegates the provider-event capability to this adapter on the same PDO connection. Outbox completion continues to reconcile early-arriving provider statuses through the aggregate compatibility method.
 - Added a direct adapter-interface contract assertion. Existing MySQL integration coverage exercises webhook event deduplication, inbound routing and status reconciliation through the aggregate.
+
+
+### Dedicated WhatsApp outbox PDO adapter (2026-11-24)
+
+- Extracted outbound job enqueue, bounded claim/reclaim, attempt exhaustion, pre-send consent lookup, lease-fenced cancellation/completion/retry and terminal failure into `PdoWhatsAppOutboxRepository`.
+- The adapter receives `ProviderEventRepository` and reconciles an early-arriving provider status in the same PDO transaction when send acceptance is persisted. Provider network I/O remains outside database transactions in `WhatsAppOutboxWorker`.
+- `PdoChatRepository` delegates the full outbox capability to the new adapter; visitor-message atomic enqueue remains owned by `PdoVisitorMessageRepository` within its own message/outbox transaction.
+- Added a direct adapter-interface contract assertion. Existing integration coverage exercises retry, terminal failure, consent withdrawal, lease fencing and status reconciliation through the aggregate.
