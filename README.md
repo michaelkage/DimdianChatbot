@@ -2,7 +2,7 @@
 
 ChatBridge is being developed as a platform-independent customer communication product: an embeddable website chat widget, a backend API, interchangeable storage and deployment implementations, and optional WordPress, WooCommerce, WhatsApp and AI integrations.
 
-The current repository is the first Dimdian pilot. Its reference backend is PHP + PDO + MySQL/MariaDB-oriented SQL; its separate Supabase Edge Functions support the hosted demonstration and Meta diagnostics. These are current implementations, not mandatory infrastructure choices. The canonical portable API and full storage-adapter layer are the next engineering milestones.
+The current repository is the first Dimdian pilot. Its PHP + PDO backend now supports MySQL/MariaDB and PostgreSQL through dialect-aware repository adapters and separate schemas; its separate Supabase Edge Functions support the hosted demonstration and Meta diagnostics. These are current implementations, not mandatory infrastructure choices. Shared-database tenant isolation and export/restore remain future engineering milestones.
 
 This README retains the operational handover for the current Dimdian PHP/MySQL pilot. For the product architecture and compatibility boundaries, read [Portable Architecture](docs/PORTABLE-ARCHITECTURE.md), [Product Scope](docs/PRODUCT-SCOPE.md) and [Versioned API](docs/API-V1.md).
 
@@ -125,6 +125,20 @@ Start from `config.example.php`. The important application values are:
 | `whatsapp.outbound_enabled` | Keep `false` until the WhatsApp launch gate below is passed. |
 
 The application stores timestamps in UTC. The configured timezone is used for PHP runtime behavior; it does not change the database's UTC timestamp convention.
+
+### PostgreSQL 15+ alternative
+
+The same PHP API and repository contracts also support PostgreSQL 15+.
+
+- Enable PHP 8.2+ with `pdo_pgsql` (and OpenSSL).
+- Create a dedicated PostgreSQL database and restricted application role.
+- Import `database/postgresql/schema.sql` into an empty database.
+- If the optional staff inbox is enabled, also import `database/postgresql/optional/staff-inbox.sql`.
+- Set `database.dsn` to `pgsql:host=DB_HOST;port=5432;dbname=DB_NAME` and configure the database username/password.
+- The application sets the PostgreSQL connection timezone to UTC. The PostgreSQL schema stores UTC timestamps without a timezone, matching the existing MySQL `DATETIME` convention.
+- Do not run MySQL migrations 002–004 against PostgreSQL. The PostgreSQL schema is a clean-install schema; upgrades need dialect-specific migrations.
+
+CI runs the same backend-neutral public and staff API acceptance suites against PostgreSQL 16, plus PostgreSQL-specific tests for webhook leases, encrypted payload/token storage, Meta token refresh, outbox lease completion, early delivery-status reconciliation and retention SQL.
 
 ## 5. Add the widget to the real Dimdian WordPress website
 
