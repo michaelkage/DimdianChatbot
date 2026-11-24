@@ -205,3 +205,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 ### Adapter extraction validation update (2026-11-24)
 
 [GitHub Actions run 45414518711](https://github.com/michaelkage/DimdianChatbot/actions/runs/45414518711) passed all three jobs on the visitor-message adapter commit. This includes PHP lint, OpenAPI validation, backend-neutral public and staff acceptance suites, MySQL integration for consent/session/message idempotency and outbox rollback, staff HTTP tests, widget tests and PHP 7.4/8.2 WordPress compatibility.
+
+
+### Dedicated provider-event PDO adapter (2026-11-24)
+
+- Extracted provider event deduplication, active WhatsApp identity routing, inbound/Business App message insertion, ignored-event accounting, provider status-event persistence and delivery-state precedence reconciliation into `PdoProviderEventRepository`.
+- `PdoChatRepository` delegates the provider-event capability to this adapter on the same PDO connection. Outbox completion continues to reconcile early-arriving provider statuses through the aggregate compatibility method.
+- Added a direct adapter-interface contract assertion. Existing MySQL integration coverage exercises webhook event deduplication, inbound routing and status reconciliation through the aggregate.
