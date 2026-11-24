@@ -67,6 +67,7 @@
 - tests/validate-openapi.rb — dependency-free structural validation of OpenAPI version, expected route coverage, operation IDs, responses, request-body content, security schemes and local references.
 - tests/api-acceptance.mjs — backend-neutral HTTP acceptance runner for guest sessions, messages, idempotency, authentication, polling and consent.
 - tests/staff-api-acceptance.mjs — backend-neutral HMAC-authenticated staff API runner for role/assignment isolation, notes, replies, history and forbidden operations.
+- app/staff/PdoStaffInboxRepository.php — uses distinct PDO parameter names for conversation and active-conversation assignment columns, compatible with native prepared statements.
 
 ### Additional updated files
 - app/meta_signup.php — compatibility functions now delegate to MetaEmbeddedSignupService and MetaConnectionRepository.
@@ -75,7 +76,7 @@
 - public/api/meta-embedded-signup.php — correct supported-action guidance for begin, exchange and subscribe.
 - public/api/v1/*.php — refreshed compatibility-alias architecture notes; all aliases delegate to shared handlers.
 - public/cron/retention.php — CLI-only adapter over RetentionService and RetentionRepository.
-- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php — service policy, encryption, token lifecycle, health, retention, session token, rate-limit and staff HTTP regression coverage.
+- tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php — service policy, encryption, token lifecycle, health, retention, session token, rate-limit and staff HTTP regression coverage, including owner assignment/unassignment and retained assignment history.
 - tests/api-contract.md — documents the core and optional staff acceptance requirements and how to run the backend-neutral suite.
 - .github/workflows/tests.yml — runs the OpenAPI structural validator and both backend-neutral public/staff API acceptance runners, alongside the PHP/MySQL-specific suites.
 - docs/API-V1.md / API.md — links to both OpenAPI contracts and updates current service/storage boundaries.
