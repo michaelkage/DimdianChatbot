@@ -60,7 +60,7 @@ final class GuestSessionService
         }
         $maxRequests = max(1, (int) ($rateConfig['max_requests'] ?? 10));
         $windowSeconds = max(60, (int) ($rateConfig['window_seconds'] ?? 900));
-        if (!$this->repository->consumeRateLimit($this->tenantContext->tenantId, 'session:' . $rateLimitFingerprint, $maxRequests, $windowSeconds)) {
+        if (!$this->repository->consumeRateLimit('tenant:' . $this->tenantContext->tenantId . ':session:' . $rateLimitFingerprint, $maxRequests, $windowSeconds)) {
             throw new GuestSessionRateLimitExceeded($windowSeconds);
         }
 
