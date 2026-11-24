@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `wordpress-plugin/chatbridge-widget/` directory contains the installable WordPress connector and an optional, read-only WooCommerce catalogue adapter. It is deliberately independent of WooCommerce, Mobex and WCFM so the same plugin can be installed on ordinary WordPress sites.
+The `wordpress-plugin/chatbridge-widget/` directory contains the installable WordPress connector, an optional read-only WooCommerce catalogue adapter, opt-in customer-owned order lookup, and optional public WCFM vendor attribution. WooCommerce and WCFM remain optional; the generic connector can still be installed on ordinary WordPress sites.
 
 ## Current release boundary
 
@@ -48,7 +48,7 @@ If the endpoint is empty, invalid or not HTTPS, the plugin fails closed and does
 - The frontend uses `wp_enqueue_script`; no theme file edits are needed.
 - WooCommerce is optional. Its public catalogue adapter exposes only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. SKU matches are retrieved with WooCommerce's product query API; partial product-name searches use the WooCommerce Store API. A separate opt-in order route is available only to authenticated customers and returns a bounded summary of their own orders.
 - Product search is read-only, same-origin and rate-limited; it does not alter cart, checkout, stock, prices or orders.
-- WCFM, Paystack and Mobex APIs are not called.
+- WCFM support uses its in-process vendor lookup functions only to expose public store names; it does not call vendor-private REST endpoints or grant vendors access to customer orders. Paystack and Mobex APIs are not called.
 - The plugin does not create a chat backend or make the service public automatically.
 
 ## Before public distribution
@@ -83,7 +83,7 @@ The adapter registers the public, read-only REST route `/wp-json/chatbridge/v1/p
 
 Guest checkout, email-only verification, order keys, addresses, billing/email data, payment tokens, notes, refunds, vendor dashboards and custom sequential order-number plugins are not supported. The input is a WooCommerce order ID; stores with custom public order numbers need a separate compatibility adapter. WordPress cookie authentication requires the REST nonce, and the endpoint independently enforces order ownership.
 
-This adapter runs on the WordPress site itself. The remote chat backend does not need direct database access or WooCommerce API keys. It is deliberately compatible with a store that also uses Paystack and WCFM, but it does not yet read payment-provider state or vendor-private data.
+This adapter runs on the WordPress site itself. The remote chat backend does not need direct database access or WooCommerce API keys. It is compatible with stores using Paystack and WCFM. It exposes only public vendor store names and does not read payment-provider state or vendor-private data.
 
 
 ## Meta Embedded Signup v4 (administrator only)
