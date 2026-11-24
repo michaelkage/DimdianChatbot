@@ -290,7 +290,7 @@ async function send(text){
   input.value='';$('.count').textContent='0 / 4000';status('Message saved. Waiting for a reply.');
   delay=1000;await poll();schedule();
  }catch(e){
-  if((e.status===401||e.status===409)&&session){expired();input.value=text;status('Your chat session ended. Send again to start a new chat.','warning');}
+  if((e.status===401||(e.status===409&&e.code!=='idempotency_conflict'))&&session){expired();input.value=text;status('Your chat session ended. Send again to start a new chat.','warning');}
   else if(offlineQueueEnabled&&(!e.status||e.status===408||e.status===425||e.status===429||e.status>=500)){if(queueMessage(text,pendingSubmission.id))pendingSubmission=null;else status(e.message||'Message could not be sent. Your text remains in the message box.','warning');}
   else status(e.message||'Message could not be sent. Please try again.','warning');
  }finally{busy=false;$('.send').disabled=false;input.disabled=false;input.focus();}
