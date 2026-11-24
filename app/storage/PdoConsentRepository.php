@@ -87,7 +87,8 @@ final class PdoConsentRepository implements ConsentRepository
                        SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
                            o.last_error = "Cancelled after WhatsApp consent withdrawal.",
                            o.updated_at = UTC_TIMESTAMP()
-                       WHERE o.tenant_id = :tenant_id_outbox AND c.tenant_id = :tenant_id_conversation
+                       WHERE o.tenant_id = :tenant_id_outbox AND m.tenant_id = :tenant_id_message
+                         AND c.tenant_id = :tenant_id_conversation
                          AND c.guest_id = :guest AND o.status IN ("pending","processing")';
                 $cancel = PdoSqlDialect::prepare($this->pdo, $cancelSql);
                 $cancel->execute([
