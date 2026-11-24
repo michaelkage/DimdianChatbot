@@ -27,16 +27,24 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
             throw new InvalidArgumentException('Verified staff identity is incomplete or invalid.');
         }
 
-        $query = PdoSqlDialect::prepare($this->pdo, 
-            'INSERT INTO staff_identities
-                (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
-             VALUES
-                (:id, :provider, :subject, :name, :email, "agent", "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
-             ON DUPLICATE KEY UPDATE
-                display_name = VALUES(display_name),
-                email = VALUES(email),
-                updated_at = UTC_TIMESTAMP()'
-        );
+        $sql = PdoSqlDialect::isPostgres($this->pdo)
+            ? 'INSERT INTO staff_identities
+                   (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
+               VALUES
+                   (:id, :provider, :subject, :name, :email, \'agent\', \'active\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               ON CONFLICT (auth_provider, external_subject) DO UPDATE SET
+                   display_name = EXCLUDED.display_name,
+                   email = EXCLUDED.email,
+                   updated_at = CURRENT_TIMESTAMP'
+            : 'INSERT INTO staff_identities
+                   (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
+               VALUES
+                   (:id, :provider, :subject, :name, :email, "agent", "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
+               ON DUPLICATE KEY UPDATE
+                   display_name = VALUES(display_name),
+                   email = VALUES(email),
+                   updated_at = UTC_TIMESTAMP()';
+        $query = PdoSqlDialect::prepare($this->pdo, $sql);
         $query->execute([
             ':id' => $id,
             ':provider' => strtolower($provider),
