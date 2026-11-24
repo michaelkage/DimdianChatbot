@@ -200,3 +200,8 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Extracted visitor message creation, idempotency replay/conflict detection, atomic optional WhatsApp outbox insertion, conversation activity updates, visitor polling and delivery-state polling into `PdoVisitorMessageRepository`.
 - `PdoChatRepository` delegates the visitor-message capability to this adapter on the same PDO connection. Message and outbox writes remain in one transaction; an outbox insert failure still rolls back the message.
 - Added a direct adapter-interface contract assertion. Existing MySQL integration tests cover idempotent replay, no duplicate outbox job and rollback on outbox failure through the aggregate.
+
+
+### Adapter extraction validation update (2026-11-24)
+
+[GitHub Actions run 45414518711](https://github.com/michaelkage/DimdianChatbot/actions/runs/45414518711) passed all three jobs on the visitor-message adapter commit. This includes PHP lint, OpenAPI validation, backend-neutral public and staff acceptance suites, MySQL integration for consent/session/message idempotency and outbox rollback, staff HTTP tests, widget tests and PHP 7.4/8.2 WordPress compatibility.
