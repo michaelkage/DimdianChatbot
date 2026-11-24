@@ -124,3 +124,9 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 
 - GitHub Actions run [45397234701](https://github.com/michaelkage/DimdianChatbot/actions/runs/45397234701) passed all three jobs: PHP/MySQL integration tests, widget tests and WordPress compatibility on PHP 7.4 and 8.2.
 - The existing consent API integration case verifies that opt-out clears current consent and disables WhatsApp identity routing through `WhatsAppConsentService` and the repository's transactional transition.
+
+
+### Versioned API contract status (2026-11-24)
+
+- `docs/openapi.yaml` publishes an OpenAPI 3.1 contract for the core v1 widget/operator endpoints: guest session, message send/poll, consent, health, Meta webhook and administrator Embedded Signup.
+- CI parses the YAML document on every test run. The optional staff inbox routes remain documented in `API-V1.md` and `STAFF-INBOX-ARCHITECTURE.md`, but are deliberately not claimed as part of the current OpenAPI surface. Reusable cross-backend conformance fixtures and staff schemas remain future work.
