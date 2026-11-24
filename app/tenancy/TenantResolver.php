@@ -22,9 +22,13 @@ final class TenantResolver
             $tenantId = (string) ($this->config['default_tenant_id'] ?? '00000000-0000-4000-8000-000000000001');
             return new TenantContext($tenantId, $publicWidgetId !== '' ? $publicWidgetId : null);
         }
-        if ($mode !== 'shared_database') {
-            throw new TenantResolutionException('The configured tenancy mode is not supported.');
-        }
+        // The current schema and PDO adapters are single-tenant. Widget
+        // registration alone is not sufficient isolation: every tenant-owned
+        // row, lookup, provider event and staff authorization must be scoped.
+        // Fail closed rather than exposing a partially isolated shared database.
+        throw new TenantResolutionException(
+            'Shared-database tenancy is not enabled until tenant-scoped persistence and authorization are complete.'
+        );
         if (
             !is_string($publicWidgetId)
             || !preg_match('/^[A-Za-z0-9_-]{16,128}$/', $publicWidgetId)
