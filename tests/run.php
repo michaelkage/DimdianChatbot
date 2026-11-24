@@ -10,6 +10,10 @@ require_once dirname(__DIR__) . '/app/operations/HealthService.php';
 require_once dirname(__DIR__) . '/app/chat/GuestSessionService.php';
 require_once dirname(__DIR__) . '/app/chat/ChatMessageService.php';
 require_once dirname(__DIR__) . '/app/chat/WhatsAppConsentService.php';
+require_once dirname(__DIR__) . '/app/staff/StaffInboxRepository.php';
+require_once dirname(__DIR__) . '/app/staff/StaffIdentityProvider.php';
+require_once dirname(__DIR__) . '/app/staff/StaffIdentityService.php';
+require_once dirname(__DIR__) . '/app/staff/StaffInboxService.php';
 
 $passed = 0;
 $failed = 0;
@@ -93,6 +97,7 @@ check(
 );
 
 $serviceRepositoryContracts = [
+    StaffIdentityService::class => StaffInboxRepository::class,
     GuestSessionAuthenticator::class => GuestSessionRepository::class,
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
@@ -118,6 +123,53 @@ foreach ($serviceRepositoryContracts as $serviceClass => $expectedRepository) {
     check(
         count($repositoryTypes) === 1 && !$hasInfrastructureLeak,
         $serviceClass . ' depends on ' . $expectedRepository . ' rather than PDO or aggregate ChatRepository'
+    );
+}
+
+$applicationServiceFiles = [
+    'app/chat/GuestSessionAuthenticator.php',
+    'app/chat/GuestSessionService.php',
+    'app/chat/ChatMessageService.php',
+    'app/chat/WhatsAppConsentService.php',
+    'app/staff/StaffIdentityService.php',
+    'app/staff/StaffInboxService.php',
+    'app/channels/whatsapp/MetaEmbeddedSignupService.php',
+    'app/maintenance/RetentionService.php',
+    'app/operations/HealthService.php',
+];
+foreach ($applicationServiceFiles as $relativePath) {
+    $source = file_get_contents(dirname(__DIR__) . '/' . $relativePath);
+    check(
+        is_string($source)
+            && !preg_match('/\\bjson_response\\s*\\(|\\bheader\\s*\\(|\\$_(?:SERVER|GET|POST|REQUEST)\\b|\\bnew\\s+PDO\\b|->(?:prepare|query)\\s*\\(/i', $source),
+        $relativePath . ' stays outside HTTP response, request-global and SQL/PDO boundaries'
+    );
+}
+
+$httpRouteFiles = [
+    'public/api/messages.php',
+    'public/api/session.php',
+    'public/api/consent.php',
+    'public/api/health.php',
+    'public/api/meta-embedded-signup.php',
+    'public/api/webhook.php',
+    'public/api/v1/staff/inbox.php',
+    'public/api/v1/staff/messages.php',
+    'public/api/v1/staff/replies.php',
+    'public/api/v1/staff/notes.php',
+    'public/api/v1/staff/assignments.php',
+    'public/api/v1/staff/agents.php',
+    'public/api/v1/staff/roles.php',
+    'public/api/v1/staff/history.php',
+    'public/api/v1/staff/audit.php',
+    'public/api/v1/staff/me.php',
+];
+foreach ($httpRouteFiles as $relativePath) {
+    $source = file_get_contents(dirname(__DIR__) . '/' . $relativePath);
+    check(
+        is_string($source)
+            && !preg_match('/\\bnew\\s+PDO\\b|->(?:prepare|query)\\s*\\(/i', $source),
+        $relativePath . ' delegates persistence instead of issuing SQL'
     );
 }
 
