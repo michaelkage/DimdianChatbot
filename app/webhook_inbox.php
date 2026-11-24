@@ -39,7 +39,7 @@ function decrypt_webhook_payload(string $cipher, string $nonce, string $tag): st
 }
 
 /** @return array{id:int,inserted:bool,status:string} */
-function enqueue_meta_webhook(ChatRepository $repository, string $rawBody): array
+function enqueue_meta_webhook(WebhookInboxRepository $repository, string $rawBody): array
 {
     $encrypted = webhook_payload_cipher()->encrypt($rawBody);
     return $repository->enqueueWebhookInbox(hash('sha256', $rawBody), $encrypted);
@@ -53,7 +53,7 @@ function enqueue_meta_webhook(ChatRepository $repository, string $rawBody): arra
  *
  * @return array{processed:int,retried:int,failed:int,empty:bool}
  */
-function process_webhook_inbox(PDO $pdo, ChatRepository $repository, int $limit = 10, int $maxAttempts = 8): array
+function process_webhook_inbox(PDO $pdo, WebhookProcessingRepository $repository, int $limit = 10, int $maxAttempts = 8): array
 {
     return process_webhook_inbox_with_repository($repository, $limit, $maxAttempts);
 }
@@ -76,7 +76,7 @@ function webhook_inbox_worker(
     );
 }
 
-function process_webhook_inbox_with_repository(ChatRepository $repository, int $limit = 10, int $maxAttempts = 8): array
+function process_webhook_inbox_with_repository(WebhookProcessingRepository $repository, int $limit = 10, int $maxAttempts = 8): array
 {
     return webhook_inbox_worker($repository)->process($limit, $maxAttempts);
 }
