@@ -30,36 +30,36 @@ final class PdoConsentRepository implements ConsentRepository
             if ($action === 'opt_in') {
                 // A phone number can route to one active website conversation only.
                 // Re-consent deliberately moves the route; prior conversations remain readable.
-                $deactivate = $this->pdo->prepare(
+                $deactivate = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE whatsapp_identity_links
                      SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
                      WHERE phone_normalized = :phone AND is_active = 1'
                 );
                 $deactivate->execute([':phone' => $normalizedPhone]);
-                $link = $this->pdo->prepare(
+                $link = PdoSqlDialect::prepare($this->pdo, 
                     'INSERT INTO whatsapp_identity_links
                         (phone_normalized, guest_id, conversation_id, is_active, created_at)
                      VALUES (:phone, :guest, :conversation, 1, UTC_TIMESTAMP())'
                 );
                 $link->execute([':phone' => $normalizedPhone, ':guest' => $guestId, ':conversation' => $conversationId]);
-                $update = $this->pdo->prepare(
+                $update = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE guests SET phone_normalized = :phone, whatsapp_opt_in_at = :now, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
                 );
                 $update->execute([':phone' => $normalizedPhone, ':now' => gmdate('Y-m-d H:i:s'), ':guest' => $guestId]);
             } else {
-                $deactivate = $this->pdo->prepare(
+                $deactivate = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE whatsapp_identity_links
                      SET is_active = 0, deactivated_at = UTC_TIMESTAMP()
                      WHERE guest_id = :guest AND is_active = 1'
                 );
                 $deactivate->execute([':guest' => $guestId]);
-                $update = $this->pdo->prepare(
+                $update = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE guests SET whatsapp_opt_in_at = NULL, updated_at = UTC_TIMESTAMP() WHERE id = :guest'
                 );
                 $update->execute([':guest' => $guestId]);
 
                 // Prevent queued messages from being sent after consent withdrawal.
-                $cancel = $this->pdo->prepare(
+                $cancel = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE message_outbox o
                      INNER JOIN messages m ON m.id = o.message_id
                      INNER JOIN conversations c ON c.id = m.conversation_id
@@ -69,7 +69,7 @@ final class PdoConsentRepository implements ConsentRepository
                      WHERE c.guest_id = :guest AND o.status IN ("pending","processing")'
                 );
                 $cancel->execute([':guest' => $guestId]);
-                $mark = $this->pdo->prepare(
+                $mark = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE messages m INNER JOIN conversations c ON c.id = m.conversation_id
                      SET m.delivery_status = "web_only"
                      WHERE c.guest_id = :guest AND m.delivery_status = "queued"'
@@ -77,7 +77,7 @@ final class PdoConsentRepository implements ConsentRepository
                 $mark->execute([':guest' => $guestId]);
             }
 
-            $event = $this->pdo->prepare(
+            $event = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO guest_consent_events (guest_id, channel, action, source, policy_version, created_at)
                  VALUES (:guest, "whatsapp", :action, :source, "2026-11", UTC_TIMESTAMP())'
             );
