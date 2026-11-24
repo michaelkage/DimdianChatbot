@@ -157,9 +157,11 @@ foreach ($serviceRepositoryContracts as $serviceClass => $expectedRepository) {
 final class TenantResolverTestRepository implements TenantRepository
 {
     public ?array $widget = null;
+    public int $lookups = 0;
 
     public function findActiveTenantWidget(string $publicWidgetId): ?array
     {
+        $this->lookups++;
         return $this->widget;
     }
 }
@@ -170,29 +172,17 @@ $tenantRepository->widget = [
     'tenant_status' => 'active',
     'allowed_origins' => '["https://shop.example.test"]',
 ];
-$tenantResolver = new TenantResolver($tenantRepository, ['mode' => 'shared_database']);
-$tenantContext = $tenantResolver->resolve('widget_0123456789abcdef', 'https://shop.example.test');
+$sharedTenantRejected = false;
+try {
+    (new TenantResolver($tenantRepository, ['mode' => 'shared_database']))
+        ->resolve('widget_0123456789abcdef', 'https://shop.example.test');
+} catch (TenantResolutionException $error) {
+    $sharedTenantRejected = str_contains($error->getMessage(), 'not enabled');
+}
 check(
-    $tenantContext->tenantId === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-        && $tenantContext->publicWidgetId === 'widget_0123456789abcdef',
-    'tenant resolver derives trusted tenant context from an active registered widget'
+    $sharedTenantRejected && $tenantRepository->lookups === 0,
+    'tenant resolver fails closed before widget lookup while persistence is not tenant-scoped'
 );
-
-$tenantOriginRejected = false;
-try {
-    $tenantResolver->resolve('widget_0123456789abcdef', 'https://attacker.example');
-} catch (TenantResolutionException) {
-    $tenantOriginRejected = true;
-}
-check($tenantOriginRejected, 'tenant resolver rejects origins outside the widget allowlist');
-
-$tenantWidgetRejected = false;
-try {
-    $tenantResolver->resolve('unknown_widget_012345', 'https://shop.example.test');
-} catch (TenantResolutionException) {
-    $tenantWidgetRejected = true;
-}
-check($tenantWidgetRejected, 'tenant resolver rejects unknown public widget identifiers');
 
 $singleTenantContext = (new TenantResolver($tenantRepository, ['mode' => 'single_tenant']))
     ->resolve(null, null);
