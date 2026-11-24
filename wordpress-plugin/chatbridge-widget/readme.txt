@@ -25,6 +25,7 @@ Features:
 * Run a read-only service health check from WordPress admin.
 * No WordPress theme edits and no third-party PHP dependencies.
 * Optional WooCommerce product search for published catalogue-visible products.
+* Optional order lookup for signed-in customers, limited to orders owned by their WordPress account.
 * WooCommerce remains optional; the generic widget works on ordinary WordPress sites too.
 
 == Installation ==
@@ -51,7 +52,7 @@ No. It connects the browser widget to a ChatBridge service. WhatsApp credentials
 
 = What WooCommerce data can the widget show? =
 
-When enabled, it searches published, catalogue-visible products and returns the product name, public SKU, formatted price, product URL, image and coarse stock status. It checks SKU matches as well as partial product-name searches. It does not expose orders, customer data or exact stock quantities, and it does not change cart or checkout.
+When enabled, product search returns only published, catalogue-visible product name, public SKU, formatted price, product URL, image and coarse stock status. It supports SKU and partial product-name searches. The product-search endpoint does not expose customer or order data. The separate opt-in order lookup is available only to a signed-in customer and verifies exact order ownership; it returns a limited order summary and does not support guest checkout, addresses, payment data or refunds.
 
 = Does installing the plugin create an AI chatbot? =
 
