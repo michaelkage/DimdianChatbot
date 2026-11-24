@@ -10,7 +10,7 @@ This README retains the operational handover for the current Dimdian PHP/MySQL p
 
 ## WordPress plugin (early connector)
 
-An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, optional read-only product search, and opt-in order lookup for signed-in customers. Product search returns published catalogue-visible products and supports SKU matching as well as partial product-name search; order lookup returns only a bounded summary of the current customer's own order. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
+An installable plugin is available under [`wordpress-plugin/chatbridge-widget/`](wordpress-plugin/chatbridge-widget/). It adds a settings screen under **Settings → ChatBridge Widget**, a remote service health check, local WooCommerce compatibility diagnostics, optional read-only product search, opt-in order lookup for signed-in customers, and public WCFM vendor attribution when WCFM Marketplace is active. Product search returns published catalogue-visible products and supports SKU matching as well as partial product-name search; order lookup returns only a bounded summary of the current customer's own order. See [the plugin setup guide](docs/WORDPRESS-PLUGIN.md).
 
 This is an early connector release, not yet a WordPress.org directory release. It requires the separately hosted ChatBridge PHP service; the PHP backend is not currently deployed to Hostinger. The plugin does not itself create a WhatsApp chatbot, connect Meta credentials, or provide AI-generated replies.
 
