@@ -22,7 +22,7 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
     public function createVisitorMessage(array $message): array
     {
         return $this->transaction(function () use ($message): array {
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO messages
                     (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES
@@ -37,7 +37,7 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
             ]);
             $inserted = $insert->rowCount() === 1;
 
-            $lookup = $this->pdo->prepare(
+            $lookup = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, sequence_id, sent_at, delivery_status, body
                  FROM messages
                  WHERE conversation_id = :conversation_id
@@ -57,7 +57,7 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
             }
 
             if ($inserted) {
-                $update = $this->pdo->prepare(
+                $update = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE conversations
                      SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
                      WHERE id = :id AND status = "open"'
@@ -88,7 +88,7 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
 
     public function listConversationMessages(string $conversationId, int $after, int $limit): array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT sequence_id, id, sender_type, body, delivery_status, sent_at
              FROM messages
              WHERE conversation_id = :conversation_id AND sequence_id > :after
@@ -120,7 +120,7 @@ final class PdoVisitorMessageRepository implements VisitorMessageRepository
 
     public function listVisitorDeliveryUpdates(string $conversationId, int $limit = 50): array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id, delivery_status FROM messages
              WHERE conversation_id = :conversation_id AND sender_type = "visitor"
              ORDER BY sequence_id DESC LIMIT ' . max(1, min(100, $limit))
