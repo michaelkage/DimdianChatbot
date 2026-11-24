@@ -491,7 +491,7 @@ $pdo->prepare(
     'INSERT INTO messages (id, conversation_id, sender_type, body, delivery_status, sent_at, created_at)
      VALUES (:id, :conversation_id, "visitor", "lease fencing", "queued", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
 )->execute([':id' => $leaseMessageId, ':conversation_id' => $conversationId]);
-$outboxRepository->enqueueWhatsAppOutbox($leaseMessageId, '2348031234567', 'Lease fencing test', $leaseOutboxId);
+$outboxRepository->enqueueWhatsAppOutbox('00000000-0000-4000-8000-000000000001', $leaseMessageId, '2348031234567', 'Lease fencing test', $leaseOutboxId);
 expect($outboxRepository->hasWhatsAppConsent($leaseMessageId), 'outbox repository confirms current WhatsApp consent before sending');
 
 $firstLeaseToken = uuid_v4();
