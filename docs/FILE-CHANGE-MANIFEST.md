@@ -105,3 +105,6 @@
 
 - app/storage/PdoRateLimitRepository.php — dedicated MySQL/MariaDB fixed-window rate-limit adapter.
 - app/storage/PdoChatRepository.php — delegates rate-limit operations to PdoRateLimitRepository while preserving ChatRepository.
+
+- app/storage/PdoConsentRepository.php — dedicated MySQL/MariaDB adapter for transactional WhatsApp consent, identity routing and opt-out cancellation.
+- app/storage/PdoChatRepository.php — delegates consent transitions to PdoConsentRepository while preserving aggregate compatibility and nested transaction behavior.
