@@ -81,4 +81,4 @@ See API.md for the detailed request/response and error contract.
 
 ## Next API milestone
 
-The core v1 OpenAPI 3.1 contract is now published in `docs/openapi.yaml` and syntax-checked in CI. The remaining API-contract work is to add the optional staff endpoints, reusable request/response fixtures, and automated conformance checks for tenant isolation and cross-backend parity. The versioned route shape is established; the portable application and storage layers are not yet complete.
+The core v1 and optional staff API OpenAPI 3.1 contracts are published in `docs/openapi.yaml` and `docs/openapi-staff.yaml`. CI parses both documents and verifies that all ten implemented staff routes are represented. Reusable request/response fixtures and automated conformance checks for tenant isolation and cross-backend parity remain outstanding. The versioned route shape is established; the portable application and storage layers are not yet complete.
