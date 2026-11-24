@@ -78,7 +78,7 @@
 - public/cron/retention.php — CLI-only adapter over RetentionService and RetentionRepository.
 - tests/run.php / tests/integration.php / tests/staff-inbox.php / tests/staff-inbox-http.php — service policy, encryption, token lifecycle, health, retention, session token, rate-limit and staff HTTP regression coverage, including owner assignment/unassignment and retained assignment history.
 - tests/api-contract.md — documents the core and optional staff acceptance requirements and how to run the backend-neutral suite.
-- .github/workflows/tests.yml — runs the OpenAPI structural validator and both backend-neutral public/staff API acceptance runners, alongside the PHP/MySQL-specific suites.
+- .github/workflows/tests.yml — runs the OpenAPI structural validator and both backend-neutral public/staff API acceptance runners, alongside the MySQL-specific integration suite and PostgreSQL 16 acceptance/integration job.
 - docs/API-V1.md / API.md — links to both OpenAPI contracts and updates current service/storage boundaries.
 - docs/PORTABLE-ARCHITECTURE.md / MILESTONE-STATUS.md — documents extracted service/repository boundaries and remaining portability work.
 - docs/FILE-CHANGE-MANIFEST.md — this additional implementation inventory.
