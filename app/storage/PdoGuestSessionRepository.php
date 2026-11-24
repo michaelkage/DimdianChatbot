@@ -78,8 +78,8 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
                     g.display_name, g.phone, g.phone_normalized, g.whatsapp_opt_in_at,
                     c.status AS conversation_status
              FROM guest_sessions gs
-             INNER JOIN conversations c ON c.id = gs.conversation_id
-             INNER JOIN guests g ON g.id = gs.guest_id
+             INNER JOIN conversations c ON c.id = gs.conversation_id AND c.tenant_id = gs.tenant_id
+             INNER JOIN guests g ON g.id = gs.guest_id AND g.tenant_id = gs.tenant_id
              WHERE gs.token_hash = :token_hash AND gs.tenant_id = :tenant_id
                AND gs.revoked_at IS NULL
                AND gs.expires_at > UTC_TIMESTAMP()
