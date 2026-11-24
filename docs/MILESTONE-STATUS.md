@@ -251,3 +251,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 ### Shared outbox enqueue validation
 
 [GitHub Actions run 45416144989](https://github.com/michaelkage/DimdianChatbot/actions/runs/45416144989) passed all three jobs after the visitor-message adapter began using the injected outbox capability for atomic queue insertion. MySQL integration again passed the idempotent replay and message/outbox rollback assertions; PHP 7.4 and 8.2 WordPress compatibility also passed.
+
+
+### Guest-session authentication service extraction (2026-11-24)
+
+- Added `GuestSessionAuthenticator`, which validates the opaque token format, hashes it before lookup, resolves the session, updates last-seen state and enforces the optional open-conversation requirement.
+- The service receives only `GuestSessionRepository`; it does not read `$_SERVER`, emit JSON or terminate the request. It raises typed failures for malformed token, missing/expired session and closed conversation.
+- `authenticate_guest_session()` remains the HTTP compatibility adapter: it extracts `HTTP_X_DIMDIAN_GUEST_TOKEN` and maps typed failures to the existing 401/409 API error codes and messages.
+- Added unit coverage for hashing, lookup/touch, invalid and missing sessions, and closed-session behavior, plus a dependency-boundary assertion.
