@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/whatsapp.php';
 require_once dirname(__DIR__) . '/app/bootstrap.php';
+require_once dirname(__DIR__) . '/app/maintenance/RetentionService.php';
 
 $base = getenv('DIMDIAN_TEST_BASE_URL') ?: 'http://127.0.0.1:8080';
 $origin = 'https://website.example.test';
@@ -69,6 +70,23 @@ $metaStatus->execute([':id' => $metaConnection['id']]);
 expect($metaStatus->fetchColumn() === 'expired', 'Meta repository marks an expired connection without deleting its audit record');
 $pdo->prepare('DELETE FROM meta_connections WHERE phone_number_id = :phone')->execute([':phone' => $metaPhoneId]);
 $pdo->prepare('DELETE FROM meta_signup_states WHERE state_sha256 = :hash')->execute([':hash' => $metaStateHash]);
+
+// Exercise every production retention DELETE path against a clean database using non-matching cutoffs.
+$retentionService = new RetentionService(retention_repository($pdo), [
+    'privacy' => [
+        'closed_conversation_retention_days' => 365,
+        'webhook_event_retention_days' => 30,
+        'expired_session_retention_days' => 30,
+    ],
+    'staff_inbox' => ['enabled' => true],
+]);
+$retentionNoop = $retentionService->run(new DateTimeImmutable('1970-01-01T00:00:00+00:00'));
+expect(
+    count($retentionNoop) === 17
+        && array_sum($retentionNoop) === 0
+        && isset($retentionNoop['staff_audit_events'], $retentionNoop['staff_auth_nonces']),
+    'retention repository executes all core and enabled optional cleanup paths without pruning newer records'
+);
 
 function request_api(string $method, string $path, ?array $body = null, array $headers = []): array
 {
