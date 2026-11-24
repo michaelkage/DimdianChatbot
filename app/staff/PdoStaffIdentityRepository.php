@@ -27,7 +27,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
             throw new InvalidArgumentException('Verified staff identity is incomplete or invalid.');
         }
 
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO staff_identities
                 (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
              VALUES
@@ -44,7 +44,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
             ':name' => $name,
             ':email' => $email,
         ]);
-        $lookup = $this->pdo->prepare(
+        $lookup = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id FROM staff_identities WHERE auth_provider = :provider AND external_subject = :subject LIMIT 1'
         );
         $lookup->execute([':provider' => strtolower($provider), ':subject' => $subject]);
@@ -57,7 +57,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
 
     public function findStaffIdentityById(string $staffIdentityId): ?array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id, auth_provider, external_subject, display_name, email, role, status
              FROM staff_identities WHERE id = :id LIMIT 1'
         );
@@ -71,7 +71,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
         if (!preg_match('/^[a-f0-9]{64}$/', $nonceHash)) {
             throw new InvalidArgumentException('Staff authentication nonce hash is invalid.');
         }
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'INSERT IGNORE INTO staff_auth_nonces (nonce_sha256, expires_at, created_at)
              VALUES (:nonce, :expires, UTC_TIMESTAMP())'
         );
@@ -81,7 +81,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
 
     public function listStaffIdentities(): array
     {
-        $query = $this->pdo->query(
+        $query = PdoSqlDialect::query($this->pdo, 
             'SELECT id, display_name, email, role, status
              FROM staff_identities
              ORDER BY status ASC, display_name ASC LIMIT 250'
@@ -103,10 +103,10 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
 
         $this->support->transaction(function () use ($targetStaffId, $actorStaffId, $role, $status, $requestId): void {
             // Serialize owner changes so two concurrent requests cannot remove the final owner.
-            $owners = $this->pdo->query(
+            $owners = PdoSqlDialect::query($this->pdo, 
                 'SELECT id FROM staff_identities WHERE role = "owner" AND status = "active" ORDER BY id FOR UPDATE'
             )->fetchAll(PDO::FETCH_COLUMN);
-            $actor = $this->pdo->prepare(
+            $actor = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
             );
             $actor->execute([':id' => $actorStaffId]);
@@ -115,7 +115,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
                 throw new RuntimeException('Only an active owner may manage staff access.');
             }
 
-            $target = $this->pdo->prepare(
+            $target = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
             );
             $target->execute([':id' => $targetStaffId]);
@@ -137,7 +137,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
                 throw new RuntimeException('The last active owner cannot be demoted or disabled.');
             }
 
-            $update = $this->pdo->prepare(
+            $update = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE staff_identities SET role = :role, status = :status, updated_at = UTC_TIMESTAMP()
                  WHERE id = :id'
             );
