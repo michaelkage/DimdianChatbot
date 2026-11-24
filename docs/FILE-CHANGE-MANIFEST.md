@@ -159,3 +159,14 @@
 - database/postgresql/optional/staff-inbox.sql — optional PostgreSQL staff inbox schema.
 - tests/postgresql-integration.php — PostgreSQL integration coverage for webhook inbox leases/binary data, Meta one-time state and token refresh, outbox completion/status reconciliation and retention statements.
 - .github/workflows/tests.yml — PostgreSQL 16 service job runs the backend-neutral public/staff acceptance suites and PostgreSQL repository integration tests alongside MySQL and WordPress compatibility jobs.
+
+- app/storage/ChatRepository.php — tenant-scoped guest session, rate-limit, consent, message polling and WhatsApp outbox capability signatures.
+- app/storage/PdoGuestSessionRepository.php — tenant-scoped guest/conversation/session creation, token lookup and session touch.
+- app/storage/PdoRateLimitRepository.php — tenant-aware composite rate-limit key.
+- app/storage/PdoConsentRepository.php — tenant-scoped consent ledger, WhatsApp identity routing and outbox cancellation.
+- app/storage/PdoVisitorMessageRepository.php — tenant-scoped message insert, idempotency lookup, conversation update and polling; tenant-aware outbox enqueue.
+- app/storage/PdoWhatsAppOutboxRepository.php — tenant ID persisted with initial outbox enqueue.
+- app/storage/PdoChatRepository.php — forwards tenant IDs through the aggregate adapter.
+- app/chat/GuestSessionService.php, ChatMessageService.php, GuestSessionAuthenticator.php, WhatsAppConsentService.php — propagate resolved tenant context through visitor-facing application operations.
+- app/bootstrap.php and app/whatsapp.php — tenant-aware helper contracts with a default-tenant compatibility path for legacy outbox callers.
+- tests/integration.php, tests/run.php, tests/staff-inbox.php — tenant boundary and updated repository-contract assertions.
