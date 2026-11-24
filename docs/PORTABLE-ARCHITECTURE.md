@@ -228,3 +228,6 @@ The aggregate `ChatRepository` contract is now composed from narrower interfaces
 ### Physical adapter decomposition
 
 The first capability now has a dedicated physical adapter: `PdoWebhookInboxRepository` owns encrypted webhook inbox enqueue, lease claiming/reclaim, completion and retry/failure persistence. `PdoChatRepository` remains the compatibility aggregate and delegates these methods using the same PDO connection. Other chat persistence operations still reside in `PdoChatRepository`; interface segregation should not be mistaken for complete physical adapter decomposition or PostgreSQL support.
+
+
+The fixed-window rate-limit capability now also has a dedicated physical adapter, `PdoRateLimitRepository`. It owns bucket hashing, window reset, atomic increment/check and transaction handling. `PdoChatRepository` delegates the aggregate method to this adapter using the same PDO connection. This is an incremental extraction; the rest of the chat SQL is not yet fully decomposed.
