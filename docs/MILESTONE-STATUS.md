@@ -267,3 +267,12 @@ Guest authentication compatibility note: the HTTP helper retains the existing 40
 ### Guest-session authentication validation
 
 [GitHub Actions run 45416831196](https://github.com/michaelkage/DimdianChatbot/actions/runs/45416831196) passed all three jobs after adding unit coverage for request-independent guest authentication and exact API error-message compatibility. The public/staff acceptance suites, MySQL integration tests, widget tests and PHP 7.4/8.2 compatibility checks passed.
+
+
+### Staff identity application service and route-boundary audit (2026-11-24)
+
+- Extracted verified external-principal resolution, local staff identity upsert/read, active-account enforcement and generated identity IDs into `StaffIdentityService`. External role claims remain ignored; locally persisted role/status remain authoritative.
+- `StaffInboxService` now delegates authentication/identity resolution to `StaffIdentityService` and retains inbox authorization and use-case orchestration. Its existing constructor and HTTP call surface remain compatible.
+- The optional staff bootstrap loads the identity service explicitly before the inbox service. The staff integration suite exercises the existing authentication, role isolation, assignment and reply policies through the new boundary.
+- Added architecture checks over the application service set to reject HTTP response helpers, request superglobals and direct PDO/SQL access. Added route checks across public and staff API handlers to reject direct PDO/SQL persistence.
+- [GitHub Actions run 45428128763](https://github.com/michaelkage/DimdianChatbot/actions/runs/45428128763) passed all three jobs after the service extraction and route-boundary checks. This includes backend-neutral public/staff acceptance, MySQL integration, widget tests and PHP 7.4/8.2 plugin compatibility.
