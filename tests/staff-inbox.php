@@ -62,6 +62,23 @@ staff_expect(
     'focused staff identity adapter implements its persistence capability'
 );
 
+staff_expect(
+    is_subclass_of(PdoStaffConversationRepository::class, StaffConversationRepository::class),
+    'focused staff conversation adapter implements its persistence capability'
+);
+staff_expect(
+    is_subclass_of(PdoStaffMessageRepository::class, StaffMessageRepository::class),
+    'focused staff message adapter implements its persistence capability'
+);
+$staffRepositoryProperties = array_map(
+    static fn(ReflectionProperty $property): string => $property->getName(),
+    (new ReflectionClass(PdoStaffInboxRepository::class))->getProperties()
+);
+staff_expect(
+    !in_array('pdo', $staffRepositoryProperties, true),
+    'staff inbox aggregate retains no direct PDO state'
+);
+
 /** @return array{status:int,stdout:string,stderr:string} */
 function staff_run_cli(array $arguments): array
 {
