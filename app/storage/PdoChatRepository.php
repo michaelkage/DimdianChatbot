@@ -17,6 +17,7 @@ final class PdoChatRepository implements ChatRepository
     private PdoVisitorMessageRepository $visitorMessages;
     private PdoProviderEventRepository $providerEvents;
     private PdoWhatsAppOutboxRepository $whatsAppOutbox;
+    private PdoMetaConnectionRepository $metaConnections;
 
     public function __construct(private PDO $pdo)
     {
@@ -27,6 +28,7 @@ final class PdoChatRepository implements ChatRepository
         $this->visitorMessages = new PdoVisitorMessageRepository($pdo);
         $this->providerEvents = new PdoProviderEventRepository($pdo);
         $this->whatsAppOutbox = new PdoWhatsAppOutboxRepository($pdo, $this->providerEvents);
+        $this->metaConnections = new PdoMetaConnectionRepository($pdo);
     }
 
     public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void
@@ -102,15 +104,7 @@ final class PdoChatRepository implements ChatRepository
 
     public function activeWhatsAppPhoneNumberId(): ?string
     {
-        $statement = $this->pdo->query(
-            'SELECT phone_number_id
-             FROM meta_connections
-             WHERE status = "active"
-             ORDER BY updated_at DESC
-             LIMIT 1'
-        );
-        $value = $statement->fetchColumn();
-        return is_string($value) && $value !== '' ? $value : null;
+        return $this->metaConnections->activePhoneNumberId();
     }
 
     public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
