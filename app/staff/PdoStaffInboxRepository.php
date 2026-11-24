@@ -4,24 +4,28 @@ declare(strict_types=1);
 require_once __DIR__ . '/StaffInboxRepository.php';
 require_once __DIR__ . '/PdoStaffPersistenceSupport.php';
 require_once __DIR__ . '/PdoStaffIdentityRepository.php';
+require_once __DIR__ . '/PdoStaffConversationRepository.php';
+require_once __DIR__ . '/PdoStaffMessageRepository.php';
 
 /**
- * MySQL/MariaDB implementation of the optional staff inbox repository.
+ * Backward-compatible composition adapter for the optional staff inbox.
  *
- * This adapter assumes one business per database installation. It must not be
- * used as a shared multi-tenant adapter.
+ * Focused PDO adapters own SQL and transactions. All adapters share one PDO
+ * connection and one persistence-support instance so multi-step operations
+ * retain their original locking and audit transaction boundaries.
  */
 final class PdoStaffInboxRepository implements StaffInboxRepository
 {
-    private PDO $pdo;
     private PdoStaffIdentityRepository $identities;
-    private PdoStaffPersistenceSupport $support;
+    private PdoStaffConversationRepository $conversations;
+    private PdoStaffMessageRepository $messages;
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo = $pdo;
-        $this->support = new PdoStaffPersistenceSupport($pdo);
-        $this->identities = new PdoStaffIdentityRepository($pdo, $this->support);
+        $support = new PdoStaffPersistenceSupport($pdo);
+        $this->identities = new PdoStaffIdentityRepository($pdo, $support);
+        $this->conversations = new PdoStaffConversationRepository($pdo, $support);
+        $this->messages = new PdoStaffMessageRepository($pdo, $support);
     }
 
     public function upsertStaffIdentity(array $identity): string
@@ -36,13 +40,7 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
 
     public function getActiveAssignee(string $conversationId): ?string
     {
-        $query = $this->pdo->prepare(
-            'SELECT staff_identity_id FROM staff_conversation_assignments
-             WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1'
-        );
-        $query->execute([':conversation' => $conversationId]);
-        $staffId = $query->fetchColumn();
-        return is_string($staffId) ? $staffId : null;
+        return $this->conversations->getActiveAssignee($conversationId);
     }
 
     public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool
@@ -65,36 +63,13 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         $this->identities->updateStaffIdentityAccess($targetStaffId, $actorStaffId, $role, $status, $requestId);
     }
 
-    public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array
-    {
-        $query = $this->pdo->prepare(
-            'SELECT m.sequence_id, m.id, m.sender_type, m.body, m.delivery_status, m.sent_at,
-                    author.display_name AS staff_author_name
-             FROM messages m
-             LEFT JOIN staff_message_authors sa ON sa.message_id = m.id
-             LEFT JOIN staff_identities author ON author.id = sa.staff_identity_id
-             WHERE m.conversation_id = :conversation AND m.sequence_id > :after_sequence
-               AND (:assignment_required = 0 OR EXISTS (
-                   SELECT 1 FROM staff_conversation_assignments access
-                   WHERE access.conversation_id = m.conversation_id
-                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
-               ))
-             ORDER BY m.sequence_id ASC LIMIT ' . (max(1, min(100, $limit)) + 1)
-        );
-        $query->execute([
-            ':conversation' => $conversationId,
-            ':after_sequence' => max(0, $afterSequence),
-            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
-            ':required_assignee' => $requiredAssigneeId,
-        ]);
-        $rows = $query->fetchAll();
-        $hasMore = count($rows) > max(1, min(100, $limit));
-        if ($hasMore) $rows = array_slice($rows, 0, max(1, min(100, $limit)));
-        return [
-            'items' => $rows,
-            'has_more' => $hasMore,
-            'next_cursor' => $rows === [] ? $afterSequence : (int)$rows[array_key_last($rows)]['sequence_id'],
-        ];
+    public function listConversationMessages(
+        string $conversationId,
+        int $afterSequence,
+        int $limit,
+        ?string $requiredAssigneeId = null
+    ): array {
+        return $this->messages->listConversationMessages($conversationId, $afterSequence, $limit, $requiredAssigneeId);
     }
 
     public function listConversations(
@@ -105,49 +80,14 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         bool $includeUnassigned = false,
         string $search = ''
     ): array {
-        if (!in_array($status, ['open', 'closed', 'all'], true)) {
-            throw new InvalidArgumentException('Unsupported conversation status filter.');
-        }
-        $limit = max(1, min(100, $limit));
-        $search = trim($search);
-        if (self::characterLength($search) > 100) throw new InvalidArgumentException('Search text is too long.');
-        $like = '%' . strtr($search, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
-        $sql = 'SELECT c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
-                       g.display_name AS visitor_name, g.phone AS visitor_phone,
-                       COALESCE(MAX(m.sequence_id), 0) AS latest_sequence,
-                       a.staff_identity_id AS assigned_staff_id,
-                       assigned.display_name AS assigned_staff_name
-                FROM conversations c
-                INNER JOIN guests g ON g.id = c.guest_id
-                LEFT JOIN messages m ON m.conversation_id = c.id
-                LEFT JOIN staff_conversation_assignments a
-                    ON a.conversation_id = c.id AND a.ended_at IS NULL
-                LEFT JOIN staff_identities assigned ON assigned.id = a.staff_identity_id
-                WHERE (:status_all = 1 OR c.status = :status_value)
-                  AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff OR (:include_unassigned = 1 AND a.staff_identity_id IS NULL))
-                  AND (:search_empty = 1 OR g.display_name LIKE :search_name ESCAPE \'!\' OR g.phone LIKE :search_phone ESCAPE \'!\'
-                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.conversation_id = c.id AND sm.body LIKE :search_message ESCAPE \'!\'))
-                GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
-                         g.display_name, g.phone, a.staff_identity_id, assigned.display_name
-                HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
-                    OR (:after_sequence_empty = 0 AND COALESCE(MAX(m.sequence_id), 0) = 0)
-                ORDER BY latest_sequence DESC, c.updated_at DESC
-                LIMIT ' . $limit;
-        $query = $this->pdo->prepare($sql);
-        $query->execute([
-            ':status_all' => $status === 'all' ? 1 : 0,
-            ':status_value' => $status,
-            ':assigned_filter' => $assignedStaffId === null ? 1 : 0,
-            ':assigned_staff' => $assignedStaffId,
-            ':include_unassigned' => $includeUnassigned ? 1 : 0,
-            ':search_empty' => $search === '' ? 1 : 0,
-            ':search_name' => $like,
-            ':search_phone' => $like,
-            ':search_message' => $like,
-            ':after_sequence' => max(0, $afterSequence),
-            ':after_sequence_empty' => max(0, $afterSequence),
-        ]);
-        return $query->fetchAll();
+        return $this->conversations->listConversations(
+            $status,
+            $assignedStaffId,
+            $afterSequence,
+            $limit,
+            $includeUnassigned,
+            $search
+        );
     }
 
     public function assignConversation(
@@ -156,100 +96,16 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $actorStaffId,
         ?string $requestId = null
     ): void {
-        $this->transaction(function () use ($conversationId, $staffIdentityId, $actorStaffId, $requestId): void {
-            $conversation = $this->pdo->prepare(
-                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
-            );
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() !== 'open') {
-                throw new RuntimeException('Only an existing open conversation can be assigned.');
-            }
-            $this->requireActiveStaff($staffIdentityId);
-            $this->requireActiveStaff($actorStaffId);
-
-            $end = $this->pdo->prepare(
-                'UPDATE staff_conversation_assignments
-                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation AND ended_at IS NULL'
-            );
-            $end->execute([':conversation' => $conversationId]);
-
-            $insert = $this->pdo->prepare(
-                'INSERT INTO staff_conversation_assignments
-                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
-            );
-            $insert->execute([
-                ':conversation_id' => $conversationId,
-                ':active_conversation_id' => $conversationId,
-                ':staff' => $staffIdentityId,
-                ':actor' => $actorStaffId,
-            ]);
-            $this->recordAudit($actorStaffId, $conversationId, 'conversation.assigned', $staffIdentityId, [], $requestId);
-        });
+        $this->conversations->assignConversation($conversationId, $staffIdentityId, $actorStaffId, $requestId);
     }
 
-    public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
-    {
-        return $this->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
-            $conversation = $this->pdo->prepare(
-                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
-            );
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() !== 'open') {
-                throw new RuntimeException('Only an existing open conversation can be self-assigned.');
-            }
-            $this->requireActiveStaff($staffIdentityId);
-
-            $current = $this->pdo->prepare(
-                'SELECT staff_identity_id FROM staff_conversation_assignments
-                 WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1 FOR UPDATE'
-            );
-            $current->execute([':conversation' => $conversationId]);
-            $assignee = $current->fetchColumn();
-            if (is_string($assignee) && $assignee !== '') {
-                return hash_equals($assignee, $staffIdentityId);
-            }
-
-            $insert = $this->pdo->prepare(
-                'INSERT INTO staff_conversation_assignments
-                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
-            );
-            $insert->execute([
-                ':conversation_id' => $conversationId,
-                ':active_conversation_id' => $conversationId,
-                ':staff' => $staffIdentityId,
-                ':actor' => $staffIdentityId,
-            ]);
-            $this->recordAudit($staffIdentityId, $conversationId, 'conversation.assigned', $staffIdentityId, ['self_assigned' => true], $requestId);
-            return true;
-        });
-    }
-
-    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
-    {
-        $query = $this->pdo->prepare(
-            'SELECT a.id, a.staff_identity_id, a.assigned_by_staff_id, a.assigned_at, a.ended_at,
-                    assignee.display_name AS assignee_name, assigner.display_name AS assigned_by_name
-             FROM staff_conversation_assignments a
-             INNER JOIN staff_identities assignee ON assignee.id = a.staff_identity_id
-             INNER JOIN staff_identities assigner ON assigner.id = a.assigned_by_staff_id
-             WHERE a.conversation_id = :conversation AND a.id > :after_id
-               AND (:assignment_required = 0 OR EXISTS (
-                   SELECT 1 FROM staff_conversation_assignments access
-                   WHERE access.conversation_id = a.conversation_id
-                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
-               ))
-             ORDER BY a.id ASC LIMIT ' . max(1, min(100, $limit))
-        );
-        $query->execute([
-            ':conversation' => $conversationId,
-            ':after_id' => max(0, $afterId),
-            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
-            ':required_assignee' => $requiredAssigneeId,
-        ]);
-        return $query->fetchAll();
+    public function listAssignmentHistory(
+        string $conversationId,
+        int $afterId,
+        int $limit,
+        ?string $requiredAssigneeId = null
+    ): array {
+        return $this->conversations->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssigneeId);
     }
 
     public function unassignConversation(
@@ -257,44 +113,23 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $actorStaffId,
         ?string $requestId = null
     ): bool {
-        return $this->transaction(function () use ($conversationId, $actorStaffId, $requestId): bool {
-            $this->requireActiveStaff($actorStaffId);
-            $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() === false) return false;
-            $query = $this->pdo->prepare(
-                'UPDATE staff_conversation_assignments
-                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation AND ended_at IS NULL'
-            );
-            $query->execute([':conversation' => $conversationId]);
-            if ($query->rowCount() !== 1) return false;
-            $this->recordAudit($actorStaffId, $conversationId, 'conversation.unassigned', null, [], $requestId);
-            return true;
-        });
+        return $this->conversations->unassignConversation($conversationId, $actorStaffId, $requestId);
     }
 
-    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
-    {
-        return $this->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
-            $conversation = $this->pdo->prepare(
-                'SELECT id FROM conversations WHERE id = :id FOR UPDATE'
-            );
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() === false) return false;
-            $this->requireActiveStaff($staffIdentityId);
+    public function selfAssignConversation(
+        string $conversationId,
+        string $staffIdentityId,
+        ?string $requestId = null
+    ): bool {
+        return $this->conversations->selfAssignConversation($conversationId, $staffIdentityId, $requestId);
+    }
 
-            $query = $this->pdo->prepare(
-                'UPDATE staff_conversation_assignments
-                 SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation
-                   AND staff_identity_id = :staff AND ended_at IS NULL'
-            );
-            $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
-            if ($query->rowCount() !== 1) return false;
-            $this->recordAudit($staffIdentityId, $conversationId, 'conversation.unassigned', null, ['self_unassigned' => true], $requestId);
-            return true;
-        });
+    public function unassignOwnConversation(
+        string $conversationId,
+        string $staffIdentityId,
+        ?string $requestId = null
+    ): bool {
+        return $this->conversations->unassignOwnConversation($conversationId, $staffIdentityId, $requestId);
     }
 
     public function addInternalNote(
@@ -305,231 +140,36 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         ?string $requestId = null,
         bool $requireAssignment = false
     ): bool {
-        $body = trim($body);
-        if (!self::isUuid($id) || $body === '' || self::characterLength($body) > 10000) {
-            throw new InvalidArgumentException('Internal note ID or body is invalid.');
-        }
-
-        return $this->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId, $requireAssignment): bool {
-            $this->requireActiveStaff($authorStaffId);
-            $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() === false) throw new RuntimeException('Conversation does not exist.');
-            if ($requireAssignment) $this->requireActiveAssignment($conversationId, $authorStaffId);
-            $existing = $this->pdo->prepare(
-                'SELECT conversation_id, author_staff_id, body
-                 FROM staff_internal_notes WHERE id = :id LIMIT 1'
-            );
-            $existing->execute([':id' => $id]);
-            $prior = $existing->fetch();
-            if (is_array($prior)) {
-                if ($prior['conversation_id'] !== $conversationId
-                    || $prior['author_staff_id'] !== $authorStaffId
-                    || !hash_equals((string)$prior['body'], $body)) {
-                    throw new ChatStorageConflict('The note ID was already used for different content.');
-                }
-                return false;
-            }
-            $insert = $this->pdo->prepare(
-                'INSERT INTO staff_internal_notes
-                    (id, conversation_id, author_staff_id, body, created_at)
-                 VALUES (:id, :conversation, :author, :body, UTC_TIMESTAMP())'
-            );
-            $insert->execute([
-                ':id' => $id,
-                ':conversation' => $conversationId,
-                ':author' => $authorStaffId,
-                ':body' => $body,
-            ]);
-            $this->recordAudit($authorStaffId, $conversationId, 'note.created', null, ['note_id' => $id], $requestId);
-            return true;
-        });
-    }
-
-    public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
-    {
-        $query = $this->pdo->prepare(
-            'SELECT n.id, n.sequence_id, n.body, n.created_at,
-                    s.id AS author_id, s.display_name AS author_name
-             FROM staff_internal_notes n
-             INNER JOIN staff_identities s ON s.id = n.author_staff_id
-             WHERE n.conversation_id = :conversation AND n.sequence_id > :after_id
-               AND (:assignment_required = 0 OR EXISTS (
-                   SELECT 1 FROM staff_conversation_assignments access
-                   WHERE access.conversation_id = n.conversation_id
-                     AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
-               ))
-             ORDER BY n.sequence_id ASC LIMIT ' . max(1, min(100, $limit))
+        return $this->messages->addInternalNote(
+            $id,
+            $conversationId,
+            $authorStaffId,
+            $body,
+            $requestId,
+            $requireAssignment
         );
-        $query->execute([
-            ':conversation' => $conversationId,
-            ':after_id' => max(0, $afterId),
-            ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
-            ':required_assignee' => $requiredAssigneeId,
-        ]);
-        return $query->fetchAll();
     }
 
-    public function createStaffReply(array $message, string $staffIdentityId, ?string $requestId = null, bool $requireAssignment = false): array
-    {
-        $id = (string)($message['id'] ?? '');
-        $conversationId = (string)($message['conversation_id'] ?? '');
-        $clientMessageId = (string)($message['client_message_id'] ?? '');
-        $body = trim((string)($message['body'] ?? ''));
-        if (!self::isUuid($id) || !self::isUuid($clientMessageId) || $body === ''
-            || self::characterLength($body) > 5000) {
-            throw new InvalidArgumentException('Staff reply ID or body is invalid.');
-        }
+    public function listInternalNotes(
+        string $conversationId,
+        int $afterId,
+        int $limit,
+        ?string $requiredAssigneeId = null
+    ): array {
+        return $this->messages->listInternalNotes($conversationId, $afterId, $limit, $requiredAssigneeId);
+    }
 
-        return $this->transaction(function () use (
-            $id, $conversationId, $clientMessageId, $body, $staffIdentityId, $requestId, $requireAssignment
-        ): array {
-            $this->requireActiveStaff($staffIdentityId);
-            $conversation = $this->pdo->prepare(
-                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
-            );
-            $conversation->execute([':id' => $conversationId]);
-            if ($conversation->fetchColumn() !== 'open') {
-                throw new RuntimeException('Cannot reply to a missing or closed conversation.');
-            }
-            if ($requireAssignment) $this->requireActiveAssignment($conversationId, $staffIdentityId);
-
-            $existing = $this->pdo->prepare(
-                'SELECT m.id, m.conversation_id, m.client_message_id, m.sender_type, m.body,
-                        m.delivery_status, m.sent_at, m.sequence_id,
-                        author.staff_identity_id AS staff_author_id
-                 FROM messages m
-                 LEFT JOIN staff_message_authors author ON author.message_id = m.id
-                 WHERE m.conversation_id = :conversation AND m.client_message_id = :client_id LIMIT 1'
-            );
-            $existing->execute([':conversation' => $conversationId, ':client_id' => $clientMessageId]);
-            $prior = $existing->fetch();
-            if (is_array($prior)) {
-                if ($prior['sender_type'] !== 'business'
-                    || $prior['staff_author_id'] !== $staffIdentityId
-                    || !hash_equals((string)$prior['body'], $body)) {
-                    throw new ChatStorageConflict('The client message ID was already used for different content.');
-                }
-                unset($prior['staff_author_id']);
-                return ['message' => $prior, 'inserted' => false, 'transport' => 'web_only'];
-            }
-
-            $insert = $this->pdo->prepare(
-                'INSERT INTO messages
-                    (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
-                 VALUES (:id, :conversation, :client_id, "business", :body, "web_only", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-            );
-            $insert->execute([
-                ':id' => $id,
-                ':conversation' => $conversationId,
-                ':client_id' => $clientMessageId,
-                ':body' => $body,
-            ]);
-            $author = $this->pdo->prepare(
-                'INSERT INTO staff_message_authors (message_id, staff_identity_id) VALUES (:message, :staff)'
-            );
-            $author->execute([':message' => $id, ':staff' => $staffIdentityId]);
-            $activity = $this->pdo->prepare(
-                'UPDATE conversations SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :id'
-            );
-            $activity->execute([':id' => $conversationId]);
-            $this->recordAudit($staffIdentityId, $conversationId, 'message.staff_reply_created', null, ['message_id' => $id], $requestId);
-
-            $read = $this->pdo->prepare(
-                'SELECT id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, sequence_id
-                 FROM messages WHERE id = :id'
-            );
-            $read->execute([':id' => $id]);
-            return ['message' => $read->fetch(), 'inserted' => true, 'transport' => 'web_only'];
-        });
+    public function createStaffReply(
+        array $message,
+        string $staffIdentityId,
+        ?string $requestId = null,
+        bool $requireAssignment = false
+    ): array {
+        return $this->messages->createStaffReply($message, $staffIdentityId, $requestId, $requireAssignment);
     }
 
     public function listAuditEvents(string $conversationId, int $afterId, int $limit): array
     {
-        $query = $this->pdo->prepare(
-            'SELECT e.id, e.event_type, e.target_staff_id, e.metadata_json, e.request_id, e.created_at,
-                    actor.display_name AS actor_name, target.display_name AS target_name
-             FROM staff_audit_events e
-             INNER JOIN staff_identities actor ON actor.id = e.actor_staff_id
-             LEFT JOIN staff_identities target ON target.id = e.target_staff_id
-             WHERE e.conversation_id = :conversation AND e.id > :after_id
-             ORDER BY e.id ASC LIMIT ' . max(1, min(100, $limit))
-        );
-        $query->execute([':conversation' => $conversationId, ':after_id' => max(0, $afterId)]);
-        return $query->fetchAll();
-    }
-
-    private function requireActiveStaff(string $staffIdentityId): void
-    {
-        $query = $this->pdo->prepare(
-            'SELECT status FROM staff_identities WHERE id = :id LIMIT 1'
-        );
-        $query->execute([':id' => $staffIdentityId]);
-        if ($query->fetchColumn() !== 'active') {
-            throw new RuntimeException('Staff identity is missing or disabled.');
-        }
-    }
-
-    /** Must be called after locking the parent conversation row in the same transaction. */
-    private function requireActiveAssignment(string $conversationId, string $staffIdentityId): void
-    {
-        $query = $this->pdo->prepare(
-            'SELECT 1 FROM staff_conversation_assignments
-             WHERE conversation_id = :conversation AND staff_identity_id = :staff
-               AND ended_at IS NULL LIMIT 1 FOR UPDATE'
-        );
-        $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
-        if ($query->fetchColumn() === false) {
-            throw new StaffInboxAssignmentException('Conversation is no longer assigned to this staff identity.');
-        }
-    }
-
-    private function recordAudit(
-        string $actorStaffId,
-        ?string $conversationId,
-        string $eventType,
-        ?string $targetStaffId,
-        array $metadata,
-        ?string $requestId
-    ): void {
-        $query = $this->pdo->prepare(
-            'INSERT INTO staff_audit_events
-                (actor_staff_id, conversation_id, event_type, target_staff_id, metadata_json, request_id, created_at)
-             VALUES (:actor, :conversation, :event, :target, :metadata, :request_id, UTC_TIMESTAMP())'
-        );
-        $query->execute([
-            ':actor' => $actorStaffId,
-            ':conversation' => $conversationId,
-            ':event' => $eventType,
-            ':target' => $targetStaffId,
-            ':metadata' => $metadata === [] ? null : json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-            ':request_id' => $requestId,
-        ]);
-    }
-
-    private function transaction(callable $operation): mixed
-    {
-        $ownsTransaction = !$this->pdo->inTransaction();
-        if ($ownsTransaction) $this->pdo->beginTransaction();
-        try {
-            $result = $operation();
-            if ($ownsTransaction) $this->pdo->commit();
-            return $result;
-        } catch (Throwable $error) {
-            if ($ownsTransaction && $this->pdo->inTransaction()) $this->pdo->rollBack();
-            throw $error;
-        }
-    }
-
-    private static function isUuid(string $value): bool
-    {
-        return (bool)preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $value);
-    }
-
-    private static function characterLength(string $value): int
-    {
-        $count = preg_match_all('/./us', $value);
-        if ($count === false) throw new InvalidArgumentException('Text must be valid UTF-8.');
-        return $count;
+        return $this->messages->listAuditEvents($conversationId, $afterId, $limit);
     }
 }
