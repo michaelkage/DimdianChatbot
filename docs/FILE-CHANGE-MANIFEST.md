@@ -125,3 +125,6 @@
 - app/bootstrap.php — loads Meta connection contracts/adapters before the ChatRepository aggregate that composes them.
 
 - app/storage/PdoChatRepository.php — composition-only compatibility aggregate; wires focused PDO capability adapters and delegates the legacy ChatRepository contract without SQL or direct PDO state.
+
+- app/storage/PdoVisitorMessageRepository.php — composes WhatsAppOutboxRepository for the optional outbox insert inside the visitor-message transaction, eliminating duplicate outbox SQL.
+- app/storage/PdoChatRepository.php — constructs the outbox adapter before the visitor-message adapter and injects the shared outbox capability.
