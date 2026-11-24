@@ -1,0 +1,50 @@
+name: WordPress plugin package
+
+on:
+  push:
+    tags:
+      - 'chatbridge-widget-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate plugin PHP
+        run: |
+          find wordpress-plugin/chatbridge-widget -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Validate plugin JavaScript
+        run: |
+          find wordpress-plugin/chatbridge-widget -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Build installable ZIP
+        run: |
+          mkdir -p dist
+          cd wordpress-plugin
+          zip -r ../dist/chatbridge-widget.zip chatbridge-widget
+
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatbridge-widget-${{ github.ref_name }}
+          path: dist/chatbridge-widget.zip
+          if-no-files-found: error
+          retention-days: 30
