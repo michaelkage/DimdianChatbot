@@ -143,6 +143,8 @@ final class MetaEmbeddedSignupService
             : null;
 
         if ($expiry !== null && $expiry <= time() + 7 * 86400) {
+            $refreshedToken = null;
+            $refreshedExpiry = null;
             try {
                 $appId = (string) $this->configValue('meta.app_id');
                 $secret = (string) $this->configValue('whatsapp.app_secret');
@@ -157,23 +159,30 @@ final class MetaEmbeddedSignupService
                     'fb_exchange_token' => $token,
                 ]);
                 $refreshed = $this->graph->get($url);
-                $token = (string) ($refreshed['access_token'] ?? '');
-                if ($token === '') {
+                $refreshedToken = (string) ($refreshed['access_token'] ?? '');
+                if ($refreshedToken === '') {
                     throw new RuntimeException('Meta token refresh returned an empty access token.');
                 }
                 $expires = max(0, (int) ($refreshed['expires_in'] ?? 0));
-                $this->repository->updateAccessToken(
-                    (int) $row['id'],
-                    $this->cipher->seal($token),
-                    $expires ? gmdate('Y-m-d H:i:s', time() + $expires) : null
-                );
-                $expiry = $expires ? time() + $expires : null;
+                $refreshedExpiry = $expires ? time() + $expires : null;
             } catch (Throwable $error) {
                 error_log('[DimdianChatbot] Meta token refresh attempt failed: ' . $error->getMessage());
-                if ($expiry !== null && $expiry <= time()) {
+                if ($expiry <= time()) {
                     $this->repository->markConnectionExpired((int) $row['id']);
                     throw new RuntimeException('The connected Meta token has expired. Reconnect WhatsApp.');
                 }
+            }
+
+            // Persistence failures are not treated as provider refresh failures: do not silently
+            // continue with a token that was never durably stored or whose connection was revoked.
+            if ($refreshedToken !== null) {
+                $this->repository->updateAccessToken(
+                    (int) $row['id'],
+                    $this->cipher->seal($refreshedToken),
+                    $refreshedExpiry !== null ? gmdate('Y-m-d H:i:s', $refreshedExpiry) : null
+                );
+                $token = $refreshedToken;
+                $expiry = $refreshedExpiry;
             }
         }
 
