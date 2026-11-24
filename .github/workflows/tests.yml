@@ -214,6 +214,8 @@ jobs:
         run: node tests/api-acceptance.mjs
       - name: Run the same backend-neutral staff API acceptance suite
         run: node tests/staff-api-acceptance.mjs
+      - name: Run PostgreSQL repository transaction and storage integration tests
+        run: php tests/postgresql-integration.php
       - name: Run database-independent architecture and service tests
         run: php tests/run.php
       - name: Print PostgreSQL API diagnostics on failure
