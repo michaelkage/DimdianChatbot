@@ -1,0 +1,697 @@
+openapi: 3.1.0
+info:
+  title: Dimdian Website Chat API
+  version: 1.0.0
+  summary: Versioned public website-chat API
+  description: >-
+    Canonical v1 contract for guest sessions, visitor messages, WhatsApp consent,
+    operational health, Meta webhook delivery and administrator-only Meta
+    Embedded Signup. The legacy /api/*.php aliases execute the same handlers.
+    The optional staff inbox is documented separately and is not yet included
+    in this core-widget OpenAPI surface.
+servers:
+  - url: https://chat.example.com/api/v1
+    description: Replace with the deployed Dimdian API origin.
+tags:
+  - name: Conversation
+    description: Guest session and visitor conversation operations.
+  - name: Privacy
+    description: Visitor WhatsApp consent controls.
+  - name: Operations
+    description: Read-only operational diagnostics.
+  - name: Meta
+    description: Meta webhook and administrator onboarding operations.
+paths:
+  /session.php:
+    post:
+      tags: [Conversation]
+      operationId: createGuestSession
+      summary: Create a guest conversation session
+      description: >-
+        No account, password, phone verification or OTP is required. A random
+        session token is returned once; only its SHA-256 hash is persisted.
+        Supplying a phone requires an international + or 00 country-code prefix.
+        WhatsApp opt-in requires a phone number.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+            examples:
+              websiteOnly:
+                value:
+                  name: Ada
+                  whatsapp_opt_in: false
+              whatsappOptIn:
+                value:
+                  name: Ada
+                  phone: '+2348012345678'
+                  whatsapp_opt_in: true
+      responses:
+        '201':
+          description: Guest session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /messages.php:
+    get:
+      tags: [Conversation]
+      operationId: pollConversationMessages
+      summary: Poll messages and visitor delivery states
+      security:
+        - GuestSessionToken: []
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: Non-negative ascending sequence cursor.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Conversation page and latest visitor delivery updates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Conversation]
+      operationId: sendVisitorMessage
+      summary: Persist a visitor message
+      description: >-
+        A successful response confirms database persistence, not WhatsApp
+        delivery. When outbound WhatsApp is enabled and the visitor has
+        explicitly opted in, an outbox job is created atomically with the
+        message. Otherwise the message is website-only. Repeating the same
+        client_message_id and body returns the original record; reusing the ID
+        with different content returns 409.
+      security:
+        - GuestSessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: New message persisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendMessageResponse'
+        '200':
+          description: Idempotent replay; original message returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendMessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Idempotency conflict or closed conversation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /consent.php:
+    post:
+      tags: [Privacy]
+      operationId: updateWhatsAppConsent
+      summary: Opt in or out of WhatsApp continuation
+      description: >-
+        Opting in requires a valid international phone number already stored
+        on the guest session. Opting out does not close website chat; it clears
+        current consent, deactivates the active WhatsApp identity route and
+        cancels queued outbound sends for the guest.
+      security:
+        - GuestSessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsentRequest'
+      responses:
+        '200':
+          description: Consent transition recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /health.php:
+    get:
+      tags: [Operations]
+      operationId: getHealth
+      summary: Read chat API health and queue metrics
+      description: >-
+        Checks the PHP chat API runtime, required MySQL tables and queue counts.
+        It does not test WordPress, WooCommerce, Paystack, Meta connectivity or
+        live WhatsApp delivery.
+      responses:
+        '200':
+          description: Required schema and runtime checks are healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Database unavailable, schema incomplete or runtime dependency missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /webhook.php:
+    get:
+      tags: [Meta]
+      operationId: verifyMetaWebhook
+      summary: Complete Meta webhook verification handshake
+      parameters:
+        - name: hub.mode
+          in: query
+          required: true
+          schema:
+            type: string
+            const: subscribe
+        - name: hub.verify_token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plain-text challenge echoed after verify-token validation.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '403':
+          description: Verification token rejected.
+          content:
+            text/plain:
+              schema:
+                type: string
+    post:
+      tags: [Meta]
+      operationId: receiveMetaWebhook
+      summary: Receive a signed WhatsApp Business webhook
+      description: >-
+        The signature is HMAC-SHA256 over the exact raw request bytes. The
+        validated raw payload is encrypted and committed to the durable inbox
+        before acknowledgement. Processing is at-least-once with provider-event
+        idempotency and a recovery worker.
+      parameters:
+        - name: X-Hub-Signature-256
+          in: header
+          required: true
+          description: Meta signature in the form sha256=<hex digest>.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object, entry]
+              properties:
+                object:
+                  type: string
+                  const: whatsapp_business_account
+                entry:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+              additionalProperties: true
+      responses:
+        '200':
+          description: Signed payload durably accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcknowledgement'
+        '400':
+          description: Invalid JSON or unsupported webhook envelope.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Signature invalid.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '413':
+          description: Payload exceeds the configured one-megabyte limit.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: Unexpected webhook processing failure.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /meta-embedded-signup.php:
+    post:
+      tags: [Meta]
+      operationId: manageMetaEmbeddedSignup
+      summary: Perform administrator-only Meta onboarding operations
+      description: >-
+        This endpoint is server-to-server. Never expose X-DIMDIAN-ADMIN-KEY
+        in browser JavaScript. The access token is encrypted at rest and is
+        never returned to the caller.
+      security:
+        - MetaAdminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/MetaSignupBeginRequest'
+                - $ref: '#/components/schemas/MetaSignupExchangeRequest'
+                - $ref: '#/components/schemas/MetaSignupSubscribeRequest'
+      responses:
+        '200':
+          description: Meta onboarding operation completed.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MetaSignupBeginResponse'
+                  - $ref: '#/components/schemas/MetaSignupExchangeResponse'
+                  - $ref: '#/components/schemas/MetaSignupSubscribeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '502':
+          description: Meta onboarding operation failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    GuestSessionToken:
+      type: apiKey
+      in: header
+      name: X-DIMDIAN-GUEST-TOKEN
+      description: 256-bit random guest token returned once by session creation.
+    MetaAdminKey:
+      type: apiKey
+      in: header
+      name: X-DIMDIAN-ADMIN-KEY
+      description: Private server-side administrator key; never use from a browser.
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: Content-Type must be application/json.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request fields or values are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Request rate limit exceeded.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Minimum seconds before retrying.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Unexpected server failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+      additionalProperties: true
+    CreateSessionRequest:
+      type: object
+      properties:
+        name:
+          type: [string, 'null']
+          maxLength: 100
+        phone:
+          type: [string, 'null']
+          maxLength: 32
+          description: International number prefixed by + or 00.
+          examples: ['+2348012345678']
+        whatsapp_opt_in:
+          type: boolean
+          default: false
+      additionalProperties: false
+    SessionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [session_id, conversation_id, session_token, expires_at, created_at, whatsapp_opt_in]
+          properties:
+            session_id:
+              type: string
+              format: uuid
+            conversation_id:
+              type: string
+              format: uuid
+            session_token:
+              type: string
+              pattern: '^[a-f0-9]{64}$'
+              description: Returned once. Do not store in a URL or log.
+            expires_at:
+              type: string
+              format: date-time
+            created_at:
+              type: string
+              format: date-time
+            whatsapp_opt_in:
+              type: boolean
+    SendMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        client_message_id:
+          type: string
+          format: uuid
+          description: Optional UUID idempotency key; generated by the server if omitted.
+      additionalProperties: false
+    VisitorMessage:
+      type: object
+      required: [id, sequence_id, conversation_id, sender, message, delivery_status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence_id:
+          type: integer
+          minimum: 1
+        conversation_id:
+          type: string
+          format: uuid
+        sender:
+          type: string
+          const: visitor
+        message:
+          type: string
+        delivery_status:
+          type: string
+          description: Persistence/delivery state; website-only messages remain web_only.
+        created_at:
+          type: string
+          format: date-time
+    SendMessageResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/VisitorMessage'
+        meta:
+          type: object
+          required: [transport, idempotent_replay, note]
+          properties:
+            transport:
+              type: string
+            idempotent_replay:
+              type: boolean
+            note:
+              type: string
+    MessagePageResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisitorMessage'
+        meta:
+          type: object
+          required: [after, next_cursor, has_more, poll_after_ms, delivery_updates]
+          properties:
+            after:
+              type: integer
+            next_cursor:
+              type: integer
+            has_more:
+              type: boolean
+            poll_after_ms:
+              type: integer
+            delivery_updates:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+    UpdateConsentRequest:
+      type: object
+      required: [whatsapp_opt_in]
+      properties:
+        whatsapp_opt_in:
+          type: boolean
+      additionalProperties: false
+    ConsentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [whatsapp_opt_in, updated_at]
+          properties:
+            whatsapp_opt_in:
+              type: boolean
+            updated_at:
+              type: string
+              format: date-time
+    HealthResponse:
+      type: object
+      required: [status, checks, missing_tables, queues, whatsapp_outbound]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded]
+        request_id:
+          type: string
+        service:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          required: [php_api, database, schema, openssl, pdo_mysql]
+          properties:
+            php_api:
+              type: string
+            database:
+              type: string
+            schema:
+              type: string
+            openssl:
+              type: string
+            pdo_mysql:
+              type: string
+        missing_tables:
+          type: array
+          items:
+            type: string
+        queues:
+          type: object
+          properties:
+            webhook_pending:
+              type: [integer, 'null']
+            webhook_failed:
+              type: [integer, 'null']
+            outbox_pending:
+              type: [integer, 'null']
+            outbox_failed:
+              type: [integer, 'null']
+        whatsapp_outbound:
+          type: string
+          enum: [enabled_in_config, disabled]
+        note:
+          type: string
+    WebhookAcknowledgement:
+      type: object
+      required: [ok, queued, inbox_id, processed, retry_scheduled]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        queued:
+          type: boolean
+        inbox_id:
+          type: integer
+        processed:
+          type: integer
+        retry_scheduled:
+          type: boolean
+    MetaSignupBeginRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          const: begin
+      additionalProperties: false
+    MetaSignupExchangeRequest:
+      type: object
+      required: [action, state, code, phone_number_id, waba_id]
+      properties:
+        action:
+          type: string
+          const: exchange
+        state:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        code:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        phone_number_id:
+          type: string
+          pattern: '^[0-9]{5,80}$'
+        waba_id:
+          type: string
+          pattern: '^[0-9]{5,80}$'
+      additionalProperties: false
+    MetaSignupSubscribeRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          const: subscribe
+      additionalProperties: false
+    MetaSignupBeginResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [app_id, config_id, graph_api_version, state, expires_in_seconds]
+          properties:
+            app_id:
+              type: string
+            config_id:
+              type: string
+            graph_api_version:
+              type: string
+            state:
+              type: string
+              pattern: '^[a-f0-9]{64}$'
+            expires_in_seconds:
+              type: integer
+              const: 600
+    MetaSignupExchangeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [connected, phone_number_id, waba_id, expires_at, webhook_subscribed]
+          properties:
+            connected:
+              type: boolean
+              const: true
+            phone_number_id:
+              type: string
+            waba_id:
+              type: string
+            expires_at:
+              type: [string, 'null']
+              format: date-time
+            webhook_subscribed:
+              type: boolean
+    MetaSignupSubscribeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [webhook_subscribed]
+          properties:
+            webhook_subscribed:
+              type: boolean
