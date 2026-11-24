@@ -15,7 +15,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
 
     public function listConversationMessages(string $conversationId, int $afterSequence, int $limit, ?string $requiredAssigneeId = null): array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT m.sequence_id, m.id, m.sender_type, m.body, m.delivery_status, m.sent_at,
                     author.display_name AS staff_author_name
              FROM messages m
@@ -60,11 +60,11 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
 
         return $this->support->transaction(function () use ($id, $conversationId, $authorStaffId, $body, $requestId, $requireAssignment): bool {
             $this->support->requireActiveStaff($authorStaffId);
-            $conversation = $this->pdo->prepare('SELECT id FROM conversations WHERE id = :id FOR UPDATE');
+            $conversation = PdoSqlDialect::prepare($this->pdo, 'SELECT id FROM conversations WHERE id = :id FOR UPDATE');
             $conversation->execute([':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) throw new RuntimeException('Conversation does not exist.');
             if ($requireAssignment) $this->support->requireActiveAssignment($conversationId, $authorStaffId);
-            $existing = $this->pdo->prepare(
+            $existing = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT conversation_id, author_staff_id, body
                  FROM staff_internal_notes WHERE id = :id LIMIT 1'
             );
@@ -78,7 +78,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
                 }
                 return false;
             }
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO staff_internal_notes
                     (id, conversation_id, author_staff_id, body, created_at)
                  VALUES (:id, :conversation, :author, :body, UTC_TIMESTAMP())'
@@ -96,7 +96,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
 
     public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT n.id, n.sequence_id, n.body, n.created_at,
                     s.id AS author_id, s.display_name AS author_name
              FROM staff_internal_notes n
@@ -133,7 +133,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
             $id, $conversationId, $clientMessageId, $body, $staffIdentityId, $requestId, $requireAssignment
         ): array {
             $this->support->requireActiveStaff($staffIdentityId);
-            $conversation = $this->pdo->prepare(
+            $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
             );
             $conversation->execute([':id' => $conversationId]);
@@ -142,7 +142,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
             }
             if ($requireAssignment) $this->support->requireActiveAssignment($conversationId, $staffIdentityId);
 
-            $existing = $this->pdo->prepare(
+            $existing = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT m.id, m.conversation_id, m.client_message_id, m.sender_type, m.body,
                         m.delivery_status, m.sent_at, m.sequence_id,
                         author.staff_identity_id AS staff_author_id
@@ -162,7 +162,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
                 return ['message' => $prior, 'inserted' => false, 'transport' => 'web_only'];
             }
 
-            $insert = $this->pdo->prepare(
+            $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO messages
                     (id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, created_at)
                  VALUES (:id, :conversation, :client_id, "business", :body, "web_only", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -173,17 +173,17 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
                 ':client_id' => $clientMessageId,
                 ':body' => $body,
             ]);
-            $author = $this->pdo->prepare(
+            $author = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO staff_message_authors (message_id, staff_identity_id) VALUES (:message, :staff)'
             );
             $author->execute([':message' => $id, ':staff' => $staffIdentityId]);
-            $activity = $this->pdo->prepare(
+            $activity = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE conversations SET last_message_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :id'
             );
             $activity->execute([':id' => $conversationId]);
             $this->support->recordAudit($staffIdentityId, $conversationId, 'message.staff_reply_created', null, ['message_id' => $id], $requestId);
 
-            $read = $this->pdo->prepare(
+            $read = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, conversation_id, client_message_id, sender_type, body, delivery_status, sent_at, sequence_id
                  FROM messages WHERE id = :id'
             );
@@ -194,7 +194,7 @@ final class PdoStaffMessageRepository implements StaffMessageRepository
 
     public function listAuditEvents(string $conversationId, int $afterId, int $limit): array
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT e.id, e.event_type, e.target_staff_id, e.metadata_json, e.request_id, e.created_at,
                     actor.display_name AS actor_name, target.display_name AS target_name
              FROM staff_audit_events e
