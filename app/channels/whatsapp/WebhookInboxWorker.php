@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Durable, replay-safe processing of signature-verified Meta webhook inbox rows.
  *
- * Each provider event is committed through ChatRepository's idempotent event
+ * Each provider event is committed through WebhookProcessingRepository's idempotent event
  * operation. If a process dies midway through a multi-event payload, a retry
  * safely skips already-recorded events and resumes the remaining events.
  */
