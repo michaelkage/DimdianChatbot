@@ -328,13 +328,13 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
  * Resolve the bearer-like guest token through the configured storage adapter.
  * The raw token is never queried or persisted; only its SHA-256 hash is used.
  */
-function authenticate_guest_session(GuestSessionRepository $repository, bool $requireOpen = true): array
+function authenticate_guest_session(GuestSessionRepository $repository, TenantContext $tenantContext, bool $requireOpen = true): array
 {
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     $token = is_string($token) ? $token : '';
 
     try {
-        return (new GuestSessionAuthenticator($repository))->authenticate($token, $requireOpen);
+        return (new GuestSessionAuthenticator($repository))->authenticate($token, $tenantContext, $requireOpen);
     } catch (GuestSessionTokenInvalid $error) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => $error->getMessage()]], 401);
     } catch (GuestSessionNotFound $error) {
