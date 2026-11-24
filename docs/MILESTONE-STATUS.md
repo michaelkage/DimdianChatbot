@@ -227,3 +227,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Removed the duplicate active-phone-number SQL from `PdoChatRepository`; its `WhatsAppIdentityRepository` compatibility method now delegates to `PdoMetaConnectionRepository::activePhoneNumberId()` on the same PDO connection.
 - Reordered bootstrap loading so the Meta connection contract and adapter are loaded before the aggregate adapter that composes them.
 - This keeps active connection selection in one storage implementation while preserving the webhook worker's existing identity capability.
+
+
+### PDO aggregate converted to composition-only adapter (2026-11-24)
+
+- After extracting the capability slices, removed the remaining transaction helper and direct PDO property from `PdoChatRepository`. It no longer executes SQL or owns transaction logic.
+- The class now only constructs the focused adapters over the same PDO connection and delegates the legacy aggregate methods. The actual MySQL/MariaDB SQL and transaction boundaries reside in the focused adapters.
+- Added a reflection regression test confirming that `PdoChatRepository` still implements `ChatRepository` but does not retain direct PDO state.
