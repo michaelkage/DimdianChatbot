@@ -74,6 +74,16 @@ check(
     'PdoWhatsAppOutboxRepository directly implements the WhatsApp outbox capability'
 );
 
+$aggregateProperties = array_map(
+    static fn(ReflectionProperty $property): string => $property->getName(),
+    (new ReflectionClass(PdoChatRepository::class))->getProperties()
+);
+check(
+    is_subclass_of(PdoChatRepository::class, ChatRepository::class)
+        && !in_array('pdo', $aggregateProperties, true),
+    'PdoChatRepository remains the aggregate contract without retaining direct PDO state'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
