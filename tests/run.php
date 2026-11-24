@@ -248,23 +248,24 @@ final class GuestSessionAuthenticatorTestRepository implements GuestSessionRepos
     {
     }
 
-    public function findGuestSessionByTokenHash(string $tokenHash): ?array
+    public function findGuestSessionByTokenHash(string $tokenHash, string $tenantId): ?array
     {
         $this->lookedUpHash = $tokenHash;
         return $this->session;
     }
 
-    public function touchGuestSession(string $sessionId): void
+    public function touchGuestSession(string $sessionId, string $tenantId): void
     {
         $this->touched[] = $sessionId;
     }
 }
 
 $authToken = str_repeat('a', 64);
+$authTenantContext = new TenantContext('00000000-0000-4000-8000-000000000001');
 $authRepository = new GuestSessionAuthenticatorTestRepository();
 $authRepository->session = ['session_id' => 'session-1', 'conversation_status' => 'open'];
 $authenticator = new GuestSessionAuthenticator($authRepository);
-$authenticatedSession = $authenticator->authenticate($authToken);
+$authenticatedSession = $authenticator->authenticate($authToken, $authTenantContext);
 check(
     $authenticatedSession['session_id'] === 'session-1'
         && $authRepository->lookedUpHash === hash('sha256', $authToken)
@@ -274,7 +275,7 @@ check(
 
 $invalidTokenRejected = false;
 try {
-    $authenticator->authenticate('not-a-token');
+    $authenticator->authenticate('not-a-token', $authTenantContext);
 } catch (GuestSessionTokenInvalid) {
     $invalidTokenRejected = true;
 }
@@ -284,7 +285,7 @@ $missingRepository = new GuestSessionAuthenticatorTestRepository();
 $missingSessionRejected = false;
 $missingSessionMessage = '';
 try {
-    (new GuestSessionAuthenticator($missingRepository))->authenticate($authToken);
+    (new GuestSessionAuthenticator($missingRepository))->authenticate($authToken, $authTenantContext);
 } catch (GuestSessionNotFound $error) {
     $missingSessionRejected = true;
     $missingSessionMessage = $error->getMessage();
@@ -301,12 +302,12 @@ $closedAuthenticator = new GuestSessionAuthenticator($closedRepository);
 $closedSessionRejected = false;
 $closedSessionMessage = '';
 try {
-    $closedAuthenticator->authenticate($authToken);
+    $closedAuthenticator->authenticate($authToken, $authTenantContext);
 } catch (GuestConversationClosed $error) {
     $closedSessionRejected = true;
     $closedSessionMessage = $error->getMessage();
 }
-$closedSessionReadable = $closedAuthenticator->authenticate($authToken, false);
+$closedSessionReadable = $closedAuthenticator->authenticate($authToken, $authTenantContext, false);
 check(
     $closedSessionRejected
         && $closedSessionMessage === 'This conversation has been closed. Start a new chat to send another message.'
