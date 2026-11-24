@@ -225,7 +225,7 @@ function client_fingerprint(): string
     return hash_hmac('sha256', $ip, $key);
 }
 
-function enforce_rate_limit(ChatRepository $repository, string $bucket, int $maxRequests, int $windowSeconds): void
+function enforce_rate_limit(RateLimitRepository $repository, string $bucket, int $maxRequests, int $windowSeconds): void
 {
     if (!$repository->consumeRateLimit($bucket, $maxRequests, $windowSeconds)) {
         header('Retry-After: ' . max(1, $windowSeconds));
@@ -270,7 +270,7 @@ function clean_optional_string(mixed $value, int $maxLength, string $field): ?st
  * Resolve the bearer-like guest token through the configured storage adapter.
  * The raw token is never queried or persisted; only its SHA-256 hash is used.
  */
-function authenticate_guest_session(ChatRepository $repository, bool $requireOpen = true): array
+function authenticate_guest_session(GuestSessionRepository $repository, bool $requireOpen = true): array
 {
     $token = $_SERVER['HTTP_X_DIMDIAN_GUEST_TOKEN'] ?? '';
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/', $token)) {
