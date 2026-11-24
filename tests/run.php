@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/app/whatsapp.php';
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 require_once dirname(__DIR__) . '/app/webhook_inbox.php';
 require_once dirname(__DIR__) . '/app/meta_signup.php';
+require_once dirname(__DIR__) . '/app/maintenance/RetentionService.php';
 
 $passed = 0;
 $failed = 0;
@@ -18,6 +19,17 @@ function check(bool $condition, string $name): void
     } else {
         $failed++;
         fwrite(STDERR, "FAIL {$name}\n");
+    }
+}
+
+final class RetentionServiceTestRepository implements RetentionRepository
+{
+    public $arguments = null;
+
+    public function prune(string $closedBefore, string $webhooksBefore, string $sessionsBefore, bool $includeStaff): array
+    {
+        $this->arguments = [$closedBefore, $webhooksBefore, $sessionsBefore, $includeStaff];
+        return ['pruned' => 0];
     }
 }
 
@@ -157,6 +169,27 @@ try {
     $metaGraphHeaderRejected = true;
 }
 check($metaGraphHeaderRejected, 'Meta Graph client rejects CR/LF in bearer tokens');
+$retentionTestRepository = new RetentionServiceTestRepository();
+$retentionService = new RetentionService($retentionTestRepository, [
+    'privacy' => [
+        'closed_conversation_retention_days' => 1,
+        'webhook_event_retention_days' => 999,
+        'expired_session_retention_days' => 999,
+    ],
+    'staff_inbox' => ['enabled' => true],
+]);
+$retentionResult = $retentionService->run(new DateTimeImmutable('2026-01-31T12:00:00+00:00'));
+check(
+    $retentionResult === ['pruned' => 0]
+        && $retentionTestRepository->arguments === [
+            '2026-01-01 12:00:00',
+            '2025-01-31 12:00:00',
+            '2025-08-04 12:00:00',
+            true,
+        ],
+    'Retention service clamps configured windows, calculates UTC cutoffs and gates optional staff cleanup'
+);
+
 $serviceRepository = new MetaServiceTestRepository();
 $serviceGraph = new MetaServiceTestGraph();
 $serviceConfig = [
