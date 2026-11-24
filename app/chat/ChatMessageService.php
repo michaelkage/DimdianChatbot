@@ -61,7 +61,6 @@ final class ChatMessageService
             && $visitorOptedIn;
 
         $result = $this->repository->createVisitorMessage([
-            'tenant_id' => (string) $session['tenant_id'],
             'id' => $this->uuidV4(),
             'conversation_id' => (string) $session['conversation_id'],
             'client_message_id' => $clientMessageId,
