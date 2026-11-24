@@ -23,7 +23,7 @@ final class ChatMessageService
     private $config;
 
     /** @param array<string,mixed> $config */
-    public function __construct(ChatRepository $repository, array $config)
+    public function __construct(VisitorMessagingRepository $repository, array $config)
     {
         $this->repository = $repository;
         $this->config = $config;
