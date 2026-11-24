@@ -12,6 +12,7 @@ WordPress and WooCommerce are the first major distribution and commerce integrat
 - A visitor can start as a guest without creating an account.
 - The widget communicates with a configured ChatBridge API endpoint.
 - The business can configure branding, welcome text and supported widget behaviour.
+- A business may explicitly enable a bounded browser-side offline message queue; it is disabled by default and is not a guaranteed delivery channel.
 - Website chat does not require WhatsApp or AI.
 - The widget can be served by ChatBridge or self-hosted by the business.
 - Conversation history and session behaviour are controlled by the configured backend.
