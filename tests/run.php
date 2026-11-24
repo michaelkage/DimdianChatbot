@@ -69,6 +69,11 @@ check(
     'PdoProviderEventRepository directly implements the provider-event capability'
 );
 
+check(
+    is_subclass_of(PdoWhatsAppOutboxRepository::class, WhatsAppOutboxRepository::class),
+    'PdoWhatsAppOutboxRepository directly implements the WhatsApp outbox capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
