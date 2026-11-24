@@ -121,8 +121,8 @@ const assignB = await staffRequest("assignments.php", agentB, "POST", {
   action: "assign",
   staff_identity_id: meB.body.data.id,
 });
-check(assignA.status === 200 && assignA.body?.data?.assigned === true, "agent can self-assign an unassigned conversation");
-check(assignB.status === 200 && assignB.body?.data?.assigned === true, "second agent can self-assign a different conversation");
+check(assignA.status === 200 && assignA.body?.data?.assigned === true, "agent can self-assign an unassigned conversation; response=" + JSON.stringify(assignA));
+check(assignB.status === 200 && assignB.body?.data?.assigned === true, "second agent can self-assign a different conversation; response=" + JSON.stringify(assignB));
 
 const scopedInboxA = await staffRequest("inbox.php?status=open", agentA);
 check(
