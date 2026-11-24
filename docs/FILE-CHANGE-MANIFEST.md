@@ -63,7 +63,7 @@
 - app/chat/GuestSessionService.php — session creation, one-time token generation/hash persistence, expiry and rate-limit signaling.
 - app/chat/ChatMessageService.php — visitor message send/poll orchestration, consent-aware outbound eligibility and idempotency.
 - app/chat/WhatsAppConsentService.php — visitor opt-in/opt-out application service and missing-phone domain signal.
-- docs/openapi.yaml — OpenAPI 3.1 contract for the core v1 widget/operator API surface.
+- docs/openapi.yaml / docs/openapi-staff.yaml — separate OpenAPI 3.1 contracts for the core v1 widget API and optional server-to-server staff API.
 
 ### Additional updated files
 - app/meta_signup.php — compatibility functions now delegate to MetaEmbeddedSignupService and MetaConnectionRepository.
@@ -73,8 +73,8 @@
 - public/api/v1/*.php — refreshed compatibility-alias architecture notes; all aliases delegate to shared handlers.
 - public/cron/retention.php — CLI-only adapter over RetentionService and RetentionRepository.
 - tests/run.php / tests/integration.php — service policy, encryption, token lifecycle, health, retention, session token and rate-limit regression coverage.
-- .github/workflows/tests.yml — validates OpenAPI YAML syntax in CI.
-- docs/API-V1.md / API.md — links to OpenAPI and updates current service/storage boundaries.
+- .github/workflows/tests.yml — parses both OpenAPI documents and asserts that all ten implemented staff routes and the global HMAC assertion security scheme are present.
+- docs/API-V1.md / API.md — links to both OpenAPI contracts and updates current service/storage boundaries.
 - docs/PORTABLE-ARCHITECTURE.md / MILESTONE-STATUS.md — documents extracted service/repository boundaries and remaining portability work.
 - docs/FILE-CHANGE-MANIFEST.md — this additional implementation inventory.
 
@@ -84,6 +84,6 @@
 - Meta token renewal is attempted automatically within the final seven days; operator reconnection is still required after an unrecoverable expiry.
 - Meta business verification, app review and Partner/Solution eligibility must be completed by the business in Meta.
 - app/whatsapp.php remains a compatibility facade with some procedural transport/utility helpers; the webhook, outbox, Meta onboarding, retention, health, guest-session, message and consent use cases have been extracted, but the entire legacy file is not yet decomposed.
-- The OpenAPI 3.1 document currently covers core v1 widget/operator routes; optional staff endpoints and reusable conformance fixtures remain to be added.
+- The two OpenAPI 3.1 documents cover the core v1 widget/operator routes and all ten optional staff routes. Reusable request/response fixtures and deeper schema/conformance testing remain outstanding.
 - The PHP storage adapters remain MySQL/MariaDB-specific; no PostgreSQL or SQLite adapter is implemented.
 - No live Meta, hosting-provider or WordPress production configuration was changed by these repository commits.
