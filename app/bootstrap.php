@@ -52,6 +52,10 @@ app_request_id();
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
 require_once __DIR__ . '/storage/PdoSqlDialect.php';
+require_once __DIR__ . '/tenancy/TenantContext.php';
+require_once __DIR__ . '/tenancy/TenantRepository.php';
+require_once __DIR__ . '/tenancy/TenantResolver.php';
+require_once __DIR__ . '/tenancy/PdoTenantRepository.php';
 require_once __DIR__ . '/storage/ChatRepository.php';
 require_once __DIR__ . '/storage/MetaConnectionRepository.php';
 require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
@@ -86,6 +90,33 @@ function app_config(?string $key = null): mixed
     return $value;
 }
 
+/** Resolve the request's public widget routing hint into trusted tenant context. */
+function tenant_context_from_request(): TenantContext
+{
+    static $resolved = null;
+    if ($resolved instanceof TenantContext) {
+        return $resolved;
+    }
+
+    $tenancy = app_config('tenancy') ?? [];
+    if (!is_array($tenancy)) {
+        $tenancy = [];
+    }
+    $widgetId = $_SERVER['HTTP_X_DIMDIAN_WIDGET_ID'] ?? null;
+    $widgetId = is_string($widgetId) && $widgetId !== '' ? $widgetId : null;
+    $origin = request_origin();
+
+    if (($tenancy['mode'] ?? 'single_tenant') === 'single_tenant') {
+        $tenantId = (string) ($tenancy['default_tenant_id'] ?? '00000000-0000-4000-8000-000000000001');
+        $resolved = new TenantContext($tenantId, $widgetId);
+        return $resolved;
+    }
+
+    $resolver = new TenantResolver(new PdoTenantRepository(database()), $tenancy);
+    $resolved = $resolver->resolve($widgetId, $origin);
+    return $resolved;
+}
+
 function json_response(array $payload, int $status = 200): never
 {
     http_response_code($status);
@@ -105,21 +136,35 @@ function request_origin(): ?string
 function enforce_allowed_origin(): void
 {
     $origin = request_origin();
-    $allowed = app_config('app.allowed_origins') ?? [];
-    if (!is_array($allowed)) {
-        $allowed = [];
-    }
+    $tenancyMode = (string) (app_config('tenancy.mode') ?? 'single_tenant');
+    if ($tenancyMode === 'shared_database') {
+        try {
+            tenant_context_from_request();
+        } catch (TenantResolutionException $error) {
+            json_response([
+                'error' => [
+                    'code' => 'tenant_widget_not_authorized',
+                    'message' => $error->getMessage(),
+                ],
+            ], 403);
+        }
+    } else {
+        $allowed = app_config('app.allowed_origins') ?? [];
+        if (!is_array($allowed)) {
+            $allowed = [];
+        }
 
-    $normalized = array_map(static fn($value): string => rtrim((string)$value, '/'), $allowed);
-    if ($origin !== null && !in_array($origin, $normalized, true)) {
-        json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not allowed to use this chat service.']], 403);
+        $normalized = array_map(static fn($value): string => rtrim((string) $value, '/'), $allowed);
+        if ($origin !== null && !in_array($origin, $normalized, true)) {
+            json_response(['error' => ['code' => 'origin_not_allowed', 'message' => 'This website is not allowed to use this chat service.']], 403);
+        }
     }
 
     if ($origin !== null) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Vary: Origin');
         header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN');
+        header('Access-Control-Allow-Headers: Content-Type, X-DIMDIAN-GUEST-TOKEN, X-DIMDIAN-WIDGET-ID');
         header('Access-Control-Max-Age: 600');
     }
 }
