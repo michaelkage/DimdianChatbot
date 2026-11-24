@@ -39,3 +39,39 @@ test('styles are isolated and mobile layout is present', () => {
   assert.match(css, /@media\(max-width:520px\)/);
   assert.match(css, /\.wa-consent/);
 });
+
+
+test('offline outbox is disabled unless the embed explicitly opts in', () => {
+  assert.match(widget, /offlineQueueEnabled = script\.dataset\.offlineQueue === 'true'/);
+  assert.match(widget, /if\(!offlineQueueEnabled\)return \[\]/);
+});
+
+test('offline outbox validates and bounds saved messages to twenty', () => {
+  assert.match(widget, /\.slice\(0,20\)/);
+  assert.match(widget, /queue\.length>=20/);
+  assert.match(widget, /item\.text\.length<=4000/);
+});
+
+test('composer clears only after the outbox write succeeds', () => {
+  const start = widget.indexOf('function queueMessage(text,id)');
+  const end = widget.indexOf('async function deliverQueued', start);
+  const queueMessage = widget.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(queueMessage.indexOf('if(!writeQueue(queue.concat(item)))return false;') < queueMessage.indexOf("input.value=''"));
+  assert.match(widget, /function writeQueue\(items\)[\s\S]*return true[\s\S]*return false/);
+});
+
+test('queued delivery reuses the same idempotency key and avoids treating a content conflict as session expiry', () => {
+  assert.match(widget, /client_message_id:item\.id/);
+  assert.match(widget, /error\.code!=='idempotency_conflict'/);
+});
+
+test('transient API failures schedule bounded retries while permanent failures remain queued', () => {
+  assert.match(widget, /queueRetryDelay=Math\.min\(30000,queueRetryDelay\*2\)/);
+  assert.match(widget, /error\.status===429\|\|error\.status>=500/);
+  assert.match(widget, /scheduleQueueRetry\(\)/);
+});
+
+test('queued message placeholders are restored when the visible conversation is cleared', () => {
+  assert.match(widget, /function clear\(\)[^\n]*queuedNodes\.clear\(\)[^\n]*readQueue\(\)\.forEach\(showQueued\)/);
+});
