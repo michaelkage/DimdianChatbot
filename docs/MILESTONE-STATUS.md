@@ -160,4 +160,4 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Added focused composition interfaces for guest-session operations, visitor messaging and webhook processing. The existing `ChatRepository` remains the backward-compatible aggregate implemented by `PdoChatRepository` and existing test adapters.
 - Narrowed application dependencies: session service, visitor message service, consent service, Meta webhook processor, webhook inbox worker, WhatsApp outbox worker and HTTP helper functions now depend only on the capabilities they call.
 - Added contract tests asserting that the aggregate retains every capability. This is interface segregation, not a second database adapter; the implementation remains MySQL/MariaDB PDO and milestone 17 remains partial.
-- GitHub Actions run [45411674012](https://github.com/michaelkage/DimdianChatbot/actions/runs/45411674012) passed all three jobs on the capability-interface implementation head.
+- GitHub Actions run [45411946544](https://github.com/michaelkage/DimdianChatbot/actions/runs/45411946544) passed all three jobs on the latest capability-interface and documentation head.
