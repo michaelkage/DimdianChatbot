@@ -228,7 +228,7 @@ function render(m){
  welcome.hidden=true;scroll();
 }
 function notice(t){const n=document.createElement('div');n.className='notice';n.textContent=t;messages.append(n);scroll();}
-function clear(){messages.replaceChildren();seen.clear();cursor=0;welcome.hidden=false;}
+function clear(){messages.replaceChildren();seen.clear();queuedNodes.clear();cursor=0;welcome.hidden=false;if(offlineQueueEnabled)readQueue().forEach(showQueued);}
 async function startSession(){
  const rawPhone=$('.phone').value.trim();
  const phone=rawPhone.replace(/[\s()-]/g,'');
