@@ -19,13 +19,20 @@ final class PdoRateLimitRepository implements RateLimitRepository
         $nowString = $now->format('Y-m-d H:i:s');
 
         return $this->transaction(function () use ($bucketKey, $cutoff, $nowString, $maxRequests): bool {
-            $insert = PdoSqlDialect::prepare($this->pdo, 
-                'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
-                 VALUES (:bucket, :now, 1)
-                 ON DUPLICATE KEY UPDATE
-                   request_count = IF(window_started_at <= :cutoff, 1, request_count + 1),
-                   window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)'
-            );
+            $sql = PdoSqlDialect::isPostgres($this->pdo)
+                ? 'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
+                   VALUES (:bucket, :now, 1)
+                   ON CONFLICT (bucket_key) DO UPDATE SET
+                     request_count = CASE WHEN rate_limits.window_started_at <= :cutoff
+                                          THEN 1 ELSE rate_limits.request_count + 1 END,
+                     window_started_at = CASE WHEN rate_limits.window_started_at <= :cutoff2
+                                              THEN :now2 ELSE rate_limits.window_started_at END'
+                : 'INSERT INTO rate_limits (bucket_key, window_started_at, request_count)
+                   VALUES (:bucket, :now, 1)
+                   ON DUPLICATE KEY UPDATE
+                     request_count = IF(window_started_at <= :cutoff, 1, request_count + 1),
+                     window_started_at = IF(window_started_at <= :cutoff2, :now2, window_started_at)';
+            $insert = PdoSqlDialect::prepare($this->pdo, $sql);
             $insert->execute([
                 ':bucket' => $bucketKey,
                 ':now' => $nowString,
