@@ -123,3 +123,5 @@
 
 - app/storage/PdoChatRepository.php — delegates active WhatsApp phone-number lookup to PdoMetaConnectionRepository rather than maintaining duplicate Meta connection SQL.
 - app/bootstrap.php — loads Meta connection contracts/adapters before the ChatRepository aggregate that composes them.
+
+- app/storage/PdoChatRepository.php — composition-only compatibility aggregate; wires focused PDO capability adapters and delegates the legacy ChatRepository contract without SQL or direct PDO state.
