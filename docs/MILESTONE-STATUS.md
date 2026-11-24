@@ -313,7 +313,7 @@ PostgreSQL backend validation: [GitHub Actions run 45434520501](https://github.c
 
 ### Shared-database tenancy safety gate (2026-11-24)
 
-- The branch had introduced a tenant resolver and tenant-aware service calls before the MySQL/PostgreSQL schemas and all PDO adapters had tenant-scoped columns and predicates. CI exposed PHP interface signature mismatches in the consent and guest-session adapters.
-- Restored the repository contracts to the actually implemented single-tenant persistence API and removed unpersisted tenant fields from application payloads. The default single-tenant path remains one database per business.
-- `TenantResolver` now rejects `shared_database` mode before widget lookup. The presence of `tenants` and `tenant_widgets` alone is not isolation; the data tables, all query paths, staff authorization, provider routing and retention/export must be scoped before enabling it.
-- Added a regression test that the resolver fails closed without querying widget records. Full shared-database tenant isolation remains unimplemented and is explicitly not a supported deployment mode.
+- The MySQL and PostgreSQL schemas include `tenant_id` on guests, conversations, guest sessions, messages, rate limits, message outbox, consent events and WhatsApp identity links.
+- Aligned the visitor/session path with tenant-scoped repository contracts: guest creation and lookup, session touch, message insertion/polling, consent transitions, rate-limit buckets and initial WhatsApp outbox insertion all carry the resolved tenant ID.
+- Added cross-tenant negative integration assertions for guest-session lookup and conversation polling, plus unit assertions that the authenticator passes the resolved tenant to repository lookup/touch.
+- `TenantResolver` continues to reject `shared_database` mode before widget lookup. Webhook inbox/event processing, provider status reconciliation, Meta account/phone routing, outbox worker state transitions, staff-inbox persistence/authorization and retention/export are not yet end-to-end tenant-scoped. One database per business remains the only supported deployment model.
