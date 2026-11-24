@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Durable, replay-safe processing of signature-verified Meta webhook inbox rows.
  *
- * Each provider event is committed through WebhookInboxRepository's idempotent event
- * operation. If a process dies midway through a multi-event payload, a retry
+ * Each provider event is committed by MetaWebhookProcessor through its
+ * ProviderEventRepository capability. If a process dies midway through a multi-event payload, a retry
  * safely skips already-recorded events and resumes the remaining events.
  */
 final class WebhookInboxWorker
