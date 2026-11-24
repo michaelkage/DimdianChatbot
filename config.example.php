@@ -55,6 +55,12 @@ return [
         'template_name' => '',
         'template_language' => 'en',
     ],
+    'tenancy' => [
+        // Keep single_tenant until the full shared-database isolation suite is enabled.
+        'mode' => 'single_tenant',
+        'default_tenant_id' => '00000000-0000-4000-8000-000000000001',
+    ],
+
     'database' => [
         'dsn' => 'mysql:host=localhost;dbname=dimdian_chatbot;charset=utf8mb4',
         'username' => 'database_user',
