@@ -138,3 +138,10 @@
 - app/staff/bootstrap.php — loads the new staff identity service before the inbox application service.
 - tests/run.php — adds architecture regression checks for application-service HTTP/PDO/SQL boundaries and API route persistence boundaries; includes StaffIdentityService repository contract.
 - tests/staff-inbox.php — loads the identity service for the existing staff authorization and lifecycle integration suite.
+
+- app/staff/StaffInboxRepository.php — adds StaffIdentityRepository and makes the aggregate staff inbox contract extend the identity capability.
+- app/staff/PdoStaffPersistenceSupport.php — shared staff PDO transaction, active-staff/assignment validation and audit primitives.
+- app/staff/PdoStaffIdentityRepository.php — focused MySQL/MariaDB staff identity, nonce, listing and owner access adapter.
+- app/staff/PdoStaffInboxRepository.php — delegates identity persistence to PdoStaffIdentityRepository while retaining the aggregate contract for remaining inbox operations.
+- app/staff/bootstrap.php — loads focused staff persistence dependencies in order.
+- tests/staff-inbox.php — asserts focused identity adapter contract while preserving staff lifecycle and owner-safety integration coverage.
