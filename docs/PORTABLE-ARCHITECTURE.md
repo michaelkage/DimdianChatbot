@@ -95,9 +95,11 @@ The first canonical API version should use resource-oriented paths under /api/v1
 
 ## Current tenancy release gate
 
-The current deployment contract is **one business per database**. The `tenants` and `tenant_widgets` tables currently support tenant identity and widget-routing metadata, but the core conversation, guest, session, message, consent, provider-event and outbox records are not yet consistently tenant-scoped in both schemas and repository queries. A widget identifier plus an origin allowlist is not a substitute for row-level tenant isolation.
+The current deployment contract remains **one business per database**. Both SQL schemas now carry `tenant_id` on core guest, conversation, session, message, rate-limit, outbox, consent-event and WhatsApp identity-link records. The visitor/session application path and its PDO adapters are being aligned to carry the resolved tenant through creation, lookup, polling, consent transitions, rate limiting and initial outbox insertion.
 
-Accordingly, `shared_database` tenancy mode is deliberately rejected by `TenantResolver` until the complete data model, every repository query, staff authorization, provider routing, retention and export paths are tenant-scoped and pass cross-tenant isolation tests. Do not enable this mode in production. Use a separate database per business in the meantime.
+That is meaningful groundwork, but it is not yet complete shared-database isolation. Webhook inbox/event processing, provider-status reconciliation, Meta connection and phone-number routing, outbox worker claim/state transitions, the optional staff-inbox schema and authorization, retention and data export still need end-to-end tenant scoping and negative cross-tenant tests. A widget identifier plus an origin allowlist is not a substitute for row-level isolation.
+
+Accordingly, `shared_database` tenancy mode is deliberately rejected by `TenantResolver` until every tenant-owned read/write path and operational workflow is scoped and tested. Do not enable this mode in production. Use a separate database per business in the meantime.
 
 ## Incremental migration plan
 
