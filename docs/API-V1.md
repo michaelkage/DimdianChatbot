@@ -2,7 +2,7 @@
 
 ## Status
 
-The first versioned PHP entry points are available under /api/v1. They are compatibility entry points over the existing PHP implementation, not a second backend and not yet proof of database portability.
+The first versioned PHP entry points are available under /api/v1. They are compatibility entry points over the existing PHP implementation, not a second backend and not proof of database portability. The core widget and operator endpoints have an OpenAPI 3.1 contract at [openapi.yaml](openapi.yaml); the optional staff API remains documented separately and is not yet part of that OpenAPI file.
 
 The legacy /api/*.php paths remain supported. Both route families currently execute the same handlers and therefore share their authentication, validation, CORS, persistence and error behaviour.
 
@@ -76,9 +76,9 @@ See API.md for the detailed request/response and error contract.
 - The v1 aliases must pass the same integration tests as the legacy routes.
 - Behaviour changes that break existing clients require a new API version or an explicitly documented compatibility window.
 - Additional backend implementations must implement this contract independently and pass the shared API acceptance suite.
-- Session/message handlers, consent transitions, rate-limit buckets, and webhook-inbox enqueue/lease/completion/retry persistence now use `ChatRepository` backed by the MySQL/MariaDB `PdoChatRepository`. Meta payload interpretation and active connection lookup remain application-service concerns. Provider-event deduplication, inbound/echo message writes, status-event storage and delivery-state reconciliation now use the repository. Retention remains PDO-coupled. Optional staff inbox persistence has a separate MySQL/MariaDB repository, HMAC signed-assertion adapter with request-target/body binding and one-time nonce replay protection, role/assignment authorization service, conversation search, owner-only role management, versioned HTTP routes and a separate WordPress admin inbox UI; WhatsApp outbox enqueue, claim/reclaim, consent check, cancellation, completion, retry and terminal failure now use the repository. Provider HTTP calls remain outside transactions. This is not yet a complete storage adapter.
+- Guest session, visitor message send/poll, WhatsApp consent, Meta Embedded Signup, retention and health use dedicated application services. Session/message/consent persistence, rate-limit buckets, webhook-inbox enqueue/lease/completion/retry, provider-event deduplication, inbound/echo message writes, status-event storage, delivery reconciliation and WhatsApp outbox transitions use repository contracts backed by MySQL/MariaDB PDO adapters. Meta payload interpretation remains in its processor. Optional staff inbox persistence has a separate MySQL/MariaDB repository, HMAC signed-assertion adapter with request-target/body binding and one-time nonce replay protection, role/assignment authorization service, conversation search, owner-only role management, versioned HTTP routes and a separate WordPress admin inbox UI. Provider HTTP calls remain outside transactions. This is not yet a complete storage adapter.
 - Do not advertise PostgreSQL, SQLite, another runtime, or a provider as supported merely because these aliases or the repository interface exist. The current adapter still uses MySQL/MariaDB-oriented SQL.
 
 ## Next API milestone
 
-Before a second backend is introduced, publish a complete OpenAPI 3.1 document and reusable contract fixtures covering successful operations, validation, authentication, tenant isolation, idempotency, pagination, consent, webhooks and failure responses. The versioned route shape is now established; the portable application and storage layers are not yet complete.
+The core v1 OpenAPI 3.1 contract is now published in `docs/openapi.yaml` and syntax-checked in CI. The remaining API-contract work is to add the optional staff endpoints, reusable request/response fixtures, and automated conformance checks for tenant isolation and cross-backend parity. The versioned route shape is established; the portable application and storage layers are not yet complete.
