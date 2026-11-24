@@ -317,3 +317,8 @@ PostgreSQL backend validation: [GitHub Actions run 45434520501](https://github.c
 - Aligned the visitor/session path with tenant-scoped repository contracts: guest creation and lookup, session touch, message insertion/polling, consent transitions, rate-limit buckets and initial WhatsApp outbox insertion all carry the resolved tenant ID.
 - Added cross-tenant negative integration assertions for guest-session lookup and conversation polling, plus unit assertions that the authenticator passes the resolved tenant to repository lookup/touch.
 - `TenantResolver` continues to reject `shared_database` mode before widget lookup. Webhook inbox/event processing, provider status reconciliation, Meta account/phone routing, outbox worker state transitions, staff-inbox persistence/authorization and retention/export are not yet end-to-end tenant-scoped. One database per business remains the only supported deployment model.
+
+
+### Tenant-scoped visitor path validation
+
+[GitHub Actions run 45441962902](https://github.com/michaelkage/DimdianChatbot/actions/runs/45441962902) passed the MySQL/PHP suite, PostgreSQL 16 acceptance suite and PHP 7.4/8.2 WordPress compatibility jobs after tenant scoping was restored across the visitor/session path. Integration coverage now asserts that a session token does not resolve under another tenant and conversation polling returns no messages for a foreign tenant. The CI-only SQL diagnostic was removed before this final run.
