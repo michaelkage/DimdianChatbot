@@ -23,7 +23,7 @@ final class PdoHealthRepository implements HealthRepository
             }
         }
         $placeholders = implode(',', array_fill(0, count($requiredTables), '?'));
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'SELECT table_name
              FROM information_schema.tables
              WHERE table_schema = DATABASE()
@@ -38,16 +38,16 @@ final class PdoHealthRepository implements HealthRepository
     public function queueMetrics(): array
     {
         return [
-            'webhook_pending' => (int) $this->pdo->query(
+            'webhook_pending' => (int) PdoSqlDialect::query($this->pdo, 
                 'SELECT COUNT(*) FROM webhook_inbox WHERE status IN ("pending", "processing")'
             )->fetchColumn(),
-            'webhook_failed' => (int) $this->pdo->query(
+            'webhook_failed' => (int) PdoSqlDialect::query($this->pdo, 
                 'SELECT COUNT(*) FROM webhook_inbox WHERE status = "failed"'
             )->fetchColumn(),
-            'outbox_pending' => (int) $this->pdo->query(
+            'outbox_pending' => (int) PdoSqlDialect::query($this->pdo, 
                 'SELECT COUNT(*) FROM message_outbox WHERE status IN ("pending", "processing")'
             )->fetchColumn(),
-            'outbox_failed' => (int) $this->pdo->query(
+            'outbox_failed' => (int) PdoSqlDialect::query($this->pdo, 
                 'SELECT COUNT(*) FROM message_outbox WHERE status = "failed"'
             )->fetchColumn(),
         ];
