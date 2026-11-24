@@ -14,7 +14,10 @@ CREATE TABLE tenants (
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_tenants_slug (slug)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO tenants (id, name, slug, status, created_at, updated_at)
+VALUES ('00000000-0000-4000-8000-000000000001', 'Default business', 'default', 'active', UTC_TIMESTAMP(), UTC_TIMESTAMP());
 
 CREATE TABLE tenant_widgets (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
