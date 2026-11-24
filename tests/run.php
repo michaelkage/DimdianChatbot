@@ -456,7 +456,7 @@ $healthMetrics = [
     'outbox_failed' => 3,
 ];
 $healthyHealthRepository = new HealthServiceTestRepository([], $healthMetrics);
-$healthyHealth = (new HealthService($healthyHealthRepository))->report(true, true, true);
+$healthyHealth = (new HealthService($healthyHealthRepository))->report(true, true, true, 'mysql');
 check(
     $healthyHealth['status'] === 'healthy'
         && $healthyHealth['http_status'] === 200
@@ -464,8 +464,15 @@ check(
         && $healthyHealth['whatsapp_outbound'] === 'enabled_in_config',
     'Health service composes healthy runtime, schema and queue diagnostics'
 );
+
+$postgresHealth = (new HealthService(new HealthServiceTestRepository([], $healthMetrics)))->report(true, true, false, 'pgsql');
+check(
+    $postgresHealth['status'] === 'healthy'
+        && $postgresHealth['checks']['pdo_driver'] === 'pgsql',
+    'Health service recognizes PostgreSQL as a supported PDO backend'
+);
 $incompleteHealthRepository = new HealthServiceTestRepository(['meta_connections'], $healthMetrics);
-$incompleteHealth = (new HealthService($incompleteHealthRepository))->report(true, true, false);
+$incompleteHealth = (new HealthService($incompleteHealthRepository))->report(true, true, false, 'mysql');
 check(
     $incompleteHealth['status'] === 'degraded'
         && $incompleteHealth['http_status'] === 503
