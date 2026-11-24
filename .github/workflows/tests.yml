@@ -89,6 +89,8 @@ jobs:
             if curl --silent --output /dev/null http://127.0.0.1:8080/api/session.php; then break; fi
             sleep 1
           done
+      - name: Run backend-neutral public API acceptance suite
+        run: node tests/api-acceptance.mjs
       - name: Run PHP helper, staff inbox and HTTP/database integration tests
         run: |
           php tests/run.php
