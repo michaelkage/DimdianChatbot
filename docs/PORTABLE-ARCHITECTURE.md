@@ -255,3 +255,6 @@ Active WhatsApp phone-number lookup is now implemented once in `PdoMetaConnectio
 
 
 The visitor-message adapter no longer duplicates outbox INSERT SQL. It depends on the `WhatsAppOutboxRepository` capability and invokes its enqueue operation inside the message transaction. The composition root injects the same PDO-backed outbox adapter instance/connection, so message and outbox persistence remain atomic while the outbox SQL has one owner.
+
+
+Guest-session authentication policy is now isolated in `GuestSessionAuthenticator`. It accepts the raw token as an explicit argument, hashes it before repository lookup, touches the session and enforces the open-conversation rule. The legacy HTTP helper remains responsible for reading the request header and mapping typed service failures to the established JSON/status responses.
