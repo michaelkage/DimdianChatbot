@@ -42,7 +42,7 @@ final class ChatMessageService
         }
         $maxRequests = max(1, (int) ($rateConfig['max_requests'] ?? 8));
         $windowSeconds = max(60, (int) ($rateConfig['window_seconds'] ?? 60));
-        if (!$this->repository->consumeRateLimit((string) $session['tenant_id'], 'message:' . (string) $session['session_id'], $maxRequests, $windowSeconds)) {
+        if (!$this->repository->consumeRateLimit('message:' . (string) $session['session_id'], $maxRequests, $windowSeconds)) {
             throw new MessageRateLimitExceeded($windowSeconds);
         }
 
@@ -99,8 +99,8 @@ final class ChatMessageService
     /** @param array<string,mixed> $session @return array<string,mixed> */
     public function poll(array $session, int $after, int $limit): array
     {
-        $page = $this->repository->listConversationMessages((string) $session['tenant_id'], (string) $session['conversation_id'], $after, $limit);
-        $deliveryUpdates = $this->repository->listVisitorDeliveryUpdates((string) $session['tenant_id'], (string) $session['conversation_id'], 50);
+        $page = $this->repository->listConversationMessages((string) $session['conversation_id'], $after, $limit);
+        $deliveryUpdates = $this->repository->listVisitorDeliveryUpdates((string) $session['conversation_id'], 50);
         return [
             'data' => $page['items'],
             'meta' => [
