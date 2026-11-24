@@ -23,13 +23,18 @@ final class PdoHealthRepository implements HealthRepository
             }
         }
         $placeholders = implode(',', array_fill(0, count($requiredTables), '?'));
-        $statement = PdoSqlDialect::prepare($this->pdo, 
-            'SELECT table_name
-             FROM information_schema.tables
-             WHERE table_schema = DATABASE()
-               AND table_type = "BASE TABLE"
-               AND table_name IN (' . $placeholders . ')'
-        );
+        $sql = PdoSqlDialect::isPostgres($this->pdo)
+            ? 'SELECT table_name
+               FROM information_schema.tables
+               WHERE table_schema = current_schema()
+                 AND table_type = \'BASE TABLE\'
+                 AND table_name IN (' . $placeholders . ')'
+            : 'SELECT table_name
+               FROM information_schema.tables
+               WHERE table_schema = DATABASE()
+                 AND table_type = "BASE TABLE"
+                 AND table_name IN (' . $placeholders . ')';
+        $statement = PdoSqlDialect::prepare($this->pdo, $sql);
         $statement->execute($requiredTables);
         $found = $statement->fetchAll(PDO::FETCH_COLUMN);
         return array_values(array_diff($requiredTables, $found));
