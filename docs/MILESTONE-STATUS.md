@@ -185,3 +185,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - `PdoChatRepository` delegates the consent transition to this adapter on the same PDO connection. Guest-session creation can still include initial opt-in in its existing outer transaction; the adapter detects and participates in that transaction rather than committing independently.
 - Added a direct adapter-interface contract assertion. Existing consent and session integration tests exercise aggregate delegation, including opt-out/outbox cancellation semantics.
 - Visitor/session and outbox SQL remain partially in the aggregate; this is not full persistence decomposition.
+
+
+### Dedicated guest-session PDO adapter (2026-11-24)
+
+- Extracted guest, conversation and guest-session creation, token-hash lookup and session-touch persistence into `PdoGuestSessionRepository`.
+- Initial WhatsApp opt-in still uses `PdoConsentRepository` on the same PDO connection and participates in the outer guest/session transaction. A failure in the consent ledger or identity-route write therefore rolls back guest, conversation and session creation together.
+- `PdoChatRepository` delegates the three guest-session operations to the dedicated adapter; existing public session and authentication routes remain unchanged.
+- Added a direct adapter-interface contract assertion. Existing integration coverage exercises session creation, lookup and authentication through the aggregate.
