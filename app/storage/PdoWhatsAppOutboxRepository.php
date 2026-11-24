@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../support/Utf8.php';
+
 /**
  * MySQL/MariaDB durable WhatsApp outbox adapter.
  *
@@ -161,7 +163,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             $update->execute([
                 ':status' => $retry ? 'pending' : 'failed',
                 ':delay' => max(0, $delaySeconds),
-                ':last_error' => mb_substr_safe($error, 0, 900),
+                ':last_error' => safe_utf8_substring($error, 0, 900),
                 ':id' => $id,
                 ':lock_token' => $lockToken,
             ]);
