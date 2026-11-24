@@ -18,6 +18,7 @@ This is an early connector release, not yet a WordPress.org directory release. I
 
 - Adds a small floating **Message us** button to the Dimdian website.
 - Opens a chat panel without sending the visitor to another page.
+- Supports optional embed-level branding, page targeting and compact launcher controls; a bounded local offline queue is available only when explicitly enabled.
 - Lets a visitor start chatting as a guest. No account, password, OTP or registration.
 - Saves website messages and replies in a MySQL database.
 - Shows replies in the same website chat.
