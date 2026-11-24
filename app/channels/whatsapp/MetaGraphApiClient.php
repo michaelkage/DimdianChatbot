@@ -7,7 +7,9 @@ declare(strict_types=1);
  * Requests are HTTPS-only and pinned to graph.facebook.com. Redirects are
  * disabled so an Authorization bearer token cannot be forwarded elsewhere.
  */
-final class MetaGraphApiClient
+require_once __DIR__ . '/MetaGraphApi.php';
+
+final class MetaGraphApiClient implements MetaGraphApi
 {
     /** @return array<string,mixed> */
     public function get(string $url): array
