@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/app/whatsapp.php';
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 require_once dirname(__DIR__) . '/app/maintenance/RetentionService.php';
+require_once dirname(__DIR__) . '/app/chat/GuestSessionService.php';
 
 $base = getenv('DIMDIAN_TEST_BASE_URL') ?: 'http://127.0.0.1:8080';
 $origin = 'https://website.example.test';
