@@ -5,7 +5,7 @@ if (!script) return;
 const demo = script.dataset.demo === 'true';
 const api = (script.dataset.apiBase || new URL('/api', script.src).href).replace(/\/+$/, '');
 const commerceApi = script.dataset.commerceApi || '';
-const key = 'dimdian-chat:' + api + ':' + location.origin;
+const widgetId = script.dataset.widgetId || '';\nconst key = 'dimdian-chat:' + api + ':' + (widgetId || 'single-tenant') + ':' + location.origin;
 const root = document.createElement('div');
 root.id = 'dimdian-chat-widget';
 const shadow = root.attachShadow({mode:'open'});
