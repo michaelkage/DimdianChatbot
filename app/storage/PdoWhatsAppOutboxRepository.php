@@ -20,7 +20,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
 
     public function enqueueWhatsAppOutbox(string $messageId, string $recipient, string $text, string $outboxId): void
     {
-        $insert = $this->pdo->prepare(
+        $insert = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO message_outbox
                 (id, message_id, recipient, payload_text, status, attempts, available_at, created_at, updated_at)
              VALUES
@@ -39,7 +39,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
         return $this->transaction(function () use ($lockToken, $maxAttempts, $leaseSeconds): array {
             $maxAttempts = max(1, $maxAttempts);
             $leaseSeconds = max(1, $leaseSeconds);
-            $exhausted = $this->pdo->prepare(
+            $exhausted = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, message_id
                  FROM message_outbox
                  WHERE status = "processing"
@@ -50,7 +50,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             $exhausted->execute([':lease_seconds' => $leaseSeconds, ':max_attempts' => $maxAttempts]);
             $expiredJobs = $exhausted->fetchAll();
             foreach ($expiredJobs as $expiredJob) {
-                $failJob = $this->pdo->prepare(
+                $failJob = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE message_outbox
                      SET status = "failed", locked_at = NULL, lock_token = NULL,
                          last_error = "Worker lease expired after maximum attempts.",
@@ -58,13 +58,13 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
                      WHERE id = :id AND status = "processing"'
                 );
                 $failJob->execute([':id' => $expiredJob['id']]);
-                $failMessage = $this->pdo->prepare(
+                $failMessage = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE messages SET delivery_status = "failed" WHERE id = :id'
                 );
                 $failMessage->execute([':id' => $expiredJob['message_id']]);
             }
 
-            $query = $this->pdo->prepare(
+            $query = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id, message_id, recipient, payload_text, attempts
                  FROM message_outbox
                  WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
@@ -81,7 +81,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             }
 
             $attempt = (int) $job['attempts'] + 1;
-            $claim = $this->pdo->prepare(
+            $claim = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(),
                      lock_token = :lock_token, updated_at = UTC_TIMESTAMP()
@@ -95,7 +95,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
 
     public function hasWhatsAppConsent(string $messageId): bool
     {
-        $query = $this->pdo->prepare(
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT g.whatsapp_opt_in_at
              FROM messages m
              INNER JOIN conversations c ON c.id = m.conversation_id
@@ -110,7 +110,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
     public function cancelWhatsAppOutbox(string $id, string $lockToken, string $messageId): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId): bool {
-            $cancel = $this->pdo->prepare(
+            $cancel = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = "failed", locked_at = NULL, lock_token = NULL,
                      last_error = "Cancelled after WhatsApp consent withdrawal.", updated_at = UTC_TIMESTAMP()
@@ -118,7 +118,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             );
             $cancel->execute([':id' => $id, ':lock_token' => $lockToken]);
             if ($cancel->rowCount() !== 1) return false;
-            $message = $this->pdo->prepare(
+            $message = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE messages SET delivery_status = "web_only"
                  WHERE id = :message_id AND delivery_status = "queued"'
             );
@@ -130,7 +130,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
     public function completeWhatsAppOutbox(string $id, string $lockToken, string $messageId, string $providerMessageId): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId, $providerMessageId): bool {
-            $complete = $this->pdo->prepare(
+            $complete = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = "sent", provider_message_id = :provider_id, locked_at = NULL,
                      lock_token = NULL, last_error = NULL, updated_at = UTC_TIMESTAMP()
@@ -139,7 +139,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             $complete->execute([':provider_id' => $providerMessageId, ':id' => $id, ':lock_token' => $lockToken]);
             if ($complete->rowCount() !== 1) return false;
 
-            $message = $this->pdo->prepare(
+            $message = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE messages SET provider_message_id = :provider_id, delivery_status = "sent"
                  WHERE id = :message_id'
             );
@@ -152,7 +152,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
     public function failWhatsAppOutbox(string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
     {
         return $this->transaction(function () use ($id, $lockToken, $messageId, $retry, $delaySeconds, $error): bool {
-            $update = $this->pdo->prepare(
+            $update = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
                      locked_at = NULL, lock_token = NULL, last_error = :last_error, updated_at = UTC_TIMESTAMP()
@@ -167,7 +167,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             ]);
             if ($update->rowCount() !== 1) return false;
             if (!$retry) {
-                $failed = $this->pdo->prepare(
+                $failed = PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE messages SET delivery_status = "failed" WHERE id = :message_id'
                 );
                 $failed->execute([':message_id' => $messageId]);
