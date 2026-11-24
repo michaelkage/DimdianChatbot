@@ -17,7 +17,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
         if (!preg_match('/^[a-f0-9]{64}$/', $stateHash) || $ttlSeconds < 1 || $ttlSeconds > 3600) {
             throw new InvalidArgumentException('Meta signup state parameters are invalid.');
         }
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO meta_signup_states (state_sha256, expires_at, created_at)
              VALUES (:hash, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ' . $ttlSeconds . ' SECOND), UTC_TIMESTAMP())'
         );
@@ -30,7 +30,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
             return false;
         }
         return $this->transaction(function () use ($stateHash): bool {
-            $statement = $this->pdo->prepare(
+            $statement = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id FROM meta_signup_states
                  WHERE state_sha256 = :hash AND used_at IS NULL AND expires_at > UTC_TIMESTAMP()
                  FOR UPDATE'
@@ -40,7 +40,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
             if ($id === false) {
                 return false;
             }
-            $consume = $this->pdo->prepare(
+            $consume = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE meta_signup_states SET used_at = UTC_TIMESTAMP()
                  WHERE id = :id AND used_at IS NULL'
             );
@@ -51,7 +51,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function saveActiveConnection(array $connection): void
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO meta_connections
                 (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
                  access_token_tag, token_expires_at, status, connected_at, updated_at)
@@ -78,7 +78,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function findActiveConnection(): ?array
     {
-        $statement = $this->pdo->query(
+        $statement = PdoSqlDialect::query($this->pdo, 
             'SELECT id, waba_id, phone_number_id, access_token_ciphertext,
                     access_token_nonce, access_token_tag, token_expires_at
              FROM meta_connections
@@ -92,7 +92,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE meta_connections
              SET access_token_ciphertext = :cipher, access_token_nonce = :nonce,
                  access_token_tag = :tag, token_expires_at = :expires, updated_at = UTC_TIMESTAMP()
@@ -112,7 +112,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function markConnectionExpired(int $connectionId): void
     {
-        $statement = $this->pdo->prepare(
+        $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE meta_connections SET status = "expired", updated_at = UTC_TIMESTAMP()
              WHERE id = :id AND status = "active"'
         );
@@ -121,7 +121,7 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function activePhoneNumberId(): ?string
     {
-        $statement = $this->pdo->query(
+        $statement = PdoSqlDialect::query($this->pdo, 
             'SELECT phone_number_id FROM meta_connections
              WHERE status = "active" ORDER BY updated_at DESC LIMIT 1'
         );
