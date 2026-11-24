@@ -71,7 +71,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
         });
     }
 
-    public function findGuestSessionByTokenHash(string $tokenHash, string $tenantId): ?array
+    public function findGuestSessionByTokenHash(string $tokenHash): ?array
     {
         $statement = PdoSqlDialect::prepare($this->pdo, 
             'SELECT gs.id AS session_id, gs.tenant_id, gs.guest_id, gs.conversation_id,
@@ -90,7 +90,7 @@ final class PdoGuestSessionRepository implements GuestSessionRepository
         return is_array($session) ? $session : null;
     }
 
-    public function touchGuestSession(string $sessionId, string $tenantId): void
+    public function touchGuestSession(string $sessionId): void
     {
         $touch = PdoSqlDialect::prepare($this->pdo, 'UPDATE guest_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE id = :id AND tenant_id = :tenant_id');
         $touch->execute([':id' => $sessionId, ':tenant_id' => $tenantId]);
