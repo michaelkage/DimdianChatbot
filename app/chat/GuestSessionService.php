@@ -76,7 +76,6 @@ final class GuestSessionService
         $expiresAt = $createdAt->modify('+' . $ttlHours . ' hours');
 
         $this->repository->createGuestSession([
-            'tenant_id' => $this->tenantContext->tenantId,
             'session_id' => $sessionId,
             'conversation_id' => $conversationId,
             'guest_id' => $guestId,
