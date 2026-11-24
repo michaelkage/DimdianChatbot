@@ -306,3 +306,6 @@ Guest authentication compatibility note: the HTTP helper retains the existing 40
 - Added a PostgreSQL 16 CI service job running the same backend-neutral public and staff API acceptance suites, the architecture/service tests, and `tests/postgresql-integration.php`.
 - The PostgreSQL repository integration suite covers encrypted webhook inbox duplicate suppression/lease/retry/completion, one-time Meta state, binary-safe token storage and refresh, early provider delivery-status reconciliation after outbox acceptance, and core/optional retention SQL.
 - PostgreSQL support is a real second PDO backend, not a shared-database tenancy implementation. Existing PostgreSQL upgrade migrations, tenant-scoped repositories and cross-tenant negative tests remain outstanding.
+
+
+PostgreSQL backend validation: [GitHub Actions run 45434520501](https://github.com/michaelkage/DimdianChatbot/actions/runs/45434520501) passed all four jobs. The PostgreSQL 16 job ran the same public and staff API acceptance suites as MySQL, plus repository-level tests for webhook inbox binary preservation/deduplication/lease retry, Meta state replay and encrypted token refresh, early provider-status reconciliation with outbox completion, and the complete retention SQL set. The MySQL 8.4 integration suite, widget tests and PHP 7.4/8.2 WordPress compatibility jobs also passed.
