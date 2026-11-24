@@ -49,6 +49,11 @@ check(
     'PdoRateLimitRepository directly implements the rate-limit capability'
 );
 
+check(
+    is_subclass_of(PdoConsentRepository::class, ConsentRepository::class),
+    'PdoConsentRepository directly implements the consent capability'
+);
+
 $serviceRepositoryContracts = [
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
