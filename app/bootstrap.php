@@ -51,6 +51,7 @@ app_request_id();
 
 date_default_timezone_set((string)($config['app']['timezone'] ?? 'UTC'));
 
+require_once __DIR__ . '/storage/PdoSqlDialect.php';
 require_once __DIR__ . '/storage/ChatRepository.php';
 require_once __DIR__ . '/storage/MetaConnectionRepository.php';
 require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
