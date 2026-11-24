@@ -283,9 +283,9 @@ function client_fingerprint(): string
     return hash_hmac('sha256', $ip, $key);
 }
 
-function enforce_rate_limit(RateLimitRepository $repository, string $bucket, int $maxRequests, int $windowSeconds): void
+function enforce_rate_limit(RateLimitRepository $repository, string $tenantId, string $bucket, int $maxRequests, int $windowSeconds): void
 {
-    if (!$repository->consumeRateLimit($bucket, $maxRequests, $windowSeconds)) {
+    if (!$repository->consumeRateLimit($tenantId, $bucket, $maxRequests, $windowSeconds)) {
         header('Retry-After: ' . max(1, $windowSeconds));
         json_response(['error' => ['code' => 'rate_limited', 'message' => 'Too many attempts. Please wait a little and try again.']], 429);
     }
