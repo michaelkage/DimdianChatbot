@@ -102,3 +102,6 @@
 - app/storage/PdoWebhookInboxRepository.php — dedicated MySQL/MariaDB adapter for encrypted webhook inbox enqueue, atomic lease claim/reclaim, completion and retry/failure transitions.
 - app/storage/PdoChatRepository.php — retains the aggregate compatibility contract and delegates webhook inbox operations to the dedicated adapter on the same PDO connection.
 - app/bootstrap.php — loads the dedicated inbox adapter before the aggregate PDO adapter.
+
+- app/storage/PdoRateLimitRepository.php — dedicated MySQL/MariaDB fixed-window rate-limit adapter.
+- app/storage/PdoChatRepository.php — delegates rate-limit operations to PdoRateLimitRepository while preserving ChatRepository.
