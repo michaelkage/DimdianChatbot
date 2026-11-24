@@ -193,3 +193,10 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - Initial WhatsApp opt-in still uses `PdoConsentRepository` on the same PDO connection and participates in the outer guest/session transaction. A failure in the consent ledger or identity-route write therefore rolls back guest, conversation and session creation together.
 - `PdoChatRepository` delegates the three guest-session operations to the dedicated adapter; existing public session and authentication routes remain unchanged.
 - Added a direct adapter-interface contract assertion. Existing integration coverage exercises session creation, lookup and authentication through the aggregate.
+
+
+### Dedicated visitor-message PDO adapter (2026-11-24)
+
+- Extracted visitor message creation, idempotency replay/conflict detection, atomic optional WhatsApp outbox insertion, conversation activity updates, visitor polling and delivery-state polling into `PdoVisitorMessageRepository`.
+- `PdoChatRepository` delegates the visitor-message capability to this adapter on the same PDO connection. Message and outbox writes remain in one transaction; an outbox insert failure still rolls back the message.
+- Added a direct adapter-interface contract assertion. Existing MySQL integration tests cover idempotent replay, no duplicate outbox job and rollback on outbox failure through the aggregate.
