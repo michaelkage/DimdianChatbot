@@ -169,3 +169,11 @@ Latest full CI validation: [GitHub Actions run 45200920244](https://github.com/m
 - `PdoChatRepository` remains the backward-compatible aggregate and delegates the four inbox capability methods to the dedicated adapter using the same PDO connection. Provider-event interpretation and provider-event persistence remain separate concerns.
 - The shared integration suite continues to exercise the aggregate path, so existing cron and HTTP composition do not change. The new adapter is also checked directly against `WebhookInboxRepository`.
 - This is the first physical PDO adapter split; other chat persistence capabilities still live in `PdoChatRepository` and are not claimed as extracted.
+
+
+### Dedicated rate-limit PDO adapter (2026-11-24)
+
+- Extracted fixed-window bucket hashing, expiry calculation, atomic upsert/count enforcement and transaction handling into `PdoRateLimitRepository`.
+- `PdoChatRepository` delegates `consumeRateLimit()` to the new adapter using the same PDO connection, preserving the aggregate contract and existing transaction semantics.
+- Added a direct adapter-interface contract assertion. Existing session and visitor-message integration tests continue to exercise rate limiting through the aggregate.
+- The remaining guest/session, consent, visitor-message, provider-event and outbox SQL has not yet been physically split from `PdoChatRepository`.
