@@ -16,6 +16,8 @@ function staff_inbox_guard_enabled(): void
 function staff_inbox_service(): StaffInboxService
 {
     require_once __DIR__ . '/StaffInboxRepository.php';
+    require_once __DIR__ . '/PdoStaffPersistenceSupport.php';
+    require_once __DIR__ . '/PdoStaffIdentityRepository.php';
     require_once __DIR__ . '/PdoStaffInboxRepository.php';
     require_once __DIR__ . '/StaffIdentityProvider.php';
     require_once __DIR__ . '/HmacStaffIdentityProvider.php';
