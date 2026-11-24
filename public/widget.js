@@ -8,6 +8,22 @@ const commerceApi = script.dataset.commerceApi || '';
 const ordersApi = script.dataset.ordersApi || '';
 const restNonce = script.dataset.restNonce || '';
 const offlineQueueEnabled = script.dataset.offlineQueue === 'true';
+const splitRules = value => String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+const hidePaths = splitRules(script.dataset.hidePaths);
+const showPaths = splitRules(script.dataset.showPaths);
+const hideSelectors = splitRules(script.dataset.hideSelectors);
+const compactSelectors = splitRules(script.dataset.compactSelectors);
+const pathMatches = pattern => pattern.endsWith('*') ? location.pathname.startsWith(pattern.slice(0, -1)) : location.pathname === pattern;
+const matchesSelector = selectors => selectors.some(selector => {
+ try{return Boolean(document.querySelector(selector));}catch(_){return false;}
+});
+const matchesFullscreen = selectors => {
+ const element=document.fullscreenElement;
+ if(!element)return false;
+ return selectors.some(selector=>{
+  try{return element.matches(selector)||Boolean(element.closest(selector));}catch(_){return false;}
+ });
+};
 const widgetId = script.dataset.widgetId || '';
 const key = 'dimdian-chat:' + api + ':' + (widgetId || 'single-tenant') + ':' + location.origin;
 const root = document.createElement('div');
@@ -29,6 +45,18 @@ const $ = s => shadow.querySelector(s);
 const launcher=$('.launcher'), panel=$('.panel'), form=$('.composer'), input=$('textarea'), messages=$('.messages'), welcome=$('.welcome'), consentRevoke=$('.consent-revoke');
 $('.heading h2').textContent=script.dataset.title||'Chat with us';
 $('.heading p').textContent=script.dataset.subtitle||'We usually reply as soon as we can.';
+if(/^#[0-9a-fA-F]{6}$/.test(script.dataset.primaryColor||''))root.style.setProperty('--cb-primary',script.dataset.primaryColor);
+if(/^#[0-9a-fA-F]{6}$/.test(script.dataset.accentColor||''))root.style.setProperty('--cb-accent',script.dataset.accentColor);
+if(script.dataset.launcherText)launcher.lastChild.textContent=' '+script.dataset.launcherText;
+if(script.dataset.logoUrl){
+ try{
+  const logoUrl=new URL(script.dataset.logoUrl,location.href);
+  if(logoUrl.protocol==='https:'){
+   const logo=document.createElement('img');logo.src=logoUrl.href;logo.alt='';logo.loading='lazy';logo.referrerPolicy='no-referrer';
+   $('.mark').replaceChildren(logo);$('.mark').setAttribute('aria-label',script.dataset.title||'Support');
+  }
+ }catch(_){}
+}
 if(demo){$('.fields').hidden=true;$('.wa-consent').hidden=true;consentRevoke.hidden=true;}
 const orderQuickReply=shadow.querySelector('[data-action="orders"]');
 if(orderQuickReply&&(!ordersApi||!restNonce))orderQuickReply.hidden=true;
@@ -297,6 +325,13 @@ async function send(text){
 }
 function open(){opened=true;panel.hidden=false;launcher.hidden=true;launcher.setAttribute('aria-expanded','true');if(session){welcome.hidden=true;$('.name').disabled=true;$('.phone').disabled=true;$('.wa-opt-in').disabled=true;consentRevoke.hidden=session.whatsappOptInKnown&&!session.whatsappOptIn;poll().finally(schedule);}else{welcome.hidden=false;stop();}setTimeout(()=>input.focus(),60);}
 function close(){opened=false;panel.hidden=true;launcher.hidden=false;launcher.setAttribute('aria-expanded','false');stop();launcher.focus();}
+function applyPageRules(){
+ const pathHidden=(showPaths.length&&!showPaths.some(pathMatches))||hidePaths.some(pathMatches);
+ const selectorHidden=matchesSelector(hideSelectors)||matchesFullscreen(hideSelectors);
+ root.hidden=pathHidden||selectorHidden;
+ root.classList.toggle('compact-mode',matchesSelector(compactSelectors)||matchesFullscreen(compactSelectors));
+ if(root.hidden&&opened){opened=false;panel.hidden=true;launcher.hidden=false;launcher.setAttribute('aria-expanded','false');stop();}
+}
 consentRevoke.addEventListener('click',async()=>{
  if(!session||(session.whatsappOptInKnown&&!session.whatsappOptIn))return;
  consentRevoke.disabled=true;
@@ -313,6 +348,10 @@ form.addEventListener('submit',e=>{e.preventDefault();const text=input.value.tri
 input.addEventListener('input',()=>{$('.count').textContent=input.value.length+' / 4000';input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px';});
 input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();form.requestSubmit();}});
 document.addEventListener('visibilitychange',()=>{if(!opened)return;if(document.hidden)stop();else if(session)poll().finally(schedule);});
+window.addEventListener('popstate',applyPageRules);
+window.addEventListener('hashchange',applyPageRules);
+document.addEventListener('fullscreenchange',applyPageRules);
+applyPageRules();
 if(offlineQueueEnabled&&!demo){
  readQueue().forEach(showQueued);
  window.addEventListener('online',()=>flushQueue());

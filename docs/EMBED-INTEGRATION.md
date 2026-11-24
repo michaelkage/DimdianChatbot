@@ -31,6 +31,13 @@ The widget creates an isolated Shadow DOM and loads its stylesheet from the same
 | --- | --- |
 | `data-title`, `data-subtitle` | Header text |
 | `data-offline-queue` | Explicitly opt in to the local offline message queue; default is disabled |
+| `data-primary-color`, `data-accent-color` | Optional six-digit hex theme colours |
+| `data-launcher-text` | Custom launcher label |
+| `data-logo-url` | Optional HTTPS logo image; the widget sends no referrer header for this image |
+| `data-hide-paths` | Comma-separated exact paths or prefix patterns ending in `*` |
+| `data-show-paths` | Optional path allow-list; when set, only matching paths display the widget |
+| `data-hide-selectors` | Comma-separated CSS selectors that suppress the widget when matched |
+| `data-compact-selectors` | Comma-separated CSS selectors that use a compact launcher |
 
 ## Offline message queue
 
@@ -42,6 +49,8 @@ The offline queue is deliberately opt-in. Set `data-offline-queue="true"` only a
 - When connectivity returns, messages are sent in order. Network failures, HTTP 408/425/429 and server errors use bounded exponential retry. Non-transient errors remain queued and are shown as needing attention.
 - If the current guest session has expired, the widget starts a fresh website chat session before retrying the saved message.
 - If the tab is refreshed, the browser's tab-scoped session token remains available and queued messages can continue in that conversation. A new tab may not have that token and can therefore start a new session.
+
+The optional branding and page-targeting attributes are presentation controls only; they do not grant access to conversations or alter server-side tenant authorization. Path rules are evaluated on initial load, browser history navigation and fullscreen changes. If your single-page app changes routes with `history.pushState`, update the page or dispatch the relevant navigation event yourself. Invalid CSS selectors are ignored safely.
 
 Local storage is not an encrypted vault. Anyone with access to the same browser profile may be able to inspect its contents. Do not enable this feature on shared/public devices, and do not encourage visitors to queue passwords, payment details or other sensitive information. Clearing the site's local storage removes queued messages.
 

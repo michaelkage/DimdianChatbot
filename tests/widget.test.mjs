@@ -78,3 +78,25 @@ test('transient API failures schedule bounded retries while permanent failures r
 test('queued message placeholders are restored when the visible conversation is cleared', () => {
   assert.match(widget, /function clear\(\)[^\n]*queuedNodes\.clear\(\)[^\n]*readQueue\(\)\.forEach\(showQueued\)/);
 });
+
+
+test('widget branding accepts only six-digit hex colours and HTTPS logos', () => {
+  assert.match(widget, /\^#\[0-9a-fA-F\]\{6\}\$/);
+  assert.match(widget, /logoUrl\.protocol==='https:'/);
+  assert.match(widget, /referrerPolicy='no-referrer'/);
+  assert.match(widget, /launcher\.lastChild\.textContent/);
+});
+
+test('page targeting supports exact and prefix paths plus guarded CSS selectors', () => {
+  assert.match(widget, /data-hidePaths|hidePaths/);
+  assert.match(widget, /showPaths/);
+  assert.match(widget, /pattern\.endsWith\('\*'\)/);
+  assert.match(widget, /document\.querySelector\(selector\)/);
+  assert.match(widget, /addEventListener\('fullscreenchange',applyPageRules\)/);
+  assert.doesNotMatch(widget, /eval\(/);
+});
+
+test('compact mode styles the shadow host rather than an unreachable inner ancestor', () => {
+  assert.match(widget, /classList\.toggle\('compact-mode'/);
+  assert.match(css, /:host\(\.compact-mode\) \.launcher/);
+});
