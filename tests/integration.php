@@ -28,6 +28,48 @@ function expect(bool $condition, string $label): void
     }
 }
 
+// GuestSessionService contract: session creation, hash-only token storage and rate-limit signaling.
+$guestSessionService = new GuestSessionService(chat_repository($pdo), app_config());
+$serviceGuestSession = $guestSessionService->create([
+    'name' => 'Service integration visitor',
+    'phone' => null,
+    'phone_normalized' => null,
+    'whatsapp_opt_in' => false,
+], 'integration-session-service');
+$storedGuestToken = $pdo->prepare('SELECT token_hash FROM guest_sessions WHERE id = :id');
+$storedGuestToken->execute([':id' => $serviceGuestSession['session_id']]);
+expect(
+    preg_match('/^[a-f0-9]{64}$/', $serviceGuestSession['session_token']) === 1
+        && hash_equals(hash('sha256', $serviceGuestSession['session_token']), (string) $storedGuestToken->fetchColumn())
+        && $serviceGuestSession['conversation_id'] !== ''
+        && $serviceGuestSession['expires_at'] !== '',
+    'guest session service returns a one-time token while persisting only its SHA-256 hash'
+);
+$limitedSessionService = new GuestSessionService(chat_repository($pdo), [
+    'app' => [
+        'session_rate_limit' => ['max_requests' => 1, 'window_seconds' => 60],
+        'guest_session_ttl_hours' => 1,
+    ],
+]);
+$limitedSessionService->create([
+    'name' => null,
+    'phone' => null,
+    'phone_normalized' => null,
+    'whatsapp_opt_in' => false,
+], 'integration-session-rate-limit');
+$sessionRateLimitRejected = false;
+try {
+    $limitedSessionService->create([
+        'name' => null,
+        'phone' => null,
+        'phone_normalized' => null,
+        'whatsapp_opt_in' => false,
+    ], 'integration-session-rate-limit');
+} catch (GuestSessionRateLimitExceeded $error) {
+    $sessionRateLimitRejected = $error->retryAfterSeconds === 60;
+}
+expect($sessionRateLimitRejected, 'guest session service raises a bounded retry signal when the rate limit is exhausted');
+
 // Meta connection repository contract: one-time state consumption and durable token lifecycle.
 $metaRepository = meta_connection_repository($pdo);
 $metaStateHash = hash('sha256', bin2hex(random_bytes(32)));
