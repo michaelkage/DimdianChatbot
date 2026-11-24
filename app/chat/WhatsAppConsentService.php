@@ -6,7 +6,7 @@ final class WhatsAppConsentPhoneRequired extends RuntimeException
 {
 }
 
-/** Applies visitor WhatsApp consent through the auditable ChatRepository transition. */
+/** Applies visitor WhatsApp consent through the auditable ConsentRepository transition. */
 final class WhatsAppConsentService
 {
     /** @var ChatRepository */
