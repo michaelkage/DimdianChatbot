@@ -1,9 +1,4 @@
-<
-\nstaff_expect(
-    is_subclass_of(PdoStaffIdentityRepository::class, StaffIdentityRepository::class),
-    'focused staff identity adapter implements its persistence capability'
-);
-?php
+<?php
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
@@ -61,6 +56,11 @@ function staff_expect(bool $condition, string $label): void
         fwrite(STDERR, "FAIL {$label}\n");
     }
 }
+
+staff_expect(
+    is_subclass_of(PdoStaffIdentityRepository::class, StaffIdentityRepository::class),
+    'focused staff identity adapter implements its persistence capability'
+);
 
 /** @return array{status:int,stdout:string,stderr:string} */
 function staff_run_cli(array $arguments): array
