@@ -19,11 +19,9 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
         }
         $statement = $this->pdo->prepare(
             'INSERT INTO meta_signup_states (state_sha256, expires_at, created_at)
-             VALUES (:hash, DATE_ADD(UTC_TIMESTAMP(), INTERVAL :ttl SECOND), UTC_TIMESTAMP())'
+             VALUES (:hash, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ' . $ttlSeconds . ' SECOND), UTC_TIMESTAMP())'
         );
-        $statement->bindValue(':hash', $stateHash);
-        $statement->bindValue(':ttl', $ttlSeconds, PDO::PARAM_INT);
-        $statement->execute();
+        $statement->execute([':hash' => $stateHash]);
     }
 
     public function consumeSignupState(string $stateHash): bool
