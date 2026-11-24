@@ -223,3 +223,8 @@ The current core and optional staff DDL contain no tenant root or tenant keys, a
 ### Storage capability interfaces (2026-11-24)
 
 The aggregate `ChatRepository` contract is now composed from narrower interfaces: `GuestSessionRepository`, `RateLimitRepository`, `VisitorMessageRepository`, `ConsentRepository`, `WhatsAppIdentityRepository`, `WebhookInboxRepository`, `ProviderEventRepository` and `WhatsAppOutboxRepository`. Focused composition contracts serve session operations, visitor messaging and webhook processing. Application services now depend on the narrow capability they actually use, while `ChatRepository` remains the compatibility aggregate implemented by the existing MySQL/MariaDB adapter. This reduces adapter coupling but does not itself add another database engine or tenant scope.
+
+
+### Physical adapter decomposition
+
+The first capability now has a dedicated physical adapter: `PdoWebhookInboxRepository` owns encrypted webhook inbox enqueue, lease claiming/reclaim, completion and retry/failure persistence. `PdoChatRepository` remains the compatibility aggregate and delegates these methods using the same PDO connection. Other chat persistence operations still reside in `PdoChatRepository`; interface segregation should not be mistaken for complete physical adapter decomposition or PostgreSQL support.
