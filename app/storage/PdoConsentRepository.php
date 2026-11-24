@@ -59,21 +59,34 @@ final class PdoConsentRepository implements ConsentRepository
                 $update->execute([':guest' => $guestId]);
 
                 // Prevent queued messages from being sent after consent withdrawal.
-                $cancel = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE message_outbox o
-                     INNER JOIN messages m ON m.id = o.message_id
-                     INNER JOIN conversations c ON c.id = m.conversation_id
-                     SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
-                         o.last_error = "Cancelled after WhatsApp consent withdrawal.",
-                         o.updated_at = UTC_TIMESTAMP()
-                     WHERE c.guest_id = :guest AND o.status IN ("pending","processing")'
-                );
+                $cancelSql = PdoSqlDialect::isPostgres($this->pdo)
+                    ? 'UPDATE message_outbox AS o
+                       SET status = \'failed\', locked_at = NULL, lock_token = NULL,
+                           last_error = \'Cancelled after WhatsApp consent withdrawal.\',
+                           updated_at = CURRENT_TIMESTAMP
+                       FROM messages AS m
+                       INNER JOIN conversations AS c ON c.id = m.conversation_id
+                       WHERE m.id = o.message_id AND c.guest_id = :guest
+                         AND o.status IN (\'pending\', \'processing\')'
+                    : 'UPDATE message_outbox o
+                       INNER JOIN messages m ON m.id = o.message_id
+                       INNER JOIN conversations c ON c.id = m.conversation_id
+                       SET o.status = "failed", o.locked_at = NULL, o.lock_token = NULL,
+                           o.last_error = "Cancelled after WhatsApp consent withdrawal.",
+                           o.updated_at = UTC_TIMESTAMP()
+                       WHERE c.guest_id = :guest AND o.status IN ("pending","processing")';
+                $cancel = PdoSqlDialect::prepare($this->pdo, $cancelSql);
                 $cancel->execute([':guest' => $guestId]);
-                $mark = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE messages m INNER JOIN conversations c ON c.id = m.conversation_id
-                     SET m.delivery_status = "web_only"
-                     WHERE c.guest_id = :guest AND m.delivery_status = "queued"'
-                );
+                $markSql = PdoSqlDialect::isPostgres($this->pdo)
+                    ? 'UPDATE messages AS m
+                       SET delivery_status = \'web_only\'
+                       FROM conversations AS c
+                       WHERE c.id = m.conversation_id AND c.guest_id = :guest
+                         AND m.delivery_status = \'queued\''
+                    : 'UPDATE messages m INNER JOIN conversations c ON c.id = m.conversation_id
+                       SET m.delivery_status = "web_only"
+                       WHERE c.guest_id = :guest AND m.delivery_status = "queued"';
+                $mark = PdoSqlDialect::prepare($this->pdo, $markSql);
                 $mark->execute([':guest' => $guestId]);
             }
 
