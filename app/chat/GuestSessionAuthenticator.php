@@ -29,18 +29,18 @@ final class GuestSessionAuthenticator
     }
 
     /** @return array<string,mixed> */
-    public function authenticate(string $token, bool $requireOpen = true): array
+    public function authenticate(string $token, TenantContext $tenantContext, bool $requireOpen = true): array
     {
         if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
             throw new GuestSessionTokenInvalid('A valid chat session token is required.');
         }
 
-        $session = $this->repository->findGuestSessionByTokenHash(hash('sha256', $token));
+        $session = $this->repository->findGuestSessionByTokenHash(hash('sha256', $token), $tenantContext->tenantId);
         if ($session === null) {
             throw new GuestSessionNotFound('This chat session is no longer valid. Start a new chat to continue.');
         }
 
-        $this->repository->touchGuestSession((string) $session['session_id']);
+        $this->repository->touchGuestSession((string) $session['session_id'], $tenantContext->tenantId);
 
         if ($requireOpen && ($session['conversation_status'] ?? null) !== 'open') {
             throw new GuestConversationClosed('This conversation has been closed. Start a new chat to send another message.');
