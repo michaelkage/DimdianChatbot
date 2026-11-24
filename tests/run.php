@@ -93,6 +93,7 @@ check(
 );
 
 $serviceRepositoryContracts = [
+    GuestSessionAuthenticator::class => GuestSessionRepository::class,
     GuestSessionService::class => GuestSessionOperationsRepository::class,
     ChatMessageService::class => VisitorMessagingRepository::class,
     WhatsAppConsentService::class => ConsentRepository::class,
