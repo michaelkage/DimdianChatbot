@@ -55,6 +55,8 @@ require_once __DIR__ . '/storage/ChatRepository.php';
 require_once __DIR__ . '/storage/PdoChatRepository.php';
 require_once __DIR__ . '/storage/MetaConnectionRepository.php';
 require_once __DIR__ . '/storage/PdoMetaConnectionRepository.php';
+require_once __DIR__ . '/storage/RetentionRepository.php';
+require_once __DIR__ . '/storage/PdoRetentionRepository.php';
 
 function app_config(?string $key = null): mixed
 {
@@ -195,6 +197,13 @@ function chat_repository(?PDO $connection = null): ChatRepository
 function meta_connection_repository(?PDO $connection = null): MetaConnectionRepository
 {
     return new PdoMetaConnectionRepository($connection ?? database());
+}
+
+
+/** Resolve the configured retention persistence adapter. */
+function retention_repository(?PDO $connection = null): RetentionRepository
+{
+    return new PdoRetentionRepository($connection ?? database());
 }
 
 function client_fingerprint(): string
