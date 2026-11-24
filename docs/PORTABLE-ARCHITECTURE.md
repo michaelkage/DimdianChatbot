@@ -208,3 +208,8 @@ The core v1 widget/operator surface is described by `docs/openapi.yaml` (OpenAPI
 ### Backend-neutral API acceptance runner (2026-11-24)
 
 `tests/api-acceptance.mjs` exercises the public v1 HTTP contract using only Node's built-in fetch and crypto APIs. It does not connect to MySQL or inspect implementation internals. The runner creates a guest session and verifies one-time credential shape, visitor message persistence, idempotent replay and conflict behavior, invalid-token rejection, polling/cursor output, opt-in phone preconditions and opt-out. `DIMDIAN_API_BASE_URL` can point the same suite at another backend implementing the documented v1 routes. This is the first reusable black-box acceptance slice; staff API conformance and cross-database migration/transaction behavior remain covered by the PHP/MySQL-specific suites until an alternate backend exists.
+
+
+### Backend-neutral staff API acceptance runner (2026-11-24)
+
+`tests/staff-api-acceptance.mjs` exercises the optional staff API without direct database access. It signs each request with a fresh HMAC assertion bound to the exact method, URI, body digest and nonce, provisions first-seen local agent identities through the identity endpoint, and creates visitor conversations through the public API. It verifies unassigned visibility, self-assignment, cross-agent isolation, private-note idempotency and separation, website-only staff replies, assignment history, administrator-only operation denial and access revocation after unassignment. Both backend-neutral runners are configured to accept a different API base URL and can serve as the first black-box compatibility gate for another runtime. The current CI run remains against PHP/MySQL only.
