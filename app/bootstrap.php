@@ -334,7 +334,7 @@ function authenticate_guest_session(GuestSessionRepository $repository, TenantCo
     $token = is_string($token) ? $token : '';
 
     try {
-        return (new GuestSessionAuthenticator($repository))->authenticate($token, $tenantContext, $requireOpen);
+        return (new GuestSessionAuthenticator($repository))->authenticate($token, $requireOpen);
     } catch (GuestSessionTokenInvalid $error) {
         json_response(['error' => ['code' => 'unauthorized', 'message' => $error->getMessage()]], 401);
     } catch (GuestSessionNotFound $error) {
