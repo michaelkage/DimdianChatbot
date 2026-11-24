@@ -11,7 +11,8 @@ WordPress and WooCommerce are the first major distribution and commerce integrat
 - A business can embed the widget on a supported website or application.
 - A visitor can start as a guest without creating an account.
 - The widget communicates with a configured ChatBridge API endpoint.
-- The business can configure branding, welcome text and supported widget behaviour.
+- The business can configure branding, welcome text, launcher appearance and page-targeting behaviour through public embed attributes.
+- The widget supports an explicitly enabled, bounded browser-side offline queue; local storage is best-effort and is not an encrypted vault or delivery guarantee.
 - A business may explicitly enable a bounded browser-side offline message queue; it is disabled by default and is not a guaranteed delivery channel.
 - Website chat does not require WhatsApp or AI.
 - The widget can be served by ChatBridge or self-hosted by the business.
@@ -38,6 +39,10 @@ The WordPress plugin provides settings, widget injection, health diagnostics and
 The WooCommerce adapter may expose public catalogue search and product enquiry handoff. It must expose only published, customer-visible catalogue information.
 
 Private order lookup is a separate opt-in flow for signed-in WordPress customers. The route requires WordPress cookie authentication and a REST nonce, then verifies that the requested WooCommerce order belongs to the current user. It returns a bounded summary only; guest checkout and private contact/payment details are excluded. Public catalogue endpoints must never expose private customer or order data.
+
+### WCFM Marketplace
+
+When WCFM is active alongside WooCommerce, the WordPress connector can add the public vendor store name to catalogue search results and line items in a signed-in customer's own order summary. This is display attribution only. It does not grant vendor login, vendor-wide order access, customer PII, commission or payout access.
 
 ### Other platforms
 
