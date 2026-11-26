@@ -72,7 +72,7 @@ interface WebhookInboxRepository
      */
     public function enqueueWebhookInbox(string $tenantId, string $payloadHash, array $encrypted): array;
 
-    /** Atomically lease one due inbox row; returned row includes its immutable tenant_id. */
+    /** @return array{id:int,tenant_id:string,payload_ciphertext:string,payload_nonce:string,payload_tag:string,attempts:int}|null */
     public function claimWebhookInbox(string $lockToken, int $maxAttempts = 8): ?array;
 
     /** Complete or reschedule only the row owned by the supplied tenant and lease token. */
