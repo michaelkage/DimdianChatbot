@@ -9,11 +9,16 @@ declare(strict_types=1);
  */
 final class WebhookInboxWorker
 {
+    private WhatsAppIdentityRepository $identityRepository;
+
     public function __construct(
-        private readonly WebhookProcessingRepository $repository,
+        private readonly WebhookInboxRepository $repository,
+        WhatsAppIdentityRepository $identityRepository,
         private readonly MetaWebhookProcessor $processor,
         private readonly WebhookPayloadCipher $cipher
-    ) {}
+    ) {
+        $this->identityRepository = $identityRepository;
+    }
 
     /** @return array{processed:int,retried:int,failed:int,empty:bool} */
     public function process(int $limit = 10, int $maxAttempts = 8): array
@@ -49,7 +54,7 @@ final class WebhookInboxWorker
 
                 $phoneNumberIds = MetaWebhookTenantResolver::phoneNumberIdsFromPayload($payload);
                 foreach ($phoneNumberIds as $phoneNumberId) {
-                    $resolvedTenantId = $this->repository->tenantIdForWhatsAppPhoneNumberId($phoneNumberId);
+                    $resolvedTenantId = $this->identityRepository->tenantIdForWhatsAppPhoneNumberId($phoneNumberId);
                     if (!is_string($resolvedTenantId) || !hash_equals($tenantId, $resolvedTenantId)) {
                         throw new RuntimeException('Webhook destination is no longer active for its persisted tenant.');
                     }
