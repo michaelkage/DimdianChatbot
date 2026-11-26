@@ -53,8 +53,7 @@ final class WebhookInboxWorker
                 if (!is_array($routing)
                     || !is_string($routing['tenant_id'] ?? null)
                     || !is_string($routing['phone_number_id'] ?? null)
-                    || $routing['tenant_id'] === ''
-                    || $routing['phone_number_id'] === '') {
+                    || $routing['tenant_id'] === '') {
                     throw new RuntimeException('Active Meta tenant and phone-number configuration are invalid.');
                 }
 
