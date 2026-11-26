@@ -357,6 +357,11 @@ expect(
         && $webhookMetaRepository->tenantIdForPhoneNumberId('unknown-phone-id') === null,
     'Meta webhook destination lookup resolves only an active phone-number connection'
 );
+expect(
+    is_array($webhookMetaRepository->findActiveConnectionForTenant($defaultTenantId))
+        && $webhookMetaRepository->findActiveConnectionForTenant($otherTenantId) === null,
+    'Meta access-token lookup returns only the owning tenant connection'
+);
 $crossTenantMetaReassignmentRejected = false;
 try {
     $webhookMetaRepository->saveActiveConnection([
