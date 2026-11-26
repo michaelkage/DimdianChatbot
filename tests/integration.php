@@ -420,7 +420,7 @@ $pdo->prepare(
     ':conversation_id' => $conversationId,
     ':provider_id' => 'wamid.integration.early-status',
 ]);
-expect(chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.early-status'), 'early status is reconciled after the provider message ID is attached');
+expect(chat_repository($pdo)->reconcileProviderMessageStatus($defaultTenantId, 'wamid.integration.early-status'), 'early status is reconciled after the provider message ID is attached');
 $statusCheck = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusCheck === 'delivered', 'reconciled early status updates the message row');
 $pdo->prepare(
