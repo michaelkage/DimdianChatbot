@@ -13,13 +13,13 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
         $this->support = $support;
     }
 
-    public function getActiveAssignee(string $conversationId): ?string
+    public function getActiveAssignee(string $conversationId, string $tenantId = '00000000-0000-4000-8000-000000000001'): ?string
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT staff_identity_id FROM staff_conversation_assignments
-             WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1'
+             WHERE tenant_id = :tenant_id AND conversation_id = :conversation AND ended_at IS NULL LIMIT 1'
         );
-        $query->execute([':conversation' => $conversationId]);
+        $query->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId]);
         $staffId = $query->fetchColumn();
         return is_string($staffId) ? $staffId : null;
     }
@@ -30,7 +30,8 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
         int $afterSequence,
         int $limit,
         bool $includeUnassigned = false,
-        string $search = ''
+        string $search = '',
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
         if (!in_array($status, ['open', 'closed', 'all'], true)) {
             throw new InvalidArgumentException('Unsupported conversation status filter.');
@@ -45,15 +46,15 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
                        a.staff_identity_id AS assigned_staff_id,
                        assigned.display_name AS assigned_staff_name
                 FROM conversations c
-                INNER JOIN guests g ON g.id = c.guest_id
-                LEFT JOIN messages m ON m.conversation_id = c.id
+                INNER JOIN guests g ON g.tenant_id = c.tenant_id AND g.id = c.guest_id
+                LEFT JOIN messages m ON m.tenant_id = c.tenant_id AND m.conversation_id = c.id
                 LEFT JOIN staff_conversation_assignments a
-                    ON a.conversation_id = c.id AND a.ended_at IS NULL
-                LEFT JOIN staff_identities assigned ON assigned.id = a.staff_identity_id
-                WHERE (:status_all = 1 OR c.status = :status_value)
+                    ON a.tenant_id = c.tenant_id AND a.conversation_id = c.id AND a.ended_at IS NULL
+                LEFT JOIN staff_identities assigned ON assigned.tenant_id = a.tenant_id AND assigned.id = a.staff_identity_id
+                WHERE c.tenant_id = :tenant_id AND (:status_all = 1 OR c.status = :status_value)
                   AND (:assigned_filter = 1 OR a.staff_identity_id = :assigned_staff OR (:include_unassigned = 1 AND a.staff_identity_id IS NULL))
                   AND (:search_empty = 1 OR g.display_name LIKE :search_name ESCAPE \'!\' OR g.phone LIKE :search_phone ESCAPE \'!\'
-                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.conversation_id = c.id AND sm.body LIKE :search_message ESCAPE \'!\'))
+                       OR EXISTS (SELECT 1 FROM messages sm WHERE sm.tenant_id = c.tenant_id AND sm.conversation_id = c.id AND sm.body LIKE :search_message ESCAPE \'!\'))
                 GROUP BY c.id, c.status, c.created_at, c.updated_at, c.last_message_at,
                          g.display_name, g.phone, a.staff_identity_id, assigned.display_name
                 HAVING COALESCE(MAX(m.sequence_id), 0) > :after_sequence
@@ -62,6 +63,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
                 LIMIT ' . $limit;
         $query = PdoSqlDialect::prepare($this->pdo, $sql);
         $query->execute([
+            ':tenant_id' => $tenantId,
             ':status_all' => $status === 'all' ? 1 : 0,
             ':status_value' => $status,
             ':assigned_filter' => $assignedStaffId === null ? 1 : 0,
@@ -81,58 +83,60 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
         string $conversationId,
         string $staffIdentityId,
         string $actorStaffId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): void {
-        $this->support->transaction(function () use ($conversationId, $staffIdentityId, $actorStaffId, $requestId): void {
+        $this->support->transaction(function () use ($conversationId, $staffIdentityId, $actorStaffId, $requestId, $tenantId): void {
             $conversation = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
+                'SELECT status FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE'
             );
-            $conversation->execute([':id' => $conversationId]);
+            $conversation->execute([':tenant_id' => $tenantId, ':id' => $conversationId]);
             if ($conversation->fetchColumn() !== 'open') {
                 throw new RuntimeException('Only an existing open conversation can be assigned.');
             }
-            $this->support->requireActiveStaff($staffIdentityId);
-            $this->support->requireActiveStaff($actorStaffId);
+            $this->support->requireActiveStaff($staffIdentityId, $tenantId);
+            $this->support->requireActiveStaff($actorStaffId, $tenantId);
 
             $end = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE staff_conversation_assignments
                  SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation AND ended_at IS NULL'
+                 WHERE tenant_id = :tenant_id AND conversation_id = :conversation AND ended_at IS NULL'
             );
-            $end->execute([':conversation' => $conversationId]);
+            $end->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId]);
 
             $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO staff_conversation_assignments
-                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
+                    (tenant_id, conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
+                 VALUES (:tenant_id, :conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
             );
             $insert->execute([
+                ':tenant_id' => $tenantId,
                 ':conversation_id' => $conversationId,
                 ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
                 ':actor' => $actorStaffId,
             ]);
-            $this->support->recordAudit($actorStaffId, $conversationId, 'conversation.assigned', $staffIdentityId, [], $requestId);
+            $this->support->recordAudit($actorStaffId, $conversationId, 'conversation.assigned', $staffIdentityId, [], $requestId, $tenantId);
         });
     }
 
-    public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
+    public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool
     {
-        return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
+        return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId, $tenantId): bool {
             $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
             );
-            $conversation->execute([':id' => $conversationId]);
+            $conversation->execute([':tenant_id' => $tenantId, ':id' => $conversationId]);
             if ($conversation->fetchColumn() !== 'open') {
                 throw new RuntimeException('Only an existing open conversation can be self-assigned.');
             }
-            $this->support->requireActiveStaff($staffIdentityId);
+            $this->support->requireActiveStaff($staffIdentityId, $tenantId);
 
             $current = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT staff_identity_id FROM staff_conversation_assignments
-                 WHERE conversation_id = :conversation AND ended_at IS NULL LIMIT 1 FOR UPDATE'
+                 WHERE tenant_id = :tenant_id AND conversation_id = :conversation AND ended_at IS NULL LIMIT 1 FOR UPDATE'
             );
-            $current->execute([':conversation' => $conversationId]);
+            $current->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId]);
             $assignee = $current->fetchColumn();
             if (is_string($assignee) && $assignee !== '') {
                 return hash_equals($assignee, $staffIdentityId);
@@ -149,28 +153,29 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
                 ':staff' => $staffIdentityId,
                 ':actor' => $staffIdentityId,
             ]);
-            $this->support->recordAudit($staffIdentityId, $conversationId, 'conversation.assigned', $staffIdentityId, ['self_assigned' => true], $requestId);
+            $this->support->recordAudit($staffIdentityId, $conversationId, 'conversation.assigned', $staffIdentityId, ['self_assigned' => true], $requestId, $tenantId);
             return true;
         });
     }
 
-    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array
+    public function listAssignmentHistory(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): array
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT a.id, a.staff_identity_id, a.assigned_by_staff_id, a.assigned_at, a.ended_at,
                     assignee.display_name AS assignee_name, assigner.display_name AS assigned_by_name
              FROM staff_conversation_assignments a
-             INNER JOIN staff_identities assignee ON assignee.id = a.staff_identity_id
-             INNER JOIN staff_identities assigner ON assigner.id = a.assigned_by_staff_id
-             WHERE a.conversation_id = :conversation AND a.id > :after_id
+             INNER JOIN staff_identities assignee ON assignee.tenant_id = a.tenant_id AND assignee.id = a.staff_identity_id
+             INNER JOIN staff_identities assigner ON assigner.tenant_id = a.tenant_id AND assigner.id = a.assigned_by_staff_id
+             WHERE a.tenant_id = :tenant_id AND a.conversation_id = :conversation AND a.id > :after_id
                AND (:assignment_required = 0 OR EXISTS (
                    SELECT 1 FROM staff_conversation_assignments access
-                   WHERE access.conversation_id = a.conversation_id
+                   WHERE access.tenant_id = a.tenant_id AND access.conversation_id = a.conversation_id
                      AND access.staff_identity_id = :required_assignee AND access.ended_at IS NULL
                ))
              ORDER BY a.id ASC LIMIT ' . max(1, min(100, $limit))
         );
         $query->execute([
+            ':tenant_id' => $tenantId,
             ':conversation' => $conversationId,
             ':after_id' => max(0, $afterId),
             ':assignment_required' => $requiredAssigneeId === null ? 0 : 1,
@@ -182,11 +187,12 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
     public function unassignConversation(
         string $conversationId,
         string $actorStaffId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool {
-        return $this->support->transaction(function () use ($conversationId, $actorStaffId, $requestId): bool {
-            $this->support->requireActiveStaff($actorStaffId);
-            $conversation = PdoSqlDialect::prepare($this->pdo, 'SELECT id FROM conversations WHERE id = :id FOR UPDATE');
+        return $this->support->transaction(function () use ($conversationId, $actorStaffId, $requestId, $tenantId): bool {
+            $this->support->requireActiveStaff($actorStaffId, $tenantId);
+            $conversation = PdoSqlDialect::prepare($this->pdo, 'SELECT id FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE');
             $conversation->execute([':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) return false;
             $query = PdoSqlDialect::prepare($this->pdo, 
@@ -196,30 +202,30 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
             );
             $query->execute([':conversation' => $conversationId]);
             if ($query->rowCount() !== 1) return false;
-            $this->support->recordAudit($actorStaffId, $conversationId, 'conversation.unassigned', null, [], $requestId);
+            $this->support->recordAudit($actorStaffId, $conversationId, 'conversation.unassigned', null, [], $requestId, $tenantId);
             return true;
         });
     }
 
-    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool
+    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool
     {
-        return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId): bool {
+        return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId, $tenantId): bool {
             $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id FROM conversations WHERE id = :id FOR UPDATE'
             );
             $conversation->execute([':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) return false;
-            $this->support->requireActiveStaff($staffIdentityId);
+            $this->support->requireActiveStaff($staffIdentityId, $tenantId);
 
             $query = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE staff_conversation_assignments
                  SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation
+                 WHERE tenant_id = :tenant_id AND conversation_id = :conversation
                    AND staff_identity_id = :staff AND ended_at IS NULL'
             );
-            $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
+            $query->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId, ':staff' => $staffIdentityId]);
             if ($query->rowCount() !== 1) return false;
-            $this->support->recordAudit($staffIdentityId, $conversationId, 'conversation.unassigned', null, ['self_unassigned' => true], $requestId);
+            $this->support->recordAudit($staffIdentityId, $conversationId, 'conversation.unassigned', null, ['self_unassigned' => true], $requestId, $tenantId);
             return true;
         });
     }
