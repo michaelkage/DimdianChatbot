@@ -342,6 +342,15 @@ expect($pollStatus === 200 && count($pollBody['data'] ?? []) === 1, 'poll return
 expect(($pollBody['meta']['delivery_updates'][0]['delivery_status'] ?? '') === 'web_only', 'poll includes current delivery-state updates');
 
 $secret = 'test-meta-app-secret';
+$webhookMetaRepository = meta_connection_repository($pdo);
+$webhookMetaRepository->saveActiveConnection([
+    'waba_id' => 'test-waba',
+    'phone_number_id' => 'test-phone-id',
+    'token_ciphertext' => 'test-ciphertext',
+    'token_nonce' => str_repeat('n', 12),
+    'token_tag' => str_repeat('t', 16),
+    'token_expires_at' => null,
+]);
 [$verifyStatus, $verifyBody] = request_api('GET', '/api/webhook.php?hub.mode=subscribe&hub.verify_token=test-webhook-token&hub.challenge=challenge-123');
 expect($verifyStatus === 200 && $verifyBody === null, 'Meta webhook verification returns a plain-text challenge');
 [$unsupportedWebhookMethod] = request_api('DELETE', '/api/webhook.php');
@@ -382,7 +391,7 @@ $inboundPayload = [
         'id' => 'test-waba',
         'changes' => [[
             'field' => 'messages',
-            'value' => ['messages' => [[
+            'value' => ['metadata' => ['phone_number_id' => 'test-phone-id'], 'messages' => [[
                 'from' => '2348031234567',
                 'id' => 'wamid.integration.inbound.1',
                 'timestamp' => '1739321025',
@@ -401,7 +410,7 @@ $statusPayload = [
         'id' => 'test-waba',
         'changes' => [[
             'field' => 'messages',
-            'value' => ['statuses' => [[
+            'value' => ['metadata' => ['phone_number_id' => 'test-phone-id'], 'statuses' => [[
                 'id' => 'wamid.integration.early-status',
                 'status' => 'delivered',
                 'timestamp' => '1739321026',
@@ -412,6 +421,7 @@ $statusPayload = [
 ];
 [$earlyStatusCode] = webhook_post($statusPayload, $secret);
 expect($earlyStatusCode === 200, 'early delivery status webhook is accepted');
+$pdo->prepare('DELETE FROM meta_connections WHERE phone_number_id = :phone')->execute([':phone' => 'test-phone-id']);
 $pdo->prepare(
     'INSERT INTO messages (id, conversation_id, sender_type, body, provider_message_id, delivery_status, sent_at, created_at)
      VALUES (:id, :conversation_id, "visitor", "status race", :provider_id, "sent", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
@@ -648,14 +658,14 @@ $webhookEncrypted = [
     'nonce' => random_bytes(12),
     'tag' => random_bytes(16),
 ];
-$webhookQueued = $repository->enqueueWebhookInbox($webhookHash, $webhookEncrypted);
+$webhookQueued = $repository->enqueueWebhookInbox($defaultTenantId, $webhookHash, $webhookEncrypted);
 expect($webhookQueued['inserted'] && $webhookQueued['status'] === 'pending', 'webhook repository persists a new encrypted inbox row');
-$webhookReplay = $repository->enqueueWebhookInbox($webhookHash, $webhookEncrypted);
+$webhookReplay = $repository->enqueueWebhookInbox($defaultTenantId, $webhookHash, $webhookEncrypted);
 expect(!$webhookReplay['inserted'] && $webhookReplay['id'] === $webhookQueued['id'], 'webhook repository deduplicates an identical payload hash');
 $webhookLease = uuid_v4();
 $webhookJob = $repository->claimWebhookInbox($webhookLease, 8);
 expect(is_array($webhookJob) && (int) $webhookJob['id'] === $webhookQueued['id'] && (int) $webhookJob['attempts'] === 1, 'webhook repository atomically leases the oldest due inbox row');
-$repository->failWebhookInbox($webhookQueued['id'], $webhookLease, true, 0, 'contract retry');
+$repository->failWebhookInbox($defaultTenantId, $webhookQueued['id'], $webhookLease, true, 0, 'contract retry');
 $webhookRetryState = $pdo->prepare('SELECT status, attempts FROM webhook_inbox WHERE id = :id');
 $webhookRetryState->execute([':id' => $webhookQueued['id']]);
 $webhookRetryRow = $webhookRetryState->fetch();
@@ -663,7 +673,7 @@ expect($webhookRetryRow && $webhookRetryRow['status'] === 'pending' && (int) $we
 $webhookRetryLease = uuid_v4();
 $webhookRetryJob = $repository->claimWebhookInbox($webhookRetryLease, 8);
 expect(is_array($webhookRetryJob) && (int) $webhookRetryJob['id'] === $webhookQueued['id'] && (int) $webhookRetryJob['attempts'] === 2, 'webhook repository increments attempts when reclaiming a retry');
-$repository->completeWebhookInbox($webhookQueued['id'], $webhookRetryLease);
+$repository->completeWebhookInbox($defaultTenantId, $webhookQueued['id'], $webhookRetryLease);
 $webhookDoneState = $pdo->prepare('SELECT status, processed_at, lock_token FROM webhook_inbox WHERE id = :id');
 $webhookDoneState->execute([':id' => $webhookQueued['id']]);
 $webhookDoneRow = $webhookDoneState->fetch();
