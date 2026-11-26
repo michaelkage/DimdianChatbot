@@ -195,7 +195,7 @@ tenant_schema_expect(
     is_string($staffIdentityRepository)
         && preg_match('/INSERT IGNORE INTO staff_auth_nonces \\(tenant_id, nonce_sha256/', $staffIdentityRepository) === 1
         && is_string($staffHmacProvider)
-        && strpos($staffHmacProvider, "consumeStaffAuthNonce(hash('sha256', $nonce), $expiresAt, $tenantId)") !== false,
+        && strpos($staffHmacProvider, 'consumeStaffAuthNonce(hash(\'sha256\', $nonce), $expiresAt, $tenantId)') !== false,
     'HMAC replay nonce persistence is tenant-scoped using the verified signed tenant'
 );
 
