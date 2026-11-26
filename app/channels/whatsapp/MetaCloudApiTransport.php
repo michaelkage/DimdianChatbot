@@ -6,7 +6,7 @@ declare(strict_types=1);
 interface WhatsAppTextTransport
 {
     /** @return array{provider_message_id:string} */
-    public function sendTemplate(string $recipient, string $bodyParameter): array;
+    public function sendTemplate(string $tenantId, string $recipient, string $bodyParameter): array;
 }
 
 final class WhatsAppTransportException extends RuntimeException
@@ -19,19 +19,34 @@ final class WhatsAppTransportException extends RuntimeException
 
 final class MetaCloudApiTransport implements WhatsAppTextTransport
 {
-    public function __construct(private readonly array $config) {}
+    public function __construct(
+        private readonly array $config,
+        private readonly ?MetaEmbeddedSignupService $connectionService = null,
+        private readonly string $defaultTenantId = '00000000-0000-4000-8000-000000000001'
+    ) {}
 
-    public function sendTemplate(string $recipient, string $bodyParameter): array
+    public function sendTemplate(string $tenantId, string $recipient, string $bodyParameter): array
     {
-        $version = (string)($this->config['graph_api_version'] ?? '');
-        $phoneNumberId = (string)($this->config['phone_number_id'] ?? '');
-        $accessToken = (string)($this->config['access_token'] ?? '');
+        if ($this->connectionService === null && !hash_equals($this->defaultTenantId, $tenantId)) {
+            throw new WhatsAppTransportException('Tenant-specific WhatsApp credentials are unavailable.', false);
+        }
+        try {
+            $tenantConfig = $this->connectionService !== null
+                ? $this->connectionService->loadWhatsAppConfig($this->config, $tenantId)
+                : $this->config;
+        } catch (Throwable $error) {
+            throw new WhatsAppTransportException('Tenant WhatsApp credentials could not be resolved.', false);
+        }
+
+        $version = (string)($tenantConfig['graph_api_version'] ?? '');
+        $phoneNumberId = (string)($tenantConfig['phone_number_id'] ?? '');
+        $accessToken = (string)($tenantConfig['access_token'] ?? '');
 
         if (!preg_match('/^v\d+\.\d+$/', $version) || $phoneNumberId === '' || $accessToken === '') {
             throw new WhatsAppTransportException('WhatsApp transport configuration is incomplete.', false);
         }
-        $templateName = (string)($this->config['template_name'] ?? '');
-        $templateLanguage = (string)($this->config['template_language'] ?? 'en');
+        $templateName = (string)($tenantConfig['template_name'] ?? '');
+        $templateLanguage = (string)($tenantConfig['template_language'] ?? 'en');
         if ($recipient === '' || $bodyParameter === '' || $templateName === '') {
             throw new WhatsAppTransportException('WhatsApp recipient and message are required.', false);
         }
