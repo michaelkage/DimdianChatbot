@@ -44,10 +44,27 @@ try {
     }
 
     $repository = chat_repository();
+    try {
+        $routing = (new MetaWebhookTenantResolver($repository))->resolve($validation['payload']);
+    } catch (MetaWebhookTenantResolutionException $error) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Unknown webhook destination');
+    }
+
+    // Meta can send account-level changes unrelated to message processing.
+    // Acknowledge those without assigning them to an arbitrary tenant.
+    if ($routing === null) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => true, 'ignored' => true], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     $cipher = webhook_payload_cipher();
     $worker = webhook_inbox_worker($repository, $cipher);
     $endpoint = new MetaWebhookEndpoint($repository, $cipher, $worker);
-    $response = $endpoint->processValidatedPayload($rawBody);
+    $response = $endpoint->processValidatedPayload($rawBody, $routing['tenant_id']);
 
     http_response_code($response['status']);
     foreach ($response['headers'] as $name => $value) {
