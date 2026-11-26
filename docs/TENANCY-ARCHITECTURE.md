@@ -11,10 +11,16 @@ The current source and DDL have these characteristics:
 - Neither schema defines a business/tenant root table or a tenant identifier on its records. The core tables are related by guest, conversation and message foreign keys; staff records relate to the same installation-wide conversations and staff identities.
 - The ChatRepository, MetaConnectionRepository and StaffInboxRepository contracts do not accept a tenant context. Their current PDO adapters therefore operate against the database selected by the installation configuration.
 - The public widget derives its API base URL from its script data attribute or script URL. Session creation currently sends name, phone and WhatsApp consent; it does not send a tenant or public widget identifier.
-- Staff HMAC assertions bind identity, issue time, nonce, HTTP method, exact request target and body digest. They do not carry a tenant identity.
+- Staff HMAC assertions now bind a server-configured tenant UUID alongside identity, issue time, nonce, HTTP method, exact request target and body digest. The verified tenant is preserved in the application actor context. Staff repositories, assignments, audit reads and administrative operations are still installation-wide and do not yet enforce that tenant context.
 - The optional staff module is installed separately and is disabled by default.
 
 This is consistent with the current documented deployment boundary: one business per database. It is not a shared-database tenant model.
+
+### Staff assertion implementation boundary
+
+The HMAC assertion payload now includes `tenant_id`, covered by the same HMAC as the identity and request binding fields. The WordPress proxy reads this from the server-only `CHATBRIDGE_STAFF_TENANT_ID` constant, falling back to the explicit legacy single-tenant UUID when the constant is absent. The browser cannot choose or override it.
+
+This is only an authentication-context prerequisite. The current staff identity, assignment, note, message-author, audit and nonce persistence is not yet tenant-scoped. A signed tenant claim does not make those global queries safe. Do not enable shared-database mode until tenant context is required by all staff repository methods and enforced in their SQL and relational constraints.
 
 ## 2. Non-negotiable isolation rule
 
