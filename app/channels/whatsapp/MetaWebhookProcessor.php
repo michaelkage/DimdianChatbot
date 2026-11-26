@@ -12,7 +12,7 @@ final class MetaWebhookProcessor
     public function __construct(private readonly ProviderEventRepository $repository) {}
 
     /** @return array{processed:int,ignored:int} */
-    public function process(string $tenantId, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
+    public function process(string $tenantId, array $payload, string $rawBody, array $expectedPhoneNumberIds = []): array
     {
         $processed = 0;
         $ignored = 0;
@@ -25,7 +25,7 @@ final class MetaWebhookProcessor
                 $field = (string)($change['field'] ?? '');
                 $value = is_array($change['value'] ?? null) ? $change['value'] : [];
                 $receivedPhoneNumberId = (string)($value['metadata']['phone_number_id'] ?? '');
-                if ($expectedPhoneNumberId !== '' && !hash_equals($expectedPhoneNumberId, $receivedPhoneNumberId)) {
+                if ($expectedPhoneNumberIds !== [] && !in_array($receivedPhoneNumberId, $expectedPhoneNumberIds, true)) {
                     $ignored++;
                     continue;
                 }
