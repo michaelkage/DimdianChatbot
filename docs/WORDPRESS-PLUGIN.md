@@ -108,10 +108,10 @@ The WordPress connector includes a separate **ChatBridge Inbox** admin page. It 
 5. On the ChatBridge server, promote that identity to owner using its WordPress user ID (visible in the WordPress user-edit URL):
 
    ```sh
-   php bin/set-staff-role.php wordpress user:123 owner
+   php bin/set-staff-role.php wordpress user:123 owner [--tenant=<tenant-uuid>]
    ```
 
-   Replace `123` with the actual WordPress user ID. The script is CLI-only and only updates an already-provisioned active identity. It does not create an identity or accept a browser-supplied role.
+   Replace `123` with the actual WordPress user ID. The script is CLI-only and only updates an already-provisioned active identity. It does not create an identity or accept a browser-supplied role. The optional `--tenant=<tenant-uuid>` selects the tenant explicitly; when omitted, the legacy default tenant is used.
 6. Sign in to the inbox again. The owner can view all conversations, assign work and manage staff roles/status from the inbox. Other identities are agents by default; operators can still provision `admin` or `agent` roles with the same CLI command. Owners cannot demote or disable the last active owner, and cannot accidentally disable their own active account. Disabling a staff identity does not erase assignment history or automatically reassign its conversations; owners can reassign active work using the inbox assignment controls.
 
 The WordPress AJAX proxy checks the current WordPress login, capability and nonce, then signs the exact HTTP method, request target (including query string), request-body digest and a one-time nonce. The ChatBridge service verifies that assertion and applies its own local role and assignment policy. Use HTTPS end-to-end and keep both server clocks synchronized. The optional schema is currently for one business per database; it is not a shared multi-tenant database design.

@@ -173,6 +173,34 @@ staff_expect(
         && $repository->findStaffIdentityById($tenantBStaffId, '00000000-0000-4000-8000-000000000001') === null,
     'the same external staff subject can exist independently in two tenants and lookup is tenant-scoped'
 );
+
+$setRoleTenantScript = dirname(__DIR__) . '/bin/set-staff-role.php';
+$tenantSetRole = staff_run_cli([$setRoleTenantScript, 'test-idp', 'staff-subject-a', 'admin', '--tenant=' . $tenantB]);
+$tenantBPromoted = $repository->findStaffIdentityById($tenantBStaffId, $tenantB);
+$tenantADuringTenantPromotion = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $tenantSetRole['status'] === 0
+        && ($tenantBPromoted['role'] ?? '') === 'admin'
+        && ($tenantADuringTenantPromotion['role'] ?? '') === 'agent',
+    'set-staff-role CLI changes only the selected tenant identity'
+);
+$provisionTenantScript = dirname(__DIR__) . '/bin/provision-staff.php';
+$tenantProvision = staff_run_cli([
+    $provisionTenantScript,
+    '--provider=test-idp',
+    '--subject=staff-subject-a',
+    '--role=owner',
+    '--tenant=' . $tenantB,
+]);
+$tenantBProvisioned = $repository->findStaffIdentityById($tenantBStaffId, $tenantB);
+$tenantAAfterProvision = $repository->findStaffIdentityById($resolvedA);
+staff_expect(
+    $tenantProvision['status'] === 0
+        && ($tenantBProvisioned['role'] ?? '') === 'owner'
+        && ($tenantAAfterProvision['role'] ?? '') === 'agent',
+    'legacy provision-staff CLI changes only the selected tenant identity'
+);
+
 $sharedNonceHash = hash('sha256', 'tenant-scoped-staff-nonce-test');
 $nonceExpiry = gmdate('Y-m-d H:i:s', time() + 120);
 staff_expect(

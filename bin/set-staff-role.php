@@ -8,18 +8,27 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__) . '/app/bootstrap.php';
 
-if (($argc ?? 0) !== 4) {
-    fwrite(STDERR, "Usage: php bin/set-staff-role.php <provider> <external-subject> <owner|admin|agent>\n");
+if (($argc ?? 0) < 4 || ($argc ?? 0) > 5) {
+    fwrite(STDERR, "Usage: php bin/set-staff-role.php <provider> <external-subject> <owner|admin|agent> [--tenant=<tenant-uuid>]\n");
     exit(2);
 }
 
 $provider = strtolower(trim((string)$argv[1]));
 $subject = trim((string)$argv[2]);
 $role = strtolower(trim((string)$argv[3]));
+$tenantId = '00000000-0000-4000-8000-000000000001';
+if (($argc ?? 0) === 5) {
+    if (!preg_match('/^--tenant=([a-f0-9-]{36})$/i', (string)$argv[4], $tenantMatch)) {
+        fwrite(STDERR, "Invalid tenant option.\n");
+        exit(2);
+    }
+    $tenantId = strtolower($tenantMatch[1]);
+}
 
 if (!preg_match('/^[a-z0-9._-]{1,40}$/', $provider)
     || $subject === '' || strlen($subject) > 191
-    || !in_array($role, ['owner', 'admin', 'agent'], true)) {
+    || !in_array($role, ['owner', 'admin', 'agent'], true)
+    || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $tenantId)) {
     fwrite(STDERR, "Invalid provider, external subject or role.\n");
     exit(2);
 }
@@ -34,18 +43,20 @@ try {
     $pdo->beginTransaction();
 
     // Match the API's owner invariant. Stable row ordering serializes concurrent CLI changes.
-    $owners = $pdo->query(
+    $ownerQuery = $pdo->prepare(
         'SELECT id FROM staff_identities
-         WHERE role = "owner" AND status = "active"
+         WHERE tenant_id = :tenant_id AND role = "owner" AND status = "active"
          ORDER BY id FOR UPDATE'
-    )->fetchAll(PDO::FETCH_COLUMN);
+    );
+    $ownerQuery->execute([':tenant_id' => $tenantId]);
+    $owners = $ownerQuery->fetchAll(PDO::FETCH_COLUMN);
 
     $lookup = $pdo->prepare(
         'SELECT id, display_name, role, status FROM staff_identities
-         WHERE auth_provider = :provider AND external_subject = :subject
+         WHERE tenant_id = :tenant_id AND auth_provider = :provider AND external_subject = :subject
          LIMIT 1 FOR UPDATE'
     );
-    $lookup->execute([':provider' => $provider, ':subject' => $subject]);
+    $lookup->execute([':tenant_id' => $tenantId, ':provider' => $provider, ':subject' => $subject]);
     $identity = $lookup->fetch();
 
     if (!is_array($identity) || ($identity['status'] ?? '') !== 'active') {
@@ -62,9 +73,9 @@ try {
 
     if (($identity['role'] ?? '') !== $role) {
         $update = $pdo->prepare(
-            'UPDATE staff_identities SET role = :role, updated_at = UTC_TIMESTAMP() WHERE id = :id'
+            'UPDATE staff_identities SET role = :role, updated_at = UTC_TIMESTAMP() WHERE tenant_id = :tenant_id AND id = :id'
         );
-        $update->execute([':role' => $role, ':id' => $identity['id']]);
+        $update->execute([':role' => $role, ':tenant_id' => $tenantId, ':id' => $identity['id']]);
     }
     $pdo->commit();
 
