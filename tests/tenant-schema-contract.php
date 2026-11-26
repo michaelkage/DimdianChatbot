@@ -199,4 +199,24 @@ tenant_schema_expect(
     'HMAC replay nonce persistence is tenant-scoped using the verified signed tenant'
 );
 
+
+$retentionSource = file_get_contents($root . '/app/storage/PdoRetentionRepository.php');
+$setRoleCliSource = file_get_contents($root . '/bin/set-staff-role.php');
+$provisionCliSource = file_get_contents($root . '/bin/provision-staff.php');
+tenant_schema_expect(
+    is_string($retentionSource)
+        && strpos($retentionSource, 'c.tenant_id = e.tenant_id AND c.id = e.conversation_id') !== false
+        && strpos($retentionSource, 'c.tenant_id = n.tenant_id AND c.id = n.conversation_id') !== false
+        && strpos($retentionSource, 'c.tenant_id = a.tenant_id AND c.id = a.conversation_id') !== false
+        && strpos($retentionSource, 'm.tenant_id = sa.tenant_id AND m.id = sa.message_id') !== false,
+    'retention cleanup joins staff records through tenant-matched parent keys'
+);
+tenant_schema_expect(
+    is_string($setRoleCliSource)
+        && is_string($provisionCliSource)
+        && strpos($setRoleCliSource, 'WHERE tenant_id = :tenant_id AND auth_provider = :provider') !== false
+        && strpos($provisionCliSource, 'WHERE tenant_id = :tenant_id AND auth_provider = :provider') !== false,
+    'both staff role provisioning CLI entry points scope identity lookup to an explicit tenant'
+);
+
 echo "Tenant provider and staff schema contract checks passed." . PHP_EOL;
