@@ -48,8 +48,10 @@ jobs:
         run: |
           find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
-      - name: Validate OpenAPI 3.1 documents and route coverage
-        run: ruby tests/validate-openapi.rb
+      - name: Validate OpenAPI and tenant schema contracts
+        run: |
+          ruby tests/validate-openapi.rb
+          php tests/tenant-schema-contract.php
       - name: Prepare disposable database and app config
         run: |
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
@@ -172,6 +174,7 @@ jobs:
           find app public bin tests wordpress-plugin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l config.example.php
           ruby tests/validate-openapi.rb
+          php tests/tenant-schema-contract.php
       - name: Prepare PostgreSQL schemas and app config
         run: |
           PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/schema.sql
