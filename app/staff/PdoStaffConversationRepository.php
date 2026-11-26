@@ -111,7 +111,6 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
             );
             $insert->execute([
                 ':tenant_id' => $tenantId,
-                ':tenant_id' => $tenantId,
                 ':conversation_id' => $conversationId,
                 ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
