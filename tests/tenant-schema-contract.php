@@ -74,4 +74,33 @@ foreach ($migrations as $relative => $migrationTables) {
     );
 }
 
+$providerRepository = file_get_contents($root . '/app/storage/PdoProviderEventRepository.php');
+$providerContract = file_get_contents($root . '/app/storage/ChatRepository.php');
+$workerSource = file_get_contents($root . '/app/channels/whatsapp/WebhookInboxWorker.php');
+tenant_schema_expect(
+    is_string($providerRepository)
+        && preg_match('/WHERE l\\.tenant_id = :tenant_id AND c\\.tenant_id = :tenant_id/', $providerRepository) === 1
+        && preg_match('/\\(id, tenant_id, conversation_id, sender_type/', $providerRepository) === 1,
+    'provider message identity routing and message insertion both require explicit tenant scope'
+);
+tenant_schema_expect(
+    is_string($providerRepository)
+        && preg_match('/WHERE tenant_id = :tenant_id AND provider_message_id = :provider_id/', $providerRepository) === 1
+        && preg_match('/WHERE tenant_id = :tenant_id AND provider_event_id = :event_id/', $providerRepository) === 1,
+    'provider status reconciliation and event updates are tenant-scoped'
+);
+tenant_schema_expect(
+    is_string($providerContract)
+        && preg_match('/recordProviderMessageEvent\\(\\s*string \\$tenantId/', $providerContract) === 1
+        && preg_match('/reconcileProviderMessageStatus\\(string \\$tenantId,/', $providerContract) === 1
+        && preg_match('/recordProviderStatusEvent\\(\\s*string \\$tenantId/', $providerContract) === 1,
+    'provider repository contract makes tenant identity an explicit required argument'
+);
+tenant_schema_expect(
+    is_string($workerSource)
+        && strpos($workerSource, "$"."routing['tenant_id']") !== false
+        && strpos($workerSource, "process($"."routing['tenant_id']") !== false,
+    'webhook worker passes its trusted tenant routing context into provider processing'
+);
+
 echo "Tenant provider-schema contract checks passed." . PHP_EOL;
