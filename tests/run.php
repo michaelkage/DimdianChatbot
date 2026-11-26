@@ -692,7 +692,7 @@ try {
 }
 check($metaStateReplayRejected, 'Meta signup service rejects replayed state before another Graph request');
 $serviceGraph->getResponses[] = ['access_token' => 'refreshed-service-token', 'expires_in' => 86400];
-$loadedMetaConfig = $metaService->loadWhatsAppConfig(['phone_number_id' => 'fallback', 'access_token' => 'fallback']);
+$loadedMetaConfig = $metaService->loadWhatsAppConfig(['phone_number_id' => 'fallback', 'access_token' => 'fallback'], '00000000-0000-4000-8000-000000000001');
 check(
     ($loadedMetaConfig['phone_number_id'] ?? '') === '123456789012345'
         && ($loadedMetaConfig['access_token'] ?? '') === 'refreshed-service-token'
@@ -703,7 +703,7 @@ check(
         ) === 'refreshed-service-token',
     'Meta signup service refreshes near-expiry credentials and persists the new encrypted token'
 );
-check($metaService->subscribeActiveWaba(), 'Meta signup service can subscribe the persisted active WABA');
+check($metaService->subscribeActiveWaba('00000000-0000-4000-8000-000000000001'), 'Meta signup service can subscribe the persisted active WABA');
 
 $logContext = app_sanitize_log_context(['attempt' => 3, 'exception_class' => 'PDOException', 'phone_number' => '+2348012345678', 'message' => 'private chat content']);
 check($logContext === ['attempt' => 3, 'exception_class' => 'PDOException'], 'structured operational logs allow only non-PII diagnostic fields');
