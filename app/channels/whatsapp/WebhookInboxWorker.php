@@ -10,7 +10,7 @@ declare(strict_types=1);
  */
 final class WebhookInboxWorker
 {
-    /** @var Closure():string */
+    /** @var Closure():array{tenant_id:string,phone_number_id:string} */
     private Closure $phoneNumberIdResolver;
 
     public function __construct(
@@ -49,12 +49,16 @@ final class WebhookInboxWorker
                     throw new RuntimeException('Stored webhook payload is invalid.');
                 }
 
-                $phoneNumberId = ($this->phoneNumberIdResolver)();
-                if (!is_string($phoneNumberId)) {
-                    throw new RuntimeException('Active Meta phone-number configuration is invalid.');
+                $routing = ($this->phoneNumberIdResolver)();
+                if (!is_array($routing)
+                    || !is_string($routing['tenant_id'] ?? null)
+                    || !is_string($routing['phone_number_id'] ?? null)
+                    || $routing['tenant_id'] === ''
+                    || $routing['phone_number_id'] === '') {
+                    throw new RuntimeException('Active Meta tenant and phone-number configuration are invalid.');
                 }
 
-                $result = $this->processor->process($payload, $raw, $phoneNumberId);
+                $result = $this->processor->process($routing['tenant_id'], $payload, $raw, $routing['phone_number_id']);
                 $this->repository->completeWebhookInbox((int) $job['id'], $lockToken);
                 $summary['processed'] += (int) ($result['processed'] ?? 0);
             } catch (Throwable $error) {
