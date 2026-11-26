@@ -7,7 +7,7 @@ declare(strict_types=1);
  * and additive upgrade migrations from drifting apart.
  */
 $root = dirname(__DIR__);
-$tables = ['webhook_events', 'webhook_inbox', 'meta_signup_states', 'meta_connections'];
+$tables = ['guest_consent_events', 'whatsapp_identity_links', 'webhook_events', 'webhook_inbox', 'meta_signup_states', 'meta_connections'];
 $legacyTenant = '00000000-0000-4000-8000-000000000001';
 
 function tenant_schema_expect(bool $condition, string $message): void
