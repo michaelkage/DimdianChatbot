@@ -59,7 +59,7 @@ final class MetaWebhookProcessor
                         $body = (string)($incoming['text']['body'] ?? '');
                         $eventId = 'inbound:' . $wamid;
                         if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
-                            $result = $this->repository->recordIgnoredProviderEvent($eventId, 'inbound_message', $payloadHash);
+                            $result = $this->repository->recordIgnoredProviderEvent($tenantId, $eventId, 'inbound_message', $payloadHash);
                             if ($result !== 'processed') $ignored++;
                             continue;
                         }
