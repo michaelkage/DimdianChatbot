@@ -250,7 +250,7 @@ final class IntegrationSuccessTransport implements WhatsAppTextTransport
 {
     public function sendTemplate(string $tenantId, string $recipient, string $bodyParameter): array
     {
-        if ($recipient !== '2348031234567' || $bodyParameter === '') throw new RuntimeException('Unexpected transport input.');
+        if ($tenantId !== (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001') || $recipient !== '2348031234567' || $bodyParameter === '') throw new RuntimeException('Unexpected tenant-aware transport input.');
         return ['provider_message_id' => 'wamid.integration.outbox.success'];
     }
 }
@@ -546,10 +546,11 @@ $pdo->prepare(
 )->execute([':id' => $leaseMessageId, ':conversation_id' => $conversationId]);
 $outboxRepository->enqueueWhatsAppOutbox('00000000-0000-4000-8000-000000000001', $leaseMessageId, '2348031234567', 'Lease fencing test', $leaseOutboxId);
 expect($outboxRepository->hasWhatsAppConsent($defaultTenantId, $leaseMessageId), 'outbox repository confirms current WhatsApp consent before sending');
+expect(!$outboxRepository->hasWhatsAppConsent($otherTenantId, $leaseMessageId), 'outbox consent cannot be read under another tenant');
 
 $firstLeaseToken = uuid_v4();
 $firstLease = $outboxRepository->claimWhatsAppOutbox($firstLeaseToken, 3, 300);
-expect(is_array($firstLease['job']) && (string) $firstLease['job']['id'] === $leaseOutboxId && (int) $firstLease['job']['attempts'] === 1, 'outbox repository atomically leases a due job and increments attempts');
+expect(is_array($firstLease['job']) && (string) $firstLease['job']['id'] === $leaseOutboxId && (int) $firstLease['job']['attempts'] === 1 && $firstLease['job']['tenant_id'] === $defaultTenantId, 'outbox repository atomically leases a due job with its tenant and increments attempts');
 $pdo->prepare('UPDATE message_outbox SET locked_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE) WHERE id = :id')
     ->execute([':id' => $leaseOutboxId]);
 $secondLeaseToken = uuid_v4();
@@ -557,6 +558,8 @@ $secondLease = $outboxRepository->claimWhatsAppOutbox($secondLeaseToken, 3, 300)
 expect(is_array($secondLease['job']) && (string) $secondLease['job']['id'] === $leaseOutboxId && (int) $secondLease['job']['attempts'] === 2, 'expired outbox lease is reclaimed with a new attempt and token');
 $staleCompletion = $outboxRepository->completeWhatsAppOutbox($defaultTenantId, $leaseOutboxId, $firstLeaseToken, $leaseMessageId, 'wamid.integration.stale-owner');
 expect(!$staleCompletion, 'stale outbox lease token cannot complete a job reclaimed by another worker');
+$wrongTenantOutboxCompletion = $outboxRepository->completeWhatsAppOutbox($otherTenantId, $leaseOutboxId, $secondLeaseToken, $leaseMessageId, 'wamid.integration.cross-tenant');
+expect(!$wrongTenantOutboxCompletion, 'a different tenant cannot complete another tenant outbox lease');
 $currentCompletion = $outboxRepository->completeWhatsAppOutbox($defaultTenantId, $leaseOutboxId, $secondLeaseToken, $leaseMessageId, 'wamid.integration.lease-fenced');
 $leaseState = $pdo->prepare('SELECT o.status, o.lock_token, m.delivery_status, m.provider_message_id FROM message_outbox o INNER JOIN messages m ON m.id=o.message_id WHERE o.id=:id');
 $leaseState->execute([':id' => $leaseOutboxId]);
