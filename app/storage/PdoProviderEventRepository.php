@@ -35,11 +35,11 @@ final class PdoProviderEventRepository implements ProviderEventRepository
                 'SELECT c.id
                  FROM whatsapp_identity_links l
                  INNER JOIN conversations c ON c.id = l.conversation_id
-                 WHERE l.tenant_id = :tenant_id AND c.tenant_id = :tenant_id
+                 WHERE l.tenant_id = :link_tenant_id AND c.tenant_id = :conversation_tenant_id
                    AND l.phone_normalized = :phone AND l.is_active = 1 AND c.status = "open"
                  LIMIT 1'
             );
-            $conversation->execute([':tenant_id' => $tenantId, ':phone' => $phone]);
+            $conversation->execute([':link_tenant_id' => $tenantId, ':conversation_tenant_id' => $tenantId, ':phone' => $phone]);
             $conversationId = $conversation->fetchColumn();
             if (!is_string($conversationId)) {
                 $this->markWebhookEvent($tenantId, $eventId, 'ignored');
