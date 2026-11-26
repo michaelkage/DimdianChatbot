@@ -24,4 +24,7 @@ interface MetaConnectionRepository
     public function markConnectionExpired(int $connectionId): void;
 
     public function activePhoneNumberId(): ?string;
+
+    /** Resolve only an active, non-revoked provider number to its owning tenant. */
+    public function tenantIdForPhoneNumberId(string $phoneNumberId): ?string;
 }
