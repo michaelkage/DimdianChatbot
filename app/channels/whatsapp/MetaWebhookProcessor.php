@@ -12,7 +12,7 @@ final class MetaWebhookProcessor
     public function __construct(private readonly ProviderEventRepository $repository) {}
 
     /** @return array{processed:int,ignored:int} */
-    public function process(array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
+    public function process(string $tenantId, array $payload, string $rawBody, string $expectedPhoneNumberId = ''): array
     {
         $processed = 0;
         $ignored = 0;
@@ -39,12 +39,12 @@ final class MetaWebhookProcessor
                         $recipient = normalize_whatsapp_number((string)($echo['to'] ?? ''));
                         $eventId = 'echo:' . $wamid;
                         if (($echo['type'] ?? '') !== 'text' || $body === '' || $recipient === '') {
-                            $result = $this->repository->recordIgnoredProviderEvent($eventId, 'smb_message_echoes', $payloadHash);
+                            $result = $this->repository->recordIgnoredProviderEvent($tenantId, $eventId, 'smb_message_echoes', $payloadHash);
                             if ($result !== 'processed') $ignored++;
                             continue;
                         }
                         $result = $this->repository->recordProviderMessageEvent(
-                            $eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business',
+                            $tenantId, $eventId, 'smb_message_echoes', $payloadHash, $recipient, 'business',
                             $body, $wamid, 'sent', webhook_timestamp((string)($echo['timestamp'] ?? ''))
                         );
                         if ($result === 'processed') $processed++;
@@ -59,12 +59,12 @@ final class MetaWebhookProcessor
                         $body = (string)($incoming['text']['body'] ?? '');
                         $eventId = 'inbound:' . $wamid;
                         if (($incoming['type'] ?? '') !== 'text' || $body === '' || $sender === '') {
-                            $result = $this->repository->recordIgnoredProviderEvent($eventId, 'inbound_message', $payloadHash);
+                            $result = $this->repository->recordIgnoredProviderEvent($tenantId, $eventId, 'inbound_message', $payloadHash);
                             if ($result !== 'processed') $ignored++;
                             continue;
                         }
                         $result = $this->repository->recordProviderMessageEvent(
-                            $eventId, 'inbound_message', $payloadHash, $sender, 'visitor',
+                            $tenantId, $eventId, 'inbound_message', $payloadHash, $sender, 'visitor',
                             $body, $wamid, 'received', webhook_timestamp((string)($incoming['timestamp'] ?? ''))
                         );
                         if ($result === 'processed') $processed++;
@@ -82,7 +82,7 @@ final class MetaWebhookProcessor
                         }
                         $eventId = 'status:' . $wamid . ':' . $state . ':' . $timestamp;
                         $result = $this->repository->recordProviderStatusEvent(
-                            $eventId, $payloadHash, $wamid, $state,
+                            $tenantId, $eventId, $payloadHash, $wamid, $state,
                             ctype_digit($timestamp) ? (int)$timestamp : 0
                         );
                         if ($result === 'processed') $processed++;

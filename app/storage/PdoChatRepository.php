@@ -129,6 +129,7 @@ final class PdoChatRepository implements ChatRepository
 
 
     public function recordProviderMessageEvent(
+        string $tenantId,
         string $eventId,
         string $eventType,
         string $payloadHash,
@@ -140,6 +141,7 @@ final class PdoChatRepository implements ChatRepository
         string $sentAt
     ): string {
         return $this->providerEvents->recordProviderMessageEvent(
+            $tenantId,
             $eventId,
             $eventType,
             $payloadHash,
@@ -152,17 +154,18 @@ final class PdoChatRepository implements ChatRepository
         );
     }
 
-    public function reconcileProviderMessageStatus(string $providerMessageId): bool
+    public function reconcileProviderMessageStatus(string $tenantId, string $providerMessageId): bool
     {
-        return $this->providerEvents->reconcileProviderMessageStatus($providerMessageId);
+        return $this->providerEvents->reconcileProviderMessageStatus($tenantId, $providerMessageId);
     }
 
-    public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string
+    public function recordIgnoredProviderEvent(string $tenantId, string $eventId, string $eventType, string $payloadHash): string
     {
-        return $this->providerEvents->recordIgnoredProviderEvent($eventId, $eventType, $payloadHash);
+        return $this->providerEvents->recordIgnoredProviderEvent($tenantId, $eventId, $eventType, $payloadHash);
     }
 
     public function recordProviderStatusEvent(
+        string $tenantId,
         string $eventId,
         string $payloadHash,
         string $providerMessageId,
@@ -170,6 +173,7 @@ final class PdoChatRepository implements ChatRepository
         int $eventTimestamp
     ): string {
         return $this->providerEvents->recordProviderStatusEvent(
+            $tenantId,
             $eventId,
             $payloadHash,
             $providerMessageId,

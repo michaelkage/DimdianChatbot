@@ -147,7 +147,13 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
                  WHERE id = :message_id'
             );
             $message->execute([':provider_id' => $providerMessageId, ':message_id' => $messageId]);
-            $this->providerEvents->reconcileProviderMessageStatus($providerMessageId);
+            $tenantLookup = PdoSqlDialect::prepare($this->pdo, 'SELECT tenant_id FROM messages WHERE id = :message_id LIMIT 1');
+            $tenantLookup->execute([':message_id' => $messageId]);
+            $tenantId = $tenantLookup->fetchColumn();
+            if (!is_string($tenantId) || $tenantId === '') {
+                throw new RuntimeException('Outbound message tenant could not be resolved for status reconciliation.');
+            }
+            $this->providerEvents->reconcileProviderMessageStatus($tenantId, $providerMessageId);
             return true;
         });
     }
