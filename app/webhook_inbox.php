@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/channels/whatsapp/WebhookPayloadCipher.php';
 require_once __DIR__ . '/channels/whatsapp/WebhookInboxWorker.php';
 require_once __DIR__ . '/channels/whatsapp/MetaWebhookEndpoint.php';
+require_once __DIR__ . '/channels/whatsapp/MetaWebhookTenantResolver.php';
 
 function webhook_payload_cipher(): WebhookPayloadCipher
 {
@@ -39,10 +40,10 @@ function decrypt_webhook_payload(string $cipher, string $nonce, string $tag): st
 }
 
 /** @return array{id:int,inserted:bool,status:string} */
-function enqueue_meta_webhook(WebhookInboxRepository $repository, string $rawBody): array
+function enqueue_meta_webhook(WebhookInboxRepository $repository, string $tenantId, string $rawBody): array
 {
     $encrypted = webhook_payload_cipher()->encrypt($rawBody);
-    return $repository->enqueueWebhookInbox(hash('sha256', $rawBody), $encrypted);
+    return $repository->enqueueWebhookInbox($tenantId, hash('sha256', $rawBody), $encrypted);
 }
 
 /**
@@ -63,21 +64,10 @@ function webhook_inbox_worker(
     WebhookProcessingRepository $repository,
     ?WebhookPayloadCipher $cipher = null
 ): WebhookInboxWorker {
-    $resolver = static function () use ($repository): array {
-        // Shared-database mode remains disabled. Until trusted per-phone tenant
-        // routing is enabled, every worker job is pinned to the configured
-        // single-tenant identity rather than accepting tenant data from payloads.
-        $tenantId = (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
-        $phoneNumberId = $repository->activeWhatsAppPhoneNumberId()
-            ?? (string) app_config('whatsapp.phone_number_id');
-        return ['tenant_id' => $tenantId, 'phone_number_id' => $phoneNumberId];
-    };
-
     return new WebhookInboxWorker(
         $repository,
         new MetaWebhookProcessor($repository),
-        $cipher ?? webhook_payload_cipher(),
-        $resolver
+        $cipher ?? webhook_payload_cipher()
     );
 }
 
