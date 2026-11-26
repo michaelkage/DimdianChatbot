@@ -54,10 +54,10 @@ final class MetaWebhookEndpoint
      * @param array<string,mixed> $payload
      * @return array{status:int,headers:array<string,string>,body:string}
      */
-    public function processValidatedPayload(string $rawBody): array
+    public function processValidatedPayload(string $rawBody, string $tenantId): array
     {
         $encrypted = $this->cipher->encrypt($rawBody);
-        $queued = $this->repository->enqueueWebhookInbox(hash('sha256', $rawBody), $encrypted);
+        $queued = $this->repository->enqueueWebhookInbox($tenantId, hash('sha256', $rawBody), $encrypted);
         $summary = ['processed' => 0, 'retried' => 0, 'failed' => 0];
         if ($queued['status'] !== 'processed') {
             $summary = $this->worker->process(1, 8);
