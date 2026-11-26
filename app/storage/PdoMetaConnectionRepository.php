@@ -135,6 +135,33 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
         return $row;
     }
 
+    public function findActiveConnectionForTenant(string $tenantId): ?array
+    {
+        $statement = PdoSqlDialect::prepare($this->pdo,
+            'SELECT id, tenant_id, waba_id, phone_number_id, access_token_ciphertext,
+                    access_token_nonce, access_token_tag, token_expires_at
+             FROM meta_connections
+             WHERE tenant_id = :tenant_id AND status = "active"
+             ORDER BY updated_at DESC
+             LIMIT 1'
+        );
+        $statement->execute([':tenant_id' => $tenantId]);
+        $row = $statement->fetch();
+        if (!is_array($row)) {
+            return null;
+        }
+        if (PdoSqlDialect::isPostgres($this->pdo)) {
+            foreach (['access_token_ciphertext', 'access_token_nonce', 'access_token_tag'] as $field) {
+                $decoded = base64_decode((string) $row[$field], true);
+                if (!is_string($decoded)) {
+                    throw new RuntimeException('Stored Meta token material is corrupt.');
+                }
+                $row[$field] = $decoded;
+            }
+        }
+        return $row;
+    }
+
     public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void
     {
         $binary = PdoSqlDialect::isPostgres($this->pdo);
