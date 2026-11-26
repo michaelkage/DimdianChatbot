@@ -66,6 +66,7 @@ function webhook_inbox_worker(
 ): WebhookInboxWorker {
     return new WebhookInboxWorker(
         $repository,
+        $repository,
         new MetaWebhookProcessor($repository),
         $cipher ?? webhook_payload_cipher()
     );
