@@ -111,6 +111,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
             );
             $insert->execute([
                 ':tenant_id' => $tenantId,
+                ':tenant_id' => $tenantId,
                 ':conversation_id' => $conversationId,
                 ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
@@ -124,7 +125,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
     {
         return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId, $tenantId): bool {
             $conversation = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT status FROM conversations WHERE id = :id FOR UPDATE'
+                'SELECT status FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE'
             );
             $conversation->execute([':tenant_id' => $tenantId, ':id' => $conversationId]);
             if ($conversation->fetchColumn() !== 'open') {
@@ -144,8 +145,8 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
 
             $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT INTO staff_conversation_assignments
-                    (conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
-                 VALUES (:conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
+                    (tenant_id, conversation_id, staff_identity_id, assigned_by_staff_id, assigned_at, active_conversation_id)
+                 VALUES (:tenant_id, :conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
             );
             $insert->execute([
                 ':conversation_id' => $conversationId,
@@ -193,14 +194,14 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
         return $this->support->transaction(function () use ($conversationId, $actorStaffId, $requestId, $tenantId): bool {
             $this->support->requireActiveStaff($actorStaffId, $tenantId);
             $conversation = PdoSqlDialect::prepare($this->pdo, 'SELECT id FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE');
-            $conversation->execute([':id' => $conversationId]);
+            $conversation->execute([':tenant_id' => $tenantId, ':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) return false;
             $query = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE staff_conversation_assignments
                  SET ended_at = UTC_TIMESTAMP(), active_conversation_id = NULL
-                 WHERE conversation_id = :conversation AND ended_at IS NULL'
+                 WHERE tenant_id = :tenant_id AND conversation_id = :conversation AND ended_at IS NULL'
             );
-            $query->execute([':conversation' => $conversationId]);
+            $query->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId]);
             if ($query->rowCount() !== 1) return false;
             $this->support->recordAudit($actorStaffId, $conversationId, 'conversation.unassigned', null, [], $requestId, $tenantId);
             return true;
@@ -211,7 +212,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
     {
         return $this->support->transaction(function () use ($conversationId, $staffIdentityId, $requestId, $tenantId): bool {
             $conversation = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT id FROM conversations WHERE id = :id FOR UPDATE'
+                'SELECT id FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE'
             );
             $conversation->execute([':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) return false;
