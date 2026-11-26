@@ -127,7 +127,7 @@ interface WhatsAppOutboxRepository
 
     /**
      * Lease one due outbound job and terminally fail expired jobs at the attempt limit.
-     * @return array{job:array<string,mixed>|null,exhausted:int}
+     * @return array{job:array{tenant_id:string}|array<string,mixed>|null,exhausted:int}
      */
     public function claimWhatsAppOutbox(string $lockToken, int $maxAttempts = 6, int $leaseSeconds = 300): array;
 
