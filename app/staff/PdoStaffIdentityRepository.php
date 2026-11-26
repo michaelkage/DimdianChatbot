@@ -91,13 +91,14 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
         return $query->rowCount() === 1;
     }
 
-    public function listStaffIdentities(): array
+    public function listStaffIdentities(string $tenantId = '00000000-0000-4000-8000-000000000001'): array
     {
-        $query = PdoSqlDialect::query($this->pdo, 
+        $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id, display_name, email, role, status
-             FROM staff_identities
+             FROM staff_identities WHERE tenant_id = :tenant_id
              ORDER BY status ASC, display_name ASC LIMIT 250'
         );
+        $query->execute([':tenant_id' => $tenantId]);
         return $query->fetchAll();
     }
 
@@ -106,31 +107,34 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
         string $actorStaffId,
         string $role,
         string $status,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): void {
         if (!in_array($role, ['owner', 'admin', 'agent'], true)
             || !in_array($status, ['active', 'disabled'], true)) {
             throw new InvalidArgumentException('Unsupported staff role or status.');
         }
 
-        $this->support->transaction(function () use ($targetStaffId, $actorStaffId, $role, $status, $requestId): void {
+        $this->support->transaction(function () use ($targetStaffId, $actorStaffId, $role, $status, $requestId, $tenantId): void {
             // Serialize owner changes so two concurrent requests cannot remove the final owner.
-            $owners = PdoSqlDialect::query($this->pdo, 
-                'SELECT id FROM staff_identities WHERE role = "owner" AND status = "active" ORDER BY id FOR UPDATE'
-            )->fetchAll(PDO::FETCH_COLUMN);
-            $actor = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
+            $ownerQuery = PdoSqlDialect::prepare($this->pdo, 
+                'SELECT id FROM staff_identities WHERE tenant_id = :tenant_id AND role = "owner" AND status = "active" ORDER BY id FOR UPDATE'
             );
-            $actor->execute([':id' => $actorStaffId]);
+            $ownerQuery->execute([':tenant_id' => $tenantId]);
+            $owners = $ownerQuery->fetchAll(PDO::FETCH_COLUMN);
+            $actor = PdoSqlDialect::prepare($this->pdo, 
+                'SELECT role, status FROM staff_identities WHERE tenant_id = :tenant_id AND id = :id LIMIT 1 FOR UPDATE'
+            );
+            $actor->execute([':tenant_id' => $tenantId, ':id' => $actorStaffId]);
             $actorRow = $actor->fetch();
             if (!is_array($actorRow) || $actorRow['role'] !== 'owner' || $actorRow['status'] !== 'active') {
                 throw new RuntimeException('Only an active owner may manage staff access.');
             }
 
             $target = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
+                'SELECT role, status FROM staff_identities WHERE tenant_id = :tenant_id AND id = :id LIMIT 1 FOR UPDATE'
             );
-            $target->execute([':id' => $targetStaffId]);
+            $target->execute([':tenant_id' => $tenantId, ':id' => $targetStaffId]);
             $targetRow = $target->fetch();
             if (!is_array($targetRow)) {
                 throw new InvalidArgumentException('The selected staff identity does not exist.');
@@ -151,9 +155,9 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
 
             $update = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE staff_identities SET role = :role, status = :status, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id'
+                 WHERE tenant_id = :tenant_id AND id = :id'
             );
-            $update->execute([':role' => $role, ':status' => $status, ':id' => $targetStaffId]);
+            $update->execute([':role' => $role, ':status' => $status, ':tenant_id' => $tenantId, ':id' => $targetStaffId]);
 
             $this->support->recordAudit(
                 $actorStaffId,
@@ -161,7 +165,8 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
                 'staff.access_updated',
                 $targetStaffId,
                 ['role' => $role, 'status' => $status],
-                $requestId
+                $requestId,
+                $tenantId
             );
         });
     }
