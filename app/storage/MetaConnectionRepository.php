@@ -12,7 +12,7 @@ interface MetaConnectionRepository
     /** Atomically consume a valid, unexpired state. Returns false for missing, expired or replayed state. */
     public function consumeSignupState(string $stateHash): bool;
 
-    /** @param array{waba_id:string,phone_number_id:string,token_ciphertext:string,token_nonce:string,token_tag:string,token_expires_at:?string} $connection */
+    /** @param array{tenant_id?:string,waba_id:string,phone_number_id:string,token_ciphertext:string,token_nonce:string,token_tag:string,token_expires_at:?string} $connection */
     public function saveActiveConnection(array $connection): void;
 
     /** @return array<string,mixed>|null */
