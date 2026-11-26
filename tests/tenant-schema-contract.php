@@ -51,13 +51,18 @@ foreach ([
 }
 
 $migrations = [
-    'database/migrations/005_tenant_owned_provider_storage.sql',
-    'database/postgresql/migrations/005_tenant_owned_provider_storage.sql',
+    'database/migrations/005_tenant_owned_provider_storage.sql' => $tables,
+    // PostgreSQL's preceding clean-install schema already tenant-scoped consent
+    // events and identity links; its upgrade only needs the four provider tables
+    // that were unscoped in that schema.
+    'database/postgresql/migrations/005_tenant_owned_provider_storage.sql' => [
+        'webhook_events', 'webhook_inbox', 'meta_signup_states', 'meta_connections',
+    ],
 ];
-foreach ($migrations as $relative) {
+foreach ($migrations as $relative => $migrationTables) {
     $sql = file_get_contents($root . '/' . $relative);
     tenant_schema_expect(is_string($sql) && $sql !== '', $relative . ' is readable');
-    foreach ($tables as $table) {
+    foreach ($migrationTables as $table) {
         tenant_schema_expect(
             preg_match('/ALTER TABLE\s+' . preg_quote($table, '/') . '[\s\S]*?ADD COLUMN\s+tenant_id/i', $sql) === 1,
             $relative . ' adds tenant ownership to ' . $table
