@@ -145,6 +145,44 @@ $resolvedAgain = $repository->upsertStaffIdentity([
 ]);
 staff_expect($resolvedA === $resolvedAgain, 'external staff identity maps to a stable local ID');
 
+$tenantB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+$pdo->prepare(
+    'INSERT INTO tenants (id, name, slug, status, created_at, updated_at)
+     VALUES (:id, :name, :slug, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $tenantB, ':name' => 'Tenant B', ':slug' => 'tenant-b-staff-test']);
+$tenantBStaffId = $repository->upsertStaffIdentity([
+    'id' => uuid_v4(),
+    'tenant_id' => $tenantB,
+    'auth_provider' => 'test-idp',
+    'external_subject' => 'staff-subject-a',
+    'display_name' => 'Tenant B Agent A',
+    'email' => 'agent-a@tenant-b.example.test',
+]);
+$tenantBStaffAgain = $repository->upsertStaffIdentity([
+    'id' => uuid_v4(),
+    'tenant_id' => $tenantB,
+    'auth_provider' => 'test-idp',
+    'external_subject' => 'staff-subject-a',
+    'display_name' => 'Tenant B Agent A Updated',
+    'email' => 'agent-a@tenant-b.example.test',
+]);
+staff_expect(
+    $tenantBStaffId === $tenantBStaffAgain
+        && $tenantBStaffId !== $resolvedA
+        && $repository->findStaffIdentityById($tenantBStaffId, $tenantB) !== null
+        && $repository->findStaffIdentityById($tenantBStaffId, '00000000-0000-4000-8000-000000000001') === null,
+    'the same external staff subject can exist independently in two tenants and lookup is tenant-scoped'
+);
+$sharedNonceHash = hash('sha256', 'tenant-scoped-staff-nonce-test');
+$nonceExpiry = gmdate('Y-m-d H:i:s', time() + 120);
+staff_expect(
+    $repository->consumeStaffAuthNonce($sharedNonceHash, $nonceExpiry, '00000000-0000-4000-8000-000000000001')
+        && $repository->consumeStaffAuthNonce($sharedNonceHash, $nonceExpiry, $tenantB)
+        && !$repository->consumeStaffAuthNonce($sharedNonceHash, $nonceExpiry, $tenantB),
+    'staff assertion nonce replay protection is isolated by tenant and rejects same-tenant replay'
+);
+
+
 $assertionSecret = str_repeat('s', 64);
 $hmacProvider = new HmacStaffIdentityProvider($assertionSecret, $repository);
 $assertionPayload = [

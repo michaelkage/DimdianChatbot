@@ -1,6 +1,9 @@
 -- Optional PostgreSQL schema for the staff inbox.
 -- Import only when staff_inbox.enabled is deliberately enabled.
 -- One business per database remains the supported tenant boundary.
+-- After importing this file, apply database/postgresql/migrations/006_tenant_owned_staff_storage.sql.
+-- That migration adds tenant ownership and composite same-tenant foreign keys;
+-- staff repository SQL is still installation-wide, so shared-database mode remains unsafe.
 
 CREATE TABLE staff_identities (
     id UUID PRIMARY KEY,

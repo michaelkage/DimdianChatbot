@@ -50,11 +50,11 @@ Meta webhook POST requests require a valid X-Hub-Signature-256 signature over th
 
 The staff routes exist only when the operator sets staff_inbox.enabled=true and imports database/optional/staff-inbox.sql. They are server-to-server endpoints; the visitor widget and guest-session token cannot authenticate to them.
 
-Each request requires X-ChatBridge-Staff-Assertion. The header contains a base64url JSON payload and HMAC-SHA256 signature. The payload binds the verified external identity, issue time, one-time nonce, HTTP method, exact request target including query string, and SHA-256 digest of the exact request body. Assertions expire after a short clock-skew window and replayed nonces are rejected. The HMAC secret must remain on trusted servers and must never be sent to browser JavaScript.
+Each request requires X-ChatBridge-Staff-Assertion. The header contains a base64url JSON payload and HMAC-SHA256 signature. The signed payload binds the server-configured tenant UUID, verified external identity, issue time, one-time nonce, HTTP method, exact request target including query string, and SHA-256 digest of the exact request body. Assertions expire after a short clock-skew window and replayed nonces are rejected. The HMAC secret must remain on trusted servers and must never be sent to browser JavaScript.
 
 Local staff roles are authoritative; role claims from the external identity provider are ignored. Owners/admins can manage the installation's conversations; agents are scoped to their active assignments and can self-assign unassigned conversations. Conversation search matches visitor name, phone and message body without widening the actor's assignment visibility. Only owners can change local roles or disable/re-enable staff identities; the repository prevents demotion or disabling of the last active owner. Internal notes are never customer messages. Replies created through this first inbox implementation are website-only and do not enter the WhatsApp outbox.
 
-This reference implementation assumes one business per database installation. It is not a shared-database multi-tenant staff API.
+Migration 006 adds tenant keys and composite same-tenant foreign keys to optional staff tables. Staff identity upsert/lookup and nonce replay storage use the signed tenant. Conversation lists, assignments, notes, replies, audit reads and role-management queries are not yet fully tenant-scoped, however. This reference implementation therefore still assumes one business per database installation; it is not a shared-database multi-tenant staff API.
 
 ## Data and message semantics
 

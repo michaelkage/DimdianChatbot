@@ -2,7 +2,10 @@
 -- Import this file only when staff_inbox.enabled is deliberately enabled.
 -- The default WhatsApp-first deployment does not need these tables.
 -- Tenant isolation is currently provided by one database/deployment per business.
--- This schema is NOT sufficient for a shared multi-tenant database.
+-- After importing this file, apply database/migrations/006_tenant_owned_staff_storage.sql
+-- to add tenant ownership and composite same-tenant foreign keys.
+-- The migration is relational groundwork only: current staff repository SQL is
+-- still installation-wide, so this module is NOT safe for shared-database mode.
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';

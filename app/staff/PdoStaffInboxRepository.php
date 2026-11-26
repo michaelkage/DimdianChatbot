@@ -34,9 +34,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $this->identities->upsertStaffIdentity($identity);
     }
 
-    public function findStaffIdentityById(string $staffIdentityId): ?array
+    public function findStaffIdentityById(string $staffIdentityId, string $tenantId = '00000000-0000-4000-8000-000000000001'): ?array
     {
-        return $this->identities->findStaffIdentityById($staffIdentityId);
+        return $this->identities->findStaffIdentityById($staffIdentityId, $tenantId);
     }
 
     public function getActiveAssignee(string $conversationId): ?string
@@ -44,9 +44,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $this->conversations->getActiveAssignee($conversationId);
     }
 
-    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool
+    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool
     {
-        return $this->identities->consumeStaffAuthNonce($nonceHash, $expiresAtUtc);
+        return $this->identities->consumeStaffAuthNonce($nonceHash, $expiresAtUtc, $tenantId);
     }
 
     public function listStaffIdentities(): array

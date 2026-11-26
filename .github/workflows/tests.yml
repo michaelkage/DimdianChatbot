@@ -57,6 +57,7 @@ jobs:
           mysql -h127.0.0.1 -uroot -proot -e 'CREATE DATABASE IF NOT EXISTS dimdian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/schema.sql
           mysql -h127.0.0.1 -uroot -proot dimdian_test < database/optional/staff-inbox.sql || { mysql -h127.0.0.1 -uroot -proot -e 'SHOW ENGINE INNODB STATUS\\G'; exit 1; }
+          mysql -h127.0.0.1 -uroot -proot dimdian_test < database/migrations/006_tenant_owned_staff_storage.sql
           cat > config.php <<'PHP'
           <?php
           return [
@@ -179,6 +180,7 @@ jobs:
         run: |
           PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/schema.sql
           PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/optional/staff-inbox.sql
+          PGPASSWORD="$DIMDIAN_TEST_DB_PASSWORD" psql -h 127.0.0.1 -U "$DIMDIAN_TEST_DB_USER" -d dimdian_test -v ON_ERROR_STOP=1 -f database/postgresql/migrations/006_tenant_owned_staff_storage.sql
           cat > config.php <<'PHP'
           <?php
           return [

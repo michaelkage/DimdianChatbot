@@ -64,7 +64,7 @@ final class StaffIdentityService
                 'display_name' => $name,
                 'email' => $email,
             ]);
-            $identity = $this->repository->findStaffIdentityById($id);
+            $identity = $this->repository->findStaffIdentityById($id, $tenantId);
         } catch (Throwable) {
             throw new StaffInboxAuthenticationException('Staff identity could not be resolved.');
         }
