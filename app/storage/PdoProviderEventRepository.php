@@ -63,7 +63,7 @@ final class PdoProviderEventRepository implements ProviderEventRepository
                 ':sent_at' => $sentAt,
             ]);
             if ($insert->rowCount() !== 1) {
-                $this->markWebhookEvent($eventId, 'ignored');
+                $this->markWebhookEvent($tenantId, $eventId, 'ignored');
                 return 'ignored';
             }
 
