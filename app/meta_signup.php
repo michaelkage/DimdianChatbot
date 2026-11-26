@@ -42,6 +42,11 @@ function meta_graph_post(string $url, string $token): bool
     return (new MetaGraphApiClient())->post($url, $token);
 }
 
+function meta_default_tenant_id(): string
+{
+    return (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
+}
+
 /** Build the Meta application service with the configured persistence adapter. */
 function meta_embedded_signup_service(PDO $pdo): MetaEmbeddedSignupService
 {
@@ -55,7 +60,7 @@ function meta_embedded_signup_service(PDO $pdo): MetaEmbeddedSignupService
 
 function meta_subscribe_active_waba(PDO $pdo): bool
 {
-    return meta_embedded_signup_service($pdo)->subscribeActiveWaba();
+    return meta_embedded_signup_service($pdo)->subscribeActiveWaba(meta_default_tenant_id());
 }
 
 function meta_begin_embedded_signup(PDO $pdo): array
@@ -70,11 +75,11 @@ function meta_exchange_embedded_signup(PDO $pdo, string $state, string $code, st
 
 function load_meta_whatsapp_config(PDO $pdo, array $base): array
 {
-    return meta_embedded_signup_service($pdo)->loadWhatsAppConfig($base);
+    return meta_embedded_signup_service($pdo)->loadWhatsAppConfig($base, meta_default_tenant_id());
 }
 
 function meta_active_phone_number_id(PDO $pdo): string
 {
-    return chat_repository($pdo)->activeWhatsAppPhoneNumberId()
-        ?? (string) app_config('whatsapp.phone_number_id');
+    $connection = meta_connection_repository($pdo)->findActiveConnectionForTenant(meta_default_tenant_id());
+    return is_array($connection) ? (string) $connection['phone_number_id'] : (string) app_config('whatsapp.phone_number_id');
 }
