@@ -125,7 +125,7 @@ final class StaffInboxService
     {
         $actor = $this->authenticate($server);
         $requiredAssignee = self::isAdministrator($actor) ? null : (string)$actor['id'];
-        if ($requiredAssignee !== null && $this->repository->getActiveAssignee($conversationId) !== $requiredAssignee) {
+        if ($requiredAssignee !== null && $this->repository->getActiveAssignee($conversationId, (string)$actor['tenant_id']) !== $requiredAssignee) {
             throw new StaffInboxAuthorizationException('This conversation is not assigned to the current agent.');
         }
         return $this->repository->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssignee, (string)$actor['tenant_id']);
