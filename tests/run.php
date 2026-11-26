@@ -511,7 +511,7 @@ $missingWebhookPhoneRejected = false;
 try {
     $webhookTenantResolver->resolve([
         'object' => 'whatsapp_business_account',
-        'entry' => [['changes' => [['field' => 'messages', 'value' => ['messages' => []]]]],
+        'entry' => [['changes' => [['field' => 'messages', 'value' => ['messages' => []]]]]],
     ]);
 } catch (MetaWebhookTenantResolutionException) {
     $missingWebhookPhoneRejected = true;
