@@ -31,10 +31,15 @@ final class WhatsAppOutboxWorker
             }
 
             $attempt = (int)$job['attempts'];
+            $tenantId = (string) ($job['tenant_id'] ?? '');
             try {
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $tenantId)) {
+                    throw new RuntimeException('Outbound job has no valid tenant ownership.');
+                }
                 // Consent may have been withdrawn after this worker claimed the job.
-                if (!$this->repository->hasWhatsAppConsent((string)$job['message_id'])) {
+                if (!$this->repository->hasWhatsAppConsent($tenantId, (string)$job['message_id'])) {
                     $this->repository->cancelWhatsAppOutbox(
+                        $tenantId,
                         (string)$job['id'],
                         $lockToken,
                         (string)$job['message_id']
@@ -44,11 +49,13 @@ final class WhatsAppOutboxWorker
 
                 // Never hold a database transaction open during provider HTTP I/O.
                 $result = $this->transport->sendTemplate(
+                    $tenantId,
                     (string)$job['recipient'],
                     (string)$job['payload_text']
                 );
 
                 if ($this->repository->completeWhatsAppOutbox(
+                    $tenantId,
                     (string)$job['id'],
                     $lockToken,
                     (string)$job['message_id'],
@@ -62,6 +69,7 @@ final class WhatsAppOutboxWorker
                 $messageText = mb_substr_safe($error->getMessage(), 0, 900);
 
                 $recorded = $this->repository->failWhatsAppOutbox(
+                    $tenantId,
                     (string)$job['id'],
                     $lockToken,
                     (string)$job['message_id'],
