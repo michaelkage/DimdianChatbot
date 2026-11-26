@@ -63,9 +63,14 @@ function webhook_inbox_worker(
     WebhookProcessingRepository $repository,
     ?WebhookPayloadCipher $cipher = null
 ): WebhookInboxWorker {
-    $resolver = static function () use ($repository): string {
-        return $repository->activeWhatsAppPhoneNumberId()
+    $resolver = static function () use ($repository): array {
+        // Shared-database mode remains disabled. Until trusted per-phone tenant
+        // routing is enabled, every worker job is pinned to the configured
+        // single-tenant identity rather than accepting tenant data from payloads.
+        $tenantId = (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
+        $phoneNumberId = $repository->activeWhatsAppPhoneNumberId()
             ?? (string) app_config('whatsapp.phone_number_id');
+        return ['tenant_id' => $tenantId, 'phone_number_id' => $phoneNumberId];
     };
 
     return new WebhookInboxWorker(
