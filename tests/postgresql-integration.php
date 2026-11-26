@@ -57,6 +57,7 @@ try {
     pg_expect(
         is_array($claimed)
             && (int) $claimed['id'] === $webhookId
+            && $claimed['tenant_id'] === $defaultTenantId
             && $claimed['payload_ciphertext'] === $webhookCipher
             && $claimed['payload_nonce'] === $webhookNonce
             && $claimed['payload_tag'] === $webhookTag,
@@ -68,6 +69,13 @@ try {
     $retried = $webhooks->claimWebhookInbox($secondLease);
     pg_expect(is_array($retried) && (int) $retried['attempts'] === 2,
         'PostgreSQL webhook inbox makes retry work available and increments attempts');
+    $wrongTenantCompletionRejected = false;
+    try {
+        $webhooks->completeWebhookInbox('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', $webhookId, $secondLease);
+    } catch (RuntimeException) {
+        $wrongTenantCompletionRejected = true;
+    }
+    pg_expect($wrongTenantCompletionRejected, 'PostgreSQL inbox lease cannot be completed under another tenant');
     $webhooks->completeWebhookInbox($defaultTenantId, $webhookId, $secondLease);
     pg_expect($webhooks->claimWebhookInbox(uuid_v4()) === null,
         'PostgreSQL webhook inbox completes and releases its fenced lease');
