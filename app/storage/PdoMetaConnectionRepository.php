@@ -157,6 +157,21 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
         return is_string($value) && $value !== '' ? $value : null;
     }
 
+    public function tenantIdForPhoneNumberId(string $phoneNumberId): ?string
+    {
+        if ($phoneNumberId === '' || strlen($phoneNumberId) > 80) {
+            return null;
+        }
+        $statement = PdoSqlDialect::prepare($this->pdo,
+            'SELECT tenant_id FROM meta_connections
+             WHERE phone_number_id = :phone AND status = "active"
+             LIMIT 1'
+        );
+        $statement->execute([':phone' => $phoneNumberId]);
+        $tenantId = $statement->fetchColumn();
+        return is_string($tenantId) && $tenantId !== '' ? $tenantId : null;
+    }
+
     /** @template T @param callable():T $operation @return T */
     private function transaction(callable $operation)
     {
