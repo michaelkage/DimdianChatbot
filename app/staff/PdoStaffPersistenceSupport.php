@@ -11,26 +11,26 @@ final class PdoStaffPersistenceSupport
         $this->pdo = $pdo;
     }
 
-    public function requireActiveStaff(string $staffIdentityId): void
+    public function requireActiveStaff(string $staffIdentityId, string $tenantId = '00000000-0000-4000-8000-000000000001'): void
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
-            'SELECT status FROM staff_identities WHERE id = :id LIMIT 1'
+            'SELECT status FROM staff_identities WHERE id = :id AND tenant_id = :tenant_id LIMIT 1'
         );
-        $query->execute([':id' => $staffIdentityId]);
+        $query->execute([':id' => $staffIdentityId, ':tenant_id' => $tenantId]);
         if ($query->fetchColumn() !== 'active') {
             throw new RuntimeException('Staff identity is missing or disabled.');
         }
     }
 
     /** Must be called after locking the parent conversation row in the same transaction. */
-    public function requireActiveAssignment(string $conversationId, string $staffIdentityId): void
+    public function requireActiveAssignment(string $conversationId, string $staffIdentityId, string $tenantId = '00000000-0000-4000-8000-000000000001'): void
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT 1 FROM staff_conversation_assignments
-             WHERE conversation_id = :conversation AND staff_identity_id = :staff
+             WHERE tenant_id = :tenant_id AND conversation_id = :conversation AND staff_identity_id = :staff
                AND ended_at IS NULL LIMIT 1 FOR UPDATE'
         );
-        $query->execute([':conversation' => $conversationId, ':staff' => $staffIdentityId]);
+        $query->execute([':tenant_id' => $tenantId, ':conversation' => $conversationId, ':staff' => $staffIdentityId]);
         if ($query->fetchColumn() === false) {
             throw new StaffInboxAssignmentException('Conversation is no longer assigned to this staff identity.');
         }
@@ -42,14 +42,16 @@ final class PdoStaffPersistenceSupport
         string $eventType,
         ?string $targetStaffId,
         array $metadata,
-        ?string $requestId
+        ?string $requestId,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): void {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'INSERT INTO staff_audit_events
-                (actor_staff_id, conversation_id, event_type, target_staff_id, metadata_json, request_id, created_at)
-             VALUES (:actor, :conversation, :event, :target, :metadata, :request_id, UTC_TIMESTAMP())'
+                (tenant_id, actor_staff_id, conversation_id, event_type, target_staff_id, metadata_json, request_id, created_at)
+             VALUES (:tenant_id, :actor, :conversation, :event, :target, :metadata, :request_id, UTC_TIMESTAMP())'
         );
         $query->execute([
+            ':tenant_id' => $tenantId,
             ':actor' => $actorStaffId,
             ':conversation' => $conversationId,
             ':event' => $eventType,
