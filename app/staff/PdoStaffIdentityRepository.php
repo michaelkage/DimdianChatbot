@@ -16,12 +16,14 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
     public function upsertStaffIdentity(array $identity): string
     {
         $id = (string)($identity['id'] ?? '');
+        $tenantId = strtolower((string)($identity['tenant_id'] ?? '00000000-0000-4000-8000-000000000001'));
         $provider = (string)($identity['auth_provider'] ?? '');
         $subject = (string)($identity['external_subject'] ?? '');
         $name = trim((string)($identity['display_name'] ?? ''));
         $email = isset($identity['email']) ? trim((string)$identity['email']) : null;
 
-        if (!PdoStaffPersistenceSupport::isUuid($id) || !preg_match('/^[a-z0-9._-]{1,40}$/i', $provider)
+        if (!PdoStaffPersistenceSupport::isUuid($id) || !PdoStaffPersistenceSupport::isUuid($tenantId)
+            || !preg_match('/^[a-z0-9._-]{1,40}$/i', $provider)
             || $subject === '' || strlen($subject) > 191 || $name === '' || strlen($name) > 100
             || ($email !== null && (strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false))) {
             throw new InvalidArgumentException('Verified staff identity is incomplete or invalid.');
@@ -29,17 +31,17 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
 
         $sql = PdoSqlDialect::isPostgres($this->pdo)
             ? 'INSERT INTO staff_identities
-                   (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
+                   (id, tenant_id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
                VALUES
-                   (:id, :provider, :subject, :name, :email, \'agent\', \'active\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-               ON CONFLICT (auth_provider, external_subject) DO UPDATE SET
+                   (:id, :tenant_id, :provider, :subject, :name, :email, \'agent\', \'active\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               ON CONFLICT (tenant_id, auth_provider, external_subject) DO UPDATE SET
                    display_name = EXCLUDED.display_name,
                    email = EXCLUDED.email,
                    updated_at = CURRENT_TIMESTAMP'
             : 'INSERT INTO staff_identities
-                   (id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
+                   (id, tenant_id, auth_provider, external_subject, display_name, email, role, status, created_at, updated_at)
                VALUES
-                   (:id, :provider, :subject, :name, :email, "agent", "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
+                   (:id, :tenant_id, :provider, :subject, :name, :email, "agent", "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
                ON DUPLICATE KEY UPDATE
                    display_name = VALUES(display_name),
                    email = VALUES(email),
@@ -47,15 +49,17 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
         $query = PdoSqlDialect::prepare($this->pdo, $sql);
         $query->execute([
             ':id' => $id,
+            ':tenant_id' => $tenantId,
             ':provider' => strtolower($provider),
             ':subject' => $subject,
             ':name' => $name,
             ':email' => $email,
         ]);
         $lookup = PdoSqlDialect::prepare($this->pdo, 
-            'SELECT id FROM staff_identities WHERE auth_provider = :provider AND external_subject = :subject LIMIT 1'
+            'SELECT id FROM staff_identities
+             WHERE tenant_id = :tenant_id AND auth_provider = :provider AND external_subject = :subject LIMIT 1'
         );
-        $lookup->execute([':provider' => strtolower($provider), ':subject' => $subject]);
+        $lookup->execute([':tenant_id' => $tenantId, ':provider' => strtolower($provider), ':subject' => $subject]);
         $localId = $lookup->fetchColumn();
         if (!is_string($localId) || $localId === '') {
             throw new RuntimeException('Staff identity could not be resolved after synchronization.');
@@ -63,27 +67,27 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
         return $localId;
     }
 
-    public function findStaffIdentityById(string $staffIdentityId): ?array
+    public function findStaffIdentityById(string $staffIdentityId, string $tenantId = '00000000-0000-4000-8000-000000000001'): ?array
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT id, auth_provider, external_subject, display_name, email, role, status
-             FROM staff_identities WHERE id = :id LIMIT 1'
+             FROM staff_identities WHERE id = :id AND tenant_id = :tenant_id LIMIT 1'
         );
-        $query->execute([':id' => $staffIdentityId]);
+        $query->execute([':id' => $staffIdentityId, ':tenant_id' => $tenantId]);
         $identity = $query->fetch();
         return is_array($identity) ? $identity : null;
     }
 
-    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool
+    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool
     {
         if (!preg_match('/^[a-f0-9]{64}$/', $nonceHash)) {
             throw new InvalidArgumentException('Staff authentication nonce hash is invalid.');
         }
         $query = PdoSqlDialect::prepare($this->pdo, 
-            'INSERT IGNORE INTO staff_auth_nonces (nonce_sha256, expires_at, created_at)
-             VALUES (:nonce, :expires, UTC_TIMESTAMP())'
+            'INSERT IGNORE INTO staff_auth_nonces (tenant_id, nonce_sha256, expires_at, created_at)
+             VALUES (:tenant_id, :nonce, :expires, UTC_TIMESTAMP())'
         );
-        $query->execute([':nonce' => $nonceHash, ':expires' => $expiresAtUtc]);
+        $query->execute([':tenant_id' => $tenantId, ':nonce' => $nonceHash, ':expires' => $expiresAtUtc]);
         return $query->rowCount() === 1;
     }
 
