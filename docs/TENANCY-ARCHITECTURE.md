@@ -146,4 +146,4 @@ Rollback must be planned before the NOT NULL/composite-constraint phase. A faile
 
 ## 8. Current release boundary
 
-Until the migration and acceptance criteria above are implemented, keep the current deployment model: one business per database, separate configuration/secrets, and no shared-database multi-tenant claim. The presence of a tenant identifier in a request or a schema column alone must never be treated as evidence of isolation. The staff inbox remains excluded from shared-database mode until every staff read/write, authorization check, nonce operation and audit query is tenant-scoped in SQL and covered by cross-tenant tests.
+Until the migration and acceptance criteria above are implemented, keep the current deployment model: one business per database, separate configuration/secrets, and no shared-database multi-tenant claim. The presence of a tenant identifier in a request or a schema column alone must never be treated as evidence of isolation. The staff inbox remains excluded from shared-database mode until deployment configuration, restore/export, worker/maintenance entry points and operational workflows are also proven tenant-safe.
