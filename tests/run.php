@@ -379,6 +379,7 @@ final class MetaServiceTestRepository implements MetaConnectionRepository
     {
         $this->connection = [
             'id' => 1,
+            'tenant_id' => $connection['tenant_id'] ?? '00000000-0000-4000-8000-000000000001',
             'waba_id' => $connection['waba_id'],
             'phone_number_id' => $connection['phone_number_id'],
             'access_token_ciphertext' => $connection['token_ciphertext'],
@@ -411,6 +412,12 @@ final class MetaServiceTestRepository implements MetaConnectionRepository
     public function activePhoneNumberId(): ?string
     {
         return $this->connection['phone_number_id'] ?? null;
+    }
+
+    public function tenantIdForPhoneNumberId(string $phoneNumberId): ?string
+    {
+        if (($this->connection['phone_number_id'] ?? null) !== $phoneNumberId) return null;
+        return (string) ($this->connection['tenant_id'] ?? '00000000-0000-4000-8000-000000000001');
     }
 }
 
