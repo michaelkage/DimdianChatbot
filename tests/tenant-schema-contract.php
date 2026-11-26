@@ -103,4 +103,22 @@ tenant_schema_expect(
     'webhook worker passes its trusted tenant routing context into provider processing'
 );
 
+$inboxRepository = file_get_contents($root . '/app/storage/PdoWebhookInboxRepository.php');
+$metaConnectionRepository = file_get_contents($root . '/app/storage/PdoMetaConnectionRepository.php');
+$tenantResolver = file_get_contents($root . '/app/channels/whatsapp/MetaWebhookTenantResolver.php');
+tenant_schema_expect(
+    is_string($inboxRepository)
+        && preg_match('/INSERT IGNORE INTO webhook_inbox\\s*\\(tenant_id, payload_sha256/', $inboxRepository) === 1
+        && preg_match('/WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :token/', $inboxRepository) === 1,
+    'webhook inbox writes and lease transitions require the owning tenant'
+);
+tenant_schema_expect(
+    is_string($metaConnectionRepository)
+        && preg_match('/WHERE phone_number_id = :phone AND status = "active"/', $metaConnectionRepository) === 1
+        && is_string($tenantResolver)
+        && strpos($tenantResolver, 'tenantIdForWhatsAppPhoneNumberId') !== false
+        && strpos($tenantResolver, 'MetaWebhookTenantResolutionException') !== false,
+    'webhook tenant routing resolves only verified, active Meta phone identities and fails closed'
+);
+
 echo "Tenant provider-schema contract checks passed." . PHP_EOL;
