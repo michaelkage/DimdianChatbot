@@ -1,0 +1,77 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Static contract checks for tenant ownership in provider-facing schemas.
+ * This does not prove runtime isolation; it prevents the clean-install schemas
+ * and additive upgrade migrations from drifting apart.
+ */
+$root = dirname(__DIR__);
+$tables = ['guest_consent_events', 'whatsapp_identity_links', 'webhook_events', 'webhook_inbox', 'meta_signup_states', 'meta_connections'];
+$legacyTenant = '00000000-0000-4000-8000-000000000001';
+
+function tenant_schema_expect(bool $condition, string $message): void
+{
+    if (!$condition) {
+        throw new RuntimeException('Tenant schema contract failed: ' . $message);
+    }
+    echo 'PASS ' . $message . PHP_EOL;
+}
+
+foreach ([
+    'database/schema.sql' => 'mysql',
+    'database/postgresql/schema.sql' => 'postgresql',
+] as $relative => $dialect) {
+    $sql = file_get_contents($root . '/' . $relative);
+    tenant_schema_expect(is_string($sql) && $sql !== '', $dialect . ' clean-install schema is readable');
+
+    foreach ($tables as $table) {
+        $pattern = '/CREATE TABLE\s+' . preg_quote($table, '/') . '\s*\((.*?)\)\s*(?:ENGINE=|;)/is';
+        tenant_schema_expect(
+            preg_match($pattern, $sql, $match) === 1
+                && preg_match('/\btenant_id\b/i', $match[1]) === 1
+                && stripos($match[1], $legacyTenant) !== false
+                && stripos($match[1], 'REFERENCES tenants(id)') !== false,
+            $dialect . ' ' . $table . ' has a legacy-safe tenant_id and tenant foreign key'
+        );
+    }
+
+    tenant_schema_expect(
+        preg_match('/UNIQUE\s*(?:KEY\s+\w+\s*)?\(\s*tenant_id\s*,\s*provider_event_id\s*\)/i', $sql) === 1,
+        $dialect . ' webhook event deduplication is tenant-scoped'
+    );
+    tenant_schema_expect(
+        preg_match('/UNIQUE\s*(?:KEY\s+\w+\s*)?\(\s*tenant_id\s*,\s*payload_sha256\s*\)/i', $sql) === 1,
+        $dialect . ' webhook inbox deduplication is tenant-scoped'
+    );
+    tenant_schema_expect(
+        preg_match('/(?:UNIQUE\s+KEY\s+\w+\s*\(\s*phone_number_id\s*\)|phone_number_id\s+VARCHAR\(80\)\s+NOT NULL UNIQUE)/i', $sql) === 1,
+        $dialect . ' Meta phone-number ownership remains globally unique within one deployment'
+    );
+}
+
+$migrations = [
+    'database/migrations/005_tenant_owned_provider_storage.sql' => $tables,
+    // PostgreSQL's preceding clean-install schema already tenant-scoped consent
+    // events and identity links; its upgrade only needs the four provider tables
+    // that were unscoped in that schema.
+    'database/postgresql/migrations/005_tenant_owned_provider_storage.sql' => [
+        'webhook_events', 'webhook_inbox', 'meta_signup_states', 'meta_connections',
+    ],
+];
+foreach ($migrations as $relative => $migrationTables) {
+    $sql = file_get_contents($root . '/' . $relative);
+    tenant_schema_expect(is_string($sql) && $sql !== '', $relative . ' is readable');
+    foreach ($migrationTables as $table) {
+        tenant_schema_expect(
+            preg_match('/ALTER TABLE\s+' . preg_quote($table, '/') . '[\s\S]*?ADD COLUMN\s+tenant_id/i', $sql) === 1,
+            $relative . ' adds tenant ownership to ' . $table
+        );
+    }
+    tenant_schema_expect(
+        stripos($sql, $legacyTenant) !== false,
+        $relative . ' backfills existing rows into the deterministic legacy tenant'
+    );
+}
+
+echo "Tenant provider-schema contract checks passed." . PHP_EOL;

@@ -124,6 +124,7 @@ CREATE TABLE messages (
 
 CREATE TABLE webhook_events (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     provider_event_id VARCHAR(191) NOT NULL,
     event_type VARCHAR(100) NOT NULL,
     payload_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -131,8 +132,10 @@ CREATE TABLE webhook_events (
     processed_at DATETIME NULL,
     processing_status ENUM('received', 'processed', 'ignored', 'failed') NOT NULL DEFAULT 'received',
     PRIMARY KEY (id),
-    UNIQUE KEY uq_webhook_events_provider_id (provider_event_id),
-    KEY idx_webhook_events_status_received (processing_status, received_at)
+    UNIQUE KEY uq_webhook_events_tenant_provider (tenant_id, provider_event_id),
+    KEY idx_webhook_events_tenant_status_received (tenant_id, processing_status, received_at),
+    CONSTRAINT fk_webhook_events_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE rate_limits (
@@ -230,6 +233,7 @@ CREATE TABLE whatsapp_identity_links (
 -- Verified webhook payloads are encrypted before they are acknowledged to Meta.
 CREATE TABLE webhook_inbox (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     payload_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     payload_ciphertext LONGBLOB NOT NULL,
     payload_nonce VARBINARY(12) NOT NULL,
@@ -243,24 +247,32 @@ CREATE TABLE webhook_inbox (
     received_at DATETIME NOT NULL,
     processed_at DATETIME NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_webhook_inbox_payload (payload_sha256),
+    UNIQUE KEY uq_webhook_inbox_tenant_payload (tenant_id, payload_sha256),
     KEY idx_webhook_inbox_due (status, available_at, received_at),
-    KEY idx_webhook_inbox_lock (status, locked_at)
+    KEY idx_webhook_inbox_lock (status, locked_at),
+    KEY idx_webhook_inbox_tenant_due (tenant_id, status, available_at, received_at),
+    CONSTRAINT fk_webhook_inbox_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE meta_signup_states (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     state_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     expires_at DATETIME NOT NULL,
     used_at DATETIME NULL,
     created_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_meta_signup_state (state_sha256),
-    KEY idx_meta_signup_expiry (expires_at, used_at)
+    KEY idx_meta_signup_expiry (expires_at, used_at),
+    KEY idx_meta_signup_tenant_expiry (tenant_id, expires_at, used_at),
+    CONSTRAINT fk_meta_signup_states_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE meta_connections (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001',
     waba_id VARCHAR(80) NOT NULL,
     phone_number_id VARCHAR(80) NOT NULL,
     access_token_ciphertext LONGBLOB NOT NULL,
@@ -272,5 +284,8 @@ CREATE TABLE meta_connections (
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_meta_phone_number (phone_number_id),
-    KEY idx_meta_connection_status (status, updated_at)
+    KEY idx_meta_connection_status (status, updated_at),
+    KEY idx_meta_connections_tenant_status (tenant_id, status, updated_at),
+    CONSTRAINT fk_meta_connections_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
