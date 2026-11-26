@@ -87,6 +87,7 @@ interface ProviderEventRepository
      * Returns processed, ignored, or duplicate.
      */
     public function recordProviderMessageEvent(
+        string $tenantId,
         string $eventId,
         string $eventType,
         string $payloadHash,
@@ -99,13 +100,14 @@ interface ProviderEventRepository
     ): string;
 
     /** Reconcile the highest-precedence stored status onto a provider message. */
-    public function reconcileProviderMessageStatus(string $providerMessageId): bool;
+    public function reconcileProviderMessageStatus(string $tenantId, string $providerMessageId): bool;
 
     /** Record an identified but unsupported provider event without creating a message. */
-    public function recordIgnoredProviderEvent(string $eventId, string $eventType, string $payloadHash): string;
+    public function recordIgnoredProviderEvent(string $tenantId, string $eventId, string $eventType, string $payloadHash): string;
 
     /** Persist a provider status event and reconcile the message's current status. */
     public function recordProviderStatusEvent(
+        string $tenantId,
         string $eventId,
         string $payloadHash,
         string $providerMessageId,
