@@ -79,7 +79,7 @@ $providerContract = file_get_contents($root . '/app/storage/ChatRepository.php')
 $workerSource = file_get_contents($root . '/app/channels/whatsapp/WebhookInboxWorker.php');
 tenant_schema_expect(
     is_string($providerRepository)
-        && preg_match('/WHERE l\\.tenant_id = :tenant_id AND c\\.tenant_id = :tenant_id/', $providerRepository) === 1
+        && preg_match('/WHERE l\\.tenant_id = :link_tenant_id AND c\\.tenant_id = :conversation_tenant_id/', $providerRepository) === 1
         && preg_match('/\\(id, tenant_id, conversation_id, sender_type/', $providerRepository) === 1,
     'provider message identity routing and message insertion both require explicit tenant scope'
 );
