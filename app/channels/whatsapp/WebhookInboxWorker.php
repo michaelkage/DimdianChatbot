@@ -4,23 +4,16 @@ declare(strict_types=1);
 /**
  * Durable, replay-safe processing of signature-verified Meta webhook inbox rows.
  *
- * Each provider event is committed by MetaWebhookProcessor through its
- * ProviderEventRepository capability. If a process dies midway through a multi-event payload, a retry
- * safely skips already-recorded events and resumes the remaining events.
+ * The tenant is read from the persisted inbox row, then every provider phone
+ * identity is revalidated against the active Meta connection before processing.
  */
 final class WebhookInboxWorker
 {
-    /** @var Closure():array{tenant_id:string,phone_number_id:string} */
-    private Closure $phoneNumberIdResolver;
-
     public function __construct(
-        private readonly WebhookInboxRepository $repository,
+        private readonly WebhookProcessingRepository $repository,
         private readonly MetaWebhookProcessor $processor,
-        private readonly WebhookPayloadCipher $cipher,
-        Closure $phoneNumberIdResolver
-    ) {
-        $this->phoneNumberIdResolver = $phoneNumberIdResolver;
-    }
+        private readonly WebhookPayloadCipher $cipher
+    ) {}
 
     /** @return array{processed:int,retried:int,failed:int,empty:bool} */
     public function process(int $limit = 10, int $maxAttempts = 8): array
@@ -37,8 +30,13 @@ final class WebhookInboxWorker
                 break;
             }
 
+            $tenantId = (string) ($job['tenant_id'] ?? '');
             $attempt = (int) $job['attempts'];
             try {
+                if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $tenantId)) {
+                    throw new RuntimeException('Webhook inbox row has no valid tenant ownership.');
+                }
+
                 $raw = $this->cipher->decrypt(
                     (string) $job['payload_ciphertext'],
                     (string) $job['payload_nonce'],
@@ -49,21 +47,22 @@ final class WebhookInboxWorker
                     throw new RuntimeException('Stored webhook payload is invalid.');
                 }
 
-                $routing = ($this->phoneNumberIdResolver)();
-                if (!is_array($routing)
-                    || !is_string($routing['tenant_id'] ?? null)
-                    || !is_string($routing['phone_number_id'] ?? null)
-                    || $routing['tenant_id'] === '') {
-                    throw new RuntimeException('Active Meta tenant and phone-number configuration are invalid.');
+                $phoneNumberIds = MetaWebhookTenantResolver::phoneNumberIdsFromPayload($payload);
+                foreach ($phoneNumberIds as $phoneNumberId) {
+                    $resolvedTenantId = $this->repository->tenantIdForWhatsAppPhoneNumberId($phoneNumberId);
+                    if (!is_string($resolvedTenantId) || !hash_equals($tenantId, $resolvedTenantId)) {
+                        throw new RuntimeException('Webhook destination is no longer active for its persisted tenant.');
+                    }
                 }
 
-                $result = $this->processor->process($routing['tenant_id'], $payload, $raw, $routing['phone_number_id']);
-                $this->repository->completeWebhookInbox((int) $job['id'], $lockToken);
+                $result = $this->processor->process($tenantId, $payload, $raw, $phoneNumberIds);
+                $this->repository->completeWebhookInbox($tenantId, (int) $job['id'], $lockToken);
                 $summary['processed'] += (int) ($result['processed'] ?? 0);
             } catch (Throwable $error) {
                 $retry = $attempt < $maxAttempts;
                 $delay = min(3600, 15 * (2 ** min(8, max(0, $attempt - 1))));
                 $this->repository->failWebhookInbox(
+                    $tenantId,
                     (int) $job['id'],
                     $lockToken,
                     $retry,
