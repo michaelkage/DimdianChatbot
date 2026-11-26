@@ -88,7 +88,7 @@ final class MetaEmbeddedSignupService
 
         $this->repository->saveActiveConnection([
             // This value comes from server configuration, never the browser callback.
-            'tenant_id' => (string) ($this->configValue('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001'),
+            'tenant_id' => $this->defaultTenantId(),
             'waba_id' => $wabaId,
             'phone_number_id' => $phoneId,
             'token_ciphertext' => $sealed['ciphertext'],
@@ -111,9 +111,9 @@ final class MetaEmbeddedSignupService
         ];
     }
 
-    public function subscribeActiveWaba(): bool
+    public function subscribeActiveWaba(string $tenantId): bool
     {
-        $row = $this->repository->findActiveConnection();
+        $row = $this->repository->findActiveConnectionForTenant($tenantId);
         if (!$row) {
             return false;
         }
@@ -128,10 +128,13 @@ final class MetaEmbeddedSignupService
     }
 
     /** @param array<string,mixed> $base @return array<string,mixed> */
-    public function loadWhatsAppConfig(array $base): array
+    public function loadWhatsAppConfig(array $base, string $tenantId): array
     {
-        $row = $this->repository->findActiveConnection();
+        $row = $this->repository->findActiveConnectionForTenant($tenantId);
         if (!$row) {
+            if (!hash_equals($this->defaultTenantId(), $tenantId)) {
+                throw new RuntimeException('No active Meta connection exists for the requested tenant.');
+            }
             return $base;
         }
 
@@ -191,6 +194,11 @@ final class MetaEmbeddedSignupService
         $base['phone_number_id'] = (string) $row['phone_number_id'];
         $base['access_token'] = $token;
         return $base;
+    }
+
+    private function defaultTenantId(): string
+    {
+        return (string) ($this->configValue('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
     }
 
     private function graphVersion(): string
