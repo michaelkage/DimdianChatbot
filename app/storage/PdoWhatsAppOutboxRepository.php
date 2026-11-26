@@ -43,7 +43,7 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
             $maxAttempts = max(1, $maxAttempts);
             $leaseSeconds = max(1, $leaseSeconds);
             $exhausted = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT id, message_id
+                'SELECT id, tenant_id, message_id
                  FROM message_outbox
                  WHERE status = "processing"
                    AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL :lease_seconds SECOND)
@@ -58,17 +58,17 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
                      SET status = "failed", locked_at = NULL, lock_token = NULL,
                          last_error = "Worker lease expired after maximum attempts.",
                          updated_at = UTC_TIMESTAMP()
-                     WHERE id = :id AND status = "processing"'
+                     WHERE id = :id AND tenant_id = :tenant_id AND status = "processing"'
                 );
-                $failJob->execute([':id' => $expiredJob['id']]);
+                $failJob->execute([':id' => $expiredJob['id'], ':tenant_id' => $expiredJob['tenant_id']]);
                 $failMessage = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE messages SET delivery_status = "failed" WHERE id = :id'
+                    'UPDATE messages SET delivery_status = "failed" WHERE id = :id AND tenant_id = :tenant_id'
                 );
-                $failMessage->execute([':id' => $expiredJob['message_id']]);
+                $failMessage->execute([':id' => $expiredJob['message_id'], ':tenant_id' => $expiredJob['tenant_id']]);
             }
 
             $query = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT id, message_id, recipient, payload_text, attempts
+                'SELECT id, tenant_id, message_id, recipient, payload_text, attempts
                  FROM message_outbox
                  WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
                     OR (status = "processing"
@@ -88,98 +88,99 @@ final class PdoWhatsAppOutboxRepository implements WhatsAppOutboxRepository
                 'UPDATE message_outbox
                  SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(),
                      lock_token = :lock_token, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id'
+                 WHERE id = :id AND tenant_id = :tenant_id'
             );
-            $claim->execute([':attempt' => $attempt, ':lock_token' => $lockToken, ':id' => $job['id']]);
+            $claim->execute([':attempt' => $attempt, ':lock_token' => $lockToken, ':id' => $job['id'], ':tenant_id' => $job['tenant_id']]);
             $job['attempts'] = $attempt;
             return ['job' => $job, 'exhausted' => count($expiredJobs)];
         });
     }
 
-    public function hasWhatsAppConsent(string $messageId): bool
+    public function hasWhatsAppConsent(string $tenantId, string $messageId): bool
     {
         $query = PdoSqlDialect::prepare($this->pdo, 
             'SELECT g.whatsapp_opt_in_at
              FROM messages m
              INNER JOIN conversations c ON c.id = m.conversation_id
              INNER JOIN guests g ON g.id = c.guest_id
-             WHERE m.id = :message_id LIMIT 1'
+             WHERE m.id = :message_id AND m.tenant_id = :message_tenant_id
+               AND c.tenant_id = :conversation_tenant_id AND g.tenant_id = :guest_tenant_id LIMIT 1'
         );
-        $query->execute([':message_id' => $messageId]);
+        $query->execute([
+            ':message_id' => $messageId,
+            ':message_tenant_id' => $tenantId,
+            ':conversation_tenant_id' => $tenantId,
+            ':guest_tenant_id' => $tenantId,
+        ]);
         $consent = $query->fetchColumn();
         return $consent !== false && $consent !== null;
     }
 
-    public function cancelWhatsAppOutbox(string $id, string $lockToken, string $messageId): bool
+    public function cancelWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId): bool
     {
-        return $this->transaction(function () use ($id, $lockToken, $messageId): bool {
+        return $this->transaction(function () use ($tenantId, $id, $lockToken, $messageId): bool {
             $cancel = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = "failed", locked_at = NULL, lock_token = NULL,
                      last_error = "Cancelled after WhatsApp consent withdrawal.", updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "processing" AND lock_token = :lock_token'
+                 WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :lock_token'
             );
-            $cancel->execute([':id' => $id, ':lock_token' => $lockToken]);
+            $cancel->execute([':id' => $id, ':tenant_id' => $tenantId, ':lock_token' => $lockToken]);
             if ($cancel->rowCount() !== 1) return false;
             $message = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE messages SET delivery_status = "web_only"
-                 WHERE id = :message_id AND delivery_status = "queued"'
+                 WHERE id = :message_id AND tenant_id = :tenant_id AND delivery_status = "queued"'
             );
-            $message->execute([':message_id' => $messageId]);
+            $message->execute([':message_id' => $messageId, ':tenant_id' => $tenantId]);
             return true;
         });
     }
 
-    public function completeWhatsAppOutbox(string $id, string $lockToken, string $messageId, string $providerMessageId): bool
+    public function completeWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, string $providerMessageId): bool
     {
-        return $this->transaction(function () use ($id, $lockToken, $messageId, $providerMessageId): bool {
+        return $this->transaction(function () use ($tenantId, $id, $lockToken, $messageId, $providerMessageId): bool {
             $complete = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = "sent", provider_message_id = :provider_id, locked_at = NULL,
                      lock_token = NULL, last_error = NULL, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "processing" AND lock_token = :lock_token'
+                 WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :lock_token'
             );
-            $complete->execute([':provider_id' => $providerMessageId, ':id' => $id, ':lock_token' => $lockToken]);
+            $complete->execute([':provider_id' => $providerMessageId, ':id' => $id, ':tenant_id' => $tenantId, ':lock_token' => $lockToken]);
             if ($complete->rowCount() !== 1) return false;
 
             $message = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE messages SET provider_message_id = :provider_id, delivery_status = "sent"
-                 WHERE id = :message_id'
+                 WHERE id = :message_id AND tenant_id = :tenant_id'
             );
-            $message->execute([':provider_id' => $providerMessageId, ':message_id' => $messageId]);
-            $tenantLookup = PdoSqlDialect::prepare($this->pdo, 'SELECT tenant_id FROM messages WHERE id = :message_id LIMIT 1');
-            $tenantLookup->execute([':message_id' => $messageId]);
-            $tenantId = $tenantLookup->fetchColumn();
-            if (!is_string($tenantId) || $tenantId === '') {
-                throw new RuntimeException('Outbound message tenant could not be resolved for status reconciliation.');
-            }
+            $message->execute([':provider_id' => $providerMessageId, ':message_id' => $messageId, ':tenant_id' => $tenantId]);
             $this->providerEvents->reconcileProviderMessageStatus($tenantId, $providerMessageId);
             return true;
         });
     }
 
-    public function failWhatsAppOutbox(string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
+    public function failWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
     {
-        return $this->transaction(function () use ($id, $lockToken, $messageId, $retry, $delaySeconds, $error): bool {
+        return $this->transaction(function () use ($tenantId, $id, $lockToken, $messageId, $retry, $delaySeconds, $error): bool {
             $update = PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE message_outbox
                  SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
                      locked_at = NULL, lock_token = NULL, last_error = :last_error, updated_at = UTC_TIMESTAMP()
-                 WHERE id = :id AND status = "processing" AND lock_token = :lock_token'
+                 WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :lock_token'
             );
             $update->execute([
                 ':status' => $retry ? 'pending' : 'failed',
                 ':delay' => max(0, $delaySeconds),
                 ':last_error' => safe_utf8_substring($error, 0, 900),
                 ':id' => $id,
+                ':tenant_id' => $tenantId,
                 ':lock_token' => $lockToken,
             ]);
             if ($update->rowCount() !== 1) return false;
             if (!$retry) {
                 $failed = PdoSqlDialect::prepare($this->pdo, 
-                    'UPDATE messages SET delivery_status = "failed" WHERE id = :message_id'
+                    'UPDATE messages SET delivery_status = "failed" WHERE id = :message_id AND tenant_id = :tenant_id'
                 );
-                $failed->execute([':message_id' => $messageId]);
+                $failed->execute([':message_id' => $messageId, ':tenant_id' => $tenantId]);
             }
             return true;
         });

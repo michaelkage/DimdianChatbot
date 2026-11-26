@@ -164,7 +164,7 @@ try {
         'PostgreSQL stores an early provider status before its outbound message is accepted');
 
     $outboxRepository = new PdoWhatsAppOutboxRepository($pdo, $providerEvents);
-    pg_expect($outboxRepository->hasWhatsAppConsent($messageId),
+    pg_expect($outboxRepository->hasWhatsAppConsent($defaultTenantId, $messageId),
         'PostgreSQL outbox checks current WhatsApp consent before send');
     $outboxLease = uuid_v4();
     $claimedOutbox = $outboxRepository->claimWhatsAppOutbox($outboxLease);
@@ -176,7 +176,7 @@ try {
     );
     $lease = $outboxLease;
     pg_expect(
-        $outboxRepository->completeWhatsAppOutbox($outboxId, $lease, $messageId, $providerMessageId),
+        $outboxRepository->completeWhatsAppOutbox($defaultTenantId, $outboxId, $lease, $messageId, $providerMessageId),
         'PostgreSQL outbox accepts completion only for the current lease token'
     );
 

@@ -41,24 +41,24 @@ final class PdoChatRepository implements ChatRepository
         return $this->whatsAppOutbox->claimWhatsAppOutbox($lockToken, $maxAttempts, $leaseSeconds);
     }
 
-    public function hasWhatsAppConsent(string $messageId): bool
+    public function hasWhatsAppConsent(string $tenantId, string $messageId): bool
     {
-        return $this->whatsAppOutbox->hasWhatsAppConsent($messageId);
+        return $this->whatsAppOutbox->hasWhatsAppConsent($tenantId, $messageId);
     }
 
-    public function cancelWhatsAppOutbox(string $id, string $lockToken, string $messageId): bool
+    public function cancelWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId): bool
     {
-        return $this->whatsAppOutbox->cancelWhatsAppOutbox($id, $lockToken, $messageId);
+        return $this->whatsAppOutbox->cancelWhatsAppOutbox($tenantId, $id, $lockToken, $messageId);
     }
 
-    public function completeWhatsAppOutbox(string $id, string $lockToken, string $messageId, string $providerMessageId): bool
+    public function completeWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, string $providerMessageId): bool
     {
-        return $this->whatsAppOutbox->completeWhatsAppOutbox($id, $lockToken, $messageId, $providerMessageId);
+        return $this->whatsAppOutbox->completeWhatsAppOutbox($tenantId, $id, $lockToken, $messageId, $providerMessageId);
     }
 
-    public function failWhatsAppOutbox(string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
+    public function failWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool
     {
-        return $this->whatsAppOutbox->failWhatsAppOutbox($id, $lockToken, $messageId, $retry, $delaySeconds, $error);
+        return $this->whatsAppOutbox->failWhatsAppOutbox($tenantId, $id, $lockToken, $messageId, $retry, $delaySeconds, $error);
     }
 
     public function recordWhatsAppConsent(string $tenantId, string $guestId, string $conversationId, string $normalizedPhone, string $action, string $source = 'website_widget'): void

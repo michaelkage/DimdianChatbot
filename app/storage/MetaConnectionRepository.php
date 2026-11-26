@@ -18,6 +18,9 @@ interface MetaConnectionRepository
     /** @return array<string,mixed>|null */
     public function findActiveConnection(): ?array;
 
+    /** @return array<string,mixed>|null */
+    public function findActiveConnectionForTenant(string $tenantId): ?array;
+
     /** @param array{ciphertext:string,nonce:string,tag:string} $encrypted */
     public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void;
 
