@@ -18,9 +18,10 @@ if (!is_array($config) || empty($config['outbound_enabled'])) {
 }
 
 try {
-    $config = load_meta_whatsapp_config(database(), $config);
-    $transport = new MetaCloudApiTransport($config);
-    $summary = process_whatsapp_outbox(database(), $transport, 10, 6);
+    $pdo = database();
+    $connections = meta_embedded_signup_service($pdo);
+    $transport = new MetaCloudApiTransport($config, $connections, meta_default_tenant_id());
+    $summary = process_whatsapp_outbox($pdo, $transport, 10, 6);
     fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_SLASHES) . PHP_EOL);
 } catch (Throwable $error) {
     app_log_event('outbox.worker_failed', ['endpoint' => 'outbox_worker', 'exception_class' => get_class($error)]);
