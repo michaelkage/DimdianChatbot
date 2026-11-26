@@ -508,11 +508,21 @@ try {
 }
 check($mixedWebhookTenantsRejected, 'a single Meta webhook cannot mix multiple tenant destinations');
 $missingWebhookPhoneRejected = false;
+$missingMetadataPayload = [
+    'object' => 'whatsapp_business_account',
+    'entry' => [
+        [
+            'changes' => [
+                [
+                    'field' => 'messages',
+                    'value' => ['messages' => []],
+                ],
+            ],
+        ],
+    ],
+];
 try {
-    $webhookTenantResolver->resolve([
-        'object' => 'whatsapp_business_account',
-        'entry' => [['changes' => [['field' => 'messages', 'value' => ['messages' => []]]]]],
-    ]);
+    $webhookTenantResolver->resolve($missingMetadataPayload);
 } catch (MetaWebhookTenantResolutionException) {
     $missingWebhookPhoneRejected = true;
 }
