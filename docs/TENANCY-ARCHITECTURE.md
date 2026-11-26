@@ -18,7 +18,13 @@ This is consistent with the current documented deployment boundary: one business
 
 ### Staff assertion implementation boundary
 
-The HMAC assertion payload now includes `tenant_id`, covered by the same HMAC as the identity and request binding fields. The WordPress proxy reads this from the server-only `CHATBRIDGE_STAFF_TENANT_ID` constant, falling back to the explicit legacy single-tenant UUID when the constant is absent. The browser cannot choose or override it.
+The HMAC assertion payload now includes `tenant_id`, covered by the same HMAC as the identity and request binding fields. The WordPress proxy reads this from the server-only `CHATBRIDGE_STAFF_TENANT_ID` constant, falling back to the explicit legacy single-tenant UUID when the constant is absent. The browser cannot choose or override it. A deployment that needs an explicit value can define it in `wp-config.php`, for example:
+
+```php
+define('CHATBRIDGE_STAFF_TENANT_ID', '00000000-0000-4000-8000-000000000001');
+```
+
+This constant is a routing/authentication claim only; it does not provision the tenant or make global staff persistence safe.
 
 This is only an authentication-context prerequisite. The current staff identity, assignment, note, message-author, audit and nonce persistence is not yet tenant-scoped. A signed tenant claim does not make those global queries safe. Do not enable shared-database mode until tenant context is required by all staff repository methods and enforced in their SQL and relational constraints.
 
