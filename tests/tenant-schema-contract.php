@@ -183,4 +183,20 @@ foreach ($staffMigrationFiles as $relative => $dialect) {
     );
 }
 
+$staffIdentityRepository = file_get_contents($root . '/app/staff/PdoStaffIdentityRepository.php');
+$staffHmacProvider = file_get_contents($root . '/app/staff/HmacStaffIdentityProvider.php');
+tenant_schema_expect(
+    is_string($staffIdentityRepository)
+        && preg_match('/WHERE tenant_id = :tenant_id AND auth_provider = :provider AND external_subject = :subject/', $staffIdentityRepository) === 1
+        && preg_match('/WHERE id = :id AND tenant_id = :tenant_id/', $staffIdentityRepository) === 1,
+    'staff external identity upsert and lookup both require the signed tenant key'
+);
+tenant_schema_expect(
+    is_string($staffIdentityRepository)
+        && preg_match('/INSERT IGNORE INTO staff_auth_nonces \\(tenant_id, nonce_sha256/', $staffIdentityRepository) === 1
+        && is_string($staffHmacProvider)
+        && strpos($staffHmacProvider, "consumeStaffAuthNonce(hash('sha256', $nonce), $expiresAt, $tenantId)") !== false,
+    'HMAC replay nonce persistence is tenant-scoped using the verified signed tenant'
+);
+
 echo "Tenant provider and staff schema contract checks passed." . PHP_EOL;
