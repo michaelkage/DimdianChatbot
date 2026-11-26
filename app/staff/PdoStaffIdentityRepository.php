@@ -132,7 +132,7 @@ final class PdoStaffIdentityRepository implements StaffIdentityRepository
             }
 
             $target = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT role, status FROM staff_identities WHERE id = :id LIMIT 1 FOR UPDATE'
+                'SELECT role, status FROM staff_identities WHERE tenant_id = :tenant_id AND id = :id LIMIT 1 FOR UPDATE'
             );
             $target->execute([':tenant_id' => $tenantId, ':id' => $targetStaffId]);
             $targetRow = $target->fetch();
