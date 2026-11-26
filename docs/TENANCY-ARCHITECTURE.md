@@ -6,10 +6,10 @@
 
 The current source and DDL have these characteristics:
 
-- The core schema defines guests, conversations, guest sessions, messages, webhook events, rate-limit buckets, WhatsApp outbox rows, message-status events, consent events, WhatsApp identity links, encrypted webhook inbox rows, Meta signup states and Meta connections.
-- The optional staff schema defines staff identities, conversation assignments, internal notes, staff-message authors, audit events and staff-authentication nonces.
-- Neither schema defines a business/tenant root table or a tenant identifier on its records. The core tables are related by guest, conversation and message foreign keys; staff records relate to the same installation-wide conversations and staff identities.
-- The ChatRepository, MetaConnectionRepository and StaffInboxRepository contracts do not accept a tenant context. Their current PDO adapters therefore operate against the database selected by the installation configuration.
+- The core schema defines the tenant root and tenant-owned guest, conversation, session, message, provider-event, outbox, consent, identity, webhook-inbox and Meta-connection records.
+- The optional staff schema defines staff identities, conversation assignments, internal notes, staff-message authors, audit events and staff-authentication nonces. Migration 006 adds a tenant key to all six staff tables and composite same-tenant foreign keys for their parent relationships.
+- The core provider and visitor repositories have tenant-aware paths from the preceding staged changes. Staff repositories remain installation-wide: their current PDO queries do not consistently require or filter a tenant context, even after migration 006 is applied.
+- The staff storage migration provides relational ownership constraints, not query isolation. A signed tenant assertion and composite foreign keys do not prevent unscoped SELECTs from returning rows belonging to another tenant.
 - The public widget derives its API base URL from its script data attribute or script URL. Session creation currently sends name, phone and WhatsApp consent; it does not send a tenant or public widget identifier.
 - Staff HMAC assertions now bind a server-configured tenant UUID alongside identity, issue time, nonce, HTTP method, exact request target and body digest. The verified tenant is preserved in the application actor context. Staff repositories, assignments, audit reads and administrative operations are still installation-wide and do not yet enforce that tenant context.
 - The optional staff module is installed separately and is disabled by default.
@@ -120,8 +120,8 @@ Do not introduce a shared-database deployment in one large, unverified migration
 2. Create one tenant for each existing database installation using an explicit operator-supplied identity. Do not derive tenant identity from a visitor, phone number or domain guess.
 3. Add nullable tenant keys to core and optional staff tables.
 4. Backfill every existing row to the installation's one tenant. Verify counts, orphan checks and foreign-key relationships before continuing.
-5. Add tenant-scoped unique indexes and composite foreign keys while retaining old constraints until the new constraints are proven.
-6. Update repository contracts and PDO adapters to require tenant context; remove unscoped tenant-owned methods.
+5. Add tenant-scoped unique indexes and composite foreign keys while retaining old constraints until the new constraints are proven. For the optional staff module, apply migration 006 after the optional staff schema is installed.
+6. Update repository contracts and PDO adapters to require tenant context; remove unscoped tenant-owned methods. Migration 006 alone does not complete this step.
 7. Update widget session creation, staff assertion verification, Meta connection resolution, cron workers, retention and operations endpoints.
 8. Run cross-tenant negative tests against every API family, every repository write path and every background queue.
 9. Make tenant keys NOT NULL and remove obsolete global constraints only after backfill and isolation tests pass.
@@ -146,4 +146,4 @@ Rollback must be planned before the NOT NULL/composite-constraint phase. A faile
 
 ## 8. Current release boundary
 
-Until the migration and acceptance criteria above are implemented, keep the current deployment model: one business per database, separate configuration/secrets, and no shared-database multi-tenant claim. The presence of a tenant identifier in a request or a future schema column alone must never be treated as evidence of isolation.
+Until the migration and acceptance criteria above are implemented, keep the current deployment model: one business per database, separate configuration/secrets, and no shared-database multi-tenant claim. The presence of a tenant identifier in a request or a schema column alone must never be treated as evidence of isolation. The staff inbox remains excluded from shared-database mode until every staff read/write, authorization check, nonce operation and audit query is tenant-scoped in SQL and covered by cross-tenant tests.
