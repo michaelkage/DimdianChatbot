@@ -4,6 +4,30 @@
 -- through the webhook, Meta signup and worker paths in subsequent migrations.
 SET time_zone = '+00:00';
 
+ALTER TABLE guest_consent_events
+    ADD COLUMN tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001' AFTER id,
+    DROP FOREIGN KEY fk_consent_guest,
+    ADD KEY idx_consent_tenant_guest_created (tenant_id, guest_id, created_at),
+    ADD KEY idx_consent_tenant_channel_action (tenant_id, channel, action, created_at),
+    ADD CONSTRAINT fk_consent_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_consent_guest FOREIGN KEY (tenant_id, guest_id) REFERENCES guests(tenant_id, id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE whatsapp_identity_links
+    ADD COLUMN tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001' AFTER id,
+    DROP INDEX uq_whatsapp_active_phone,
+    DROP FOREIGN KEY fk_whatsapp_link_guest,
+    DROP FOREIGN KEY fk_whatsapp_link_conversation,
+    ADD UNIQUE KEY uq_whatsapp_active_phone (tenant_id, active_phone),
+    ADD KEY idx_whatsapp_tenant_conversation (tenant_id, conversation_id, is_active),
+    ADD CONSTRAINT fk_whatsapp_identity_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_whatsapp_link_guest FOREIGN KEY (tenant_id, guest_id) REFERENCES guests(tenant_id, id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    ADD CONSTRAINT fk_whatsapp_link_conversation FOREIGN KEY (tenant_id, conversation_id) REFERENCES conversations(tenant_id, id)
+        ON DELETE RESTRICT ON UPDATE CASCADE;
+
 ALTER TABLE webhook_events
     ADD COLUMN tenant_id CHAR(36) NOT NULL DEFAULT '00000000-0000-4000-8000-000000000001' AFTER id,
     DROP INDEX uq_webhook_events_provider_id,
