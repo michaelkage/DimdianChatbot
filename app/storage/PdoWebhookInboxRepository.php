@@ -19,9 +19,9 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
         $this->pdo = $pdo;
     }
 
-    public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
+    public function enqueueWebhookInbox(string $tenantId, string $payloadHash, array $encrypted): array
     {
-        return $this->transaction(function () use ($payloadHash, $encrypted): array {
+        return $this->transaction(function () use ($tenantId, $payloadHash, $encrypted): array {
             if (PdoSqlDialect::isPostgres($this->pdo)) {
                 $encrypted = [
                     'ciphertext' => base64_encode($encrypted['ciphertext']),
@@ -31,17 +31,18 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             }
             $insert = PdoSqlDialect::prepare($this->pdo, 
                 'INSERT IGNORE INTO webhook_inbox
-                    (payload_sha256, payload_ciphertext, payload_nonce, payload_tag, status, attempts, available_at, received_at)
-                 VALUES (:hash, :cipher, :nonce, :tag, "pending", 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    (tenant_id, payload_sha256, payload_ciphertext, payload_nonce, payload_tag, status, attempts, available_at, received_at)
+                 VALUES (:tenant_id, :hash, :cipher, :nonce, :tag, "pending", 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
             $insert->execute([
+                ':tenant_id' => $tenantId,
                 ':hash' => $payloadHash,
                 ':cipher' => $encrypted['ciphertext'],
                 ':nonce' => $encrypted['nonce'],
                 ':tag' => $encrypted['tag'],
             ]);
-            $query = PdoSqlDialect::prepare($this->pdo, 'SELECT id, status, attempts FROM webhook_inbox WHERE payload_sha256 = :hash LIMIT 1');
-            $query->execute([':hash' => $payloadHash]);
+            $query = PdoSqlDialect::prepare($this->pdo, 'SELECT id, status, attempts FROM webhook_inbox WHERE tenant_id = :tenant_id AND payload_sha256 = :hash LIMIT 1');
+            $query->execute([':tenant_id' => $tenantId, ':hash' => $payloadHash]);
             $row = $query->fetch();
             if (!is_array($row)) {
                 throw new RuntimeException('Webhook inbox insert could not be confirmed.');
@@ -49,8 +50,8 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             if ($row['status'] === 'failed' && (int) $row['attempts'] < 8) {
                 PdoSqlDialect::prepare($this->pdo, 
                     'UPDATE webhook_inbox SET status = "pending", available_at = UTC_TIMESTAMP(), last_error = NULL
-                     WHERE id = :id AND status = "failed"'
-                )->execute([':id' => $row['id']]);
+                     WHERE id = :id AND tenant_id = :tenant_id AND status = "failed"'
+                )->execute([':id' => $row['id'], ':tenant_id' => $tenantId]);
                 $row['status'] = 'pending';
             }
             return ['id' => (int) $row['id'], 'inserted' => $insert->rowCount() === 1, 'status' => (string) $row['status']];
@@ -71,7 +72,7 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             )->execute([':max_attempts' => $maxAttempts]);
 
             $query = PdoSqlDialect::prepare($this->pdo, 
-                'SELECT id, payload_ciphertext, payload_nonce, payload_tag, attempts
+                'SELECT id, tenant_id, payload_ciphertext, payload_nonce, payload_tag, attempts
                  FROM webhook_inbox
                  WHERE (status = "pending" AND available_at <= UTC_TIMESTAMP())
                     OR (status = "processing" AND locked_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 MINUTE)
@@ -96,40 +97,41 @@ final class PdoWebhookInboxRepository implements WebhookInboxRepository
             PdoSqlDialect::prepare($this->pdo, 
                 'UPDATE webhook_inbox
                  SET status = "processing", attempts = :attempt, locked_at = UTC_TIMESTAMP(), lock_token = :token
-                 WHERE id = :id'
-            )->execute([':attempt' => $attempt, ':token' => $lockToken, ':id' => $job['id']]);
+                 WHERE id = :id AND tenant_id = :tenant_id'
+            )->execute([':attempt' => $attempt, ':token' => $lockToken, ':id' => $job['id'], ':tenant_id' => $job['tenant_id']]);
             $job['attempts'] = $attempt;
             return $job;
         });
     }
 
-    public function completeWebhookInbox(int $id, string $lockToken): void
+    public function completeWebhookInbox(string $tenantId, int $id, string $lockToken): void
     {
         $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE webhook_inbox
              SET status = "processed", processed_at = UTC_TIMESTAMP(), locked_at = NULL,
                  lock_token = NULL, last_error = NULL
-             WHERE id = :id AND status = "processing" AND lock_token = :token'
+             WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :token'
         );
-        $statement->execute([':id' => $id, ':token' => $lockToken]);
+        $statement->execute([':id' => $id, ':tenant_id' => $tenantId, ':token' => $lockToken]);
         if ($statement->rowCount() !== 1) {
             throw new RuntimeException('Webhook inbox lease was lost before completion.');
         }
     }
 
-    public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void
+    public function failWebhookInbox(string $tenantId, int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void
     {
         $statement = PdoSqlDialect::prepare($this->pdo, 
             'UPDATE webhook_inbox
              SET status = :status, available_at = DATE_ADD(UTC_TIMESTAMP(), INTERVAL :delay SECOND),
                  locked_at = NULL, lock_token = NULL, last_error = :error
-             WHERE id = :id AND status = "processing" AND lock_token = :token'
+             WHERE id = :id AND tenant_id = :tenant_id AND status = "processing" AND lock_token = :token'
         );
         $statement->execute([
             ':status' => $retry ? 'pending' : 'failed',
             ':delay' => max(0, $delaySeconds),
             ':error' => safe_utf8_substring($error, 0, 450),
             ':id' => $id,
+            ':tenant_id' => $tenantId,
             ':token' => $lockToken,
         ]);
         if ($statement->rowCount() !== 1) {
