@@ -344,6 +344,7 @@ expect(($pollBody['meta']['delivery_updates'][0]['delivery_status'] ?? '') === '
 $secret = 'test-meta-app-secret';
 $webhookMetaRepository = meta_connection_repository($pdo);
 $webhookMetaRepository->saveActiveConnection([
+    'tenant_id' => $defaultTenantId,
     'waba_id' => 'test-waba',
     'phone_number_id' => 'test-phone-id',
     'token_ciphertext' => 'test-ciphertext',
@@ -355,6 +356,25 @@ expect(
     $webhookMetaRepository->tenantIdForPhoneNumberId('test-phone-id') === $defaultTenantId
         && $webhookMetaRepository->tenantIdForPhoneNumberId('unknown-phone-id') === null,
     'Meta webhook destination lookup resolves only an active phone-number connection'
+);
+$crossTenantMetaReassignmentRejected = false;
+try {
+    $webhookMetaRepository->saveActiveConnection([
+        'tenant_id' => $otherTenantId,
+        'waba_id' => 'another-waba',
+        'phone_number_id' => 'test-phone-id',
+        'token_ciphertext' => 'other-ciphertext',
+        'token_nonce' => str_repeat('o', 12),
+        'token_tag' => str_repeat('p', 16),
+        'token_expires_at' => null,
+    ]);
+} catch (RuntimeException) {
+    $crossTenantMetaReassignmentRejected = true;
+}
+expect(
+    $crossTenantMetaReassignmentRejected
+        && $webhookMetaRepository->tenantIdForPhoneNumberId('test-phone-id') === $defaultTenantId,
+    'an existing Meta phone-number identity cannot be reassigned to another tenant'
 );
 [$verifyStatus, $verifyBody] = request_api('GET', '/api/webhook.php?hub.mode=subscribe&hub.verify_token=test-webhook-token&hub.challenge=challenge-123');
 expect($verifyStatus === 200 && $verifyBody === null, 'Meta webhook verification returns a plain-text challenge');
