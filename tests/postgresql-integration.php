@@ -12,6 +12,7 @@ function pg_expect(bool $condition, string $label): void
 }
 
 $pdo = database();
+$defaultTenantId = (string) (app_config('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001');
 pg_expect(PdoSqlDialect::isPostgres($pdo), 'test connection uses the PostgreSQL PDO dialect');
 
 $webhookHash = hash('sha256', 'pg-webhook-' . bin2hex(random_bytes(16)));
@@ -144,6 +145,7 @@ try {
 
     $providerEvents = new PdoProviderEventRepository($pdo);
     $earlyStatus = $providerEvents->recordProviderStatusEvent(
+        $defaultTenantId,
         $providerEventId,
         hash('sha256', $providerEventId),
         $providerMessageId,
