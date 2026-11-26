@@ -394,6 +394,12 @@ final class MetaServiceTestRepository implements MetaConnectionRepository
         return $this->connection;
     }
 
+    public function findActiveConnectionForTenant(string $tenantId): ?array
+    {
+        $row = $this->findActiveConnection();
+        return is_array($row) && ($row['tenant_id'] ?? null) === $tenantId ? $row : null;
+    }
+
     public function updateAccessToken(int $connectionId, array $encrypted, ?string $expiresAt): void
     {
         if ($this->connection === null || $connectionId !== 1) throw new RuntimeException('Missing fake connection.');
