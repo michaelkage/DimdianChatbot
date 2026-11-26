@@ -121,4 +121,20 @@ tenant_schema_expect(
     'webhook tenant routing resolves only verified, active Meta phone identities and fails closed'
 );
 
+$signupService = file_get_contents($root . '/app/channels/whatsapp/MetaEmbeddedSignupService.php');
+$metaSaveRepository = file_get_contents($root . '/app/storage/PdoMetaConnectionRepository.php');
+tenant_schema_expect(
+    is_string($signupService)
+        && strpos($signupService, "'tenant_id' => (string) ($this->configValue('tenancy.default_tenant_id')") !== false
+        && is_string($metaSaveRepository)
+        && strpos($metaSaveRepository, 'already owned by another tenant') !== false,
+    'Meta signup binds connections to server configuration and refuses cross-tenant phone reassignment'
+);
+tenant_schema_expect(
+    is_string($inboxRepository)
+        && preg_match('/SELECT id, tenant_id, payload_ciphertext/', $inboxRepository) === 1
+        && preg_match('/WHERE tenant_id = :tenant_id AND payload_sha256 = :hash/', $inboxRepository) === 1,
+    'claimed webhook jobs retain tenant identity and payload deduplication is tenant-local'
+);
+
 echo "Tenant provider-schema contract checks passed." . PHP_EOL;
