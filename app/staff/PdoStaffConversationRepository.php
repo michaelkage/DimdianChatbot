@@ -149,6 +149,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
                  VALUES (:tenant_id, :conversation_id, :staff, :actor, UTC_TIMESTAMP(), :active_conversation_id)'
             );
             $insert->execute([
+                ':tenant_id' => $tenantId,
                 ':conversation_id' => $conversationId,
                 ':active_conversation_id' => $conversationId,
                 ':staff' => $staffIdentityId,
@@ -214,7 +215,7 @@ final class PdoStaffConversationRepository implements StaffConversationRepositor
             $conversation = PdoSqlDialect::prepare($this->pdo, 
                 'SELECT id FROM conversations WHERE tenant_id = :tenant_id AND id = :id FOR UPDATE'
             );
-            $conversation->execute([':id' => $conversationId]);
+            $conversation->execute([':tenant_id' => $tenantId, ':id' => $conversationId]);
             if ($conversation->fetchColumn() === false) return false;
             $this->support->requireActiveStaff($staffIdentityId, $tenantId);
 
