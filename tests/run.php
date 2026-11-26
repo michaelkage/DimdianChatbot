@@ -441,6 +441,87 @@ final class MetaServiceTestGraph implements MetaGraphApi
     }
 }
 
+final class MetaWebhookTenantResolverTestRepository implements WhatsAppIdentityRepository
+{
+    public array $phoneTenants = [];
+
+    public function activeWhatsAppPhoneNumberId(): ?string
+    {
+        return null;
+    }
+
+    public function tenantIdForWhatsAppPhoneNumberId(string $phoneNumberId): ?string
+    {
+        return $this->phoneTenants[$phoneNumberId] ?? null;
+    }
+}
+
+$webhookTenantA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$webhookTenantB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+$webhookTenantRepository = new MetaWebhookTenantResolverTestRepository();
+$webhookTenantRepository->phoneTenants = [
+    'phone-tenant-a-1' => $webhookTenantA,
+    'phone-tenant-a-2' => $webhookTenantA,
+    'phone-tenant-b-1' => $webhookTenantB,
+];
+$webhookTenantResolver = new MetaWebhookTenantResolver($webhookTenantRepository);
+$multiPhonePayload = [
+    'object' => 'whatsapp_business_account',
+    'entry' => [[
+        'changes' => [
+            ['field' => 'messages', 'value' => ['metadata' => ['phone_number_id' => 'phone-tenant-a-1'], 'messages' => []]],
+            ['field' => 'smb_message_echoes', 'value' => ['metadata' => ['phone_number_id' => 'phone-tenant-a-2'], 'message_echoes' => []]],
+        ],
+    ]],
+];
+$resolvedWebhookTenant = $webhookTenantResolver->resolve($multiPhonePayload);
+check(
+    is_array($resolvedWebhookTenant)
+        && $resolvedWebhookTenant['tenant_id'] === $webhookTenantA
+        && $resolvedWebhookTenant['phone_number_ids'] === ['phone-tenant-a-1', 'phone-tenant-a-2'],
+    'verified webhook phone identities resolve to one owning tenant'
+);
+$unknownWebhookRejected = false;
+try {
+    $webhookTenantResolver->resolve([
+        'object' => 'whatsapp_business_account',
+        'entry' => [['changes' => [[
+            'field' => 'messages',
+            'value' => ['metadata' => ['phone_number_id' => 'not-connected'], 'messages' => []],
+        ]]]],
+    ]);
+} catch (MetaWebhookTenantResolutionException) {
+    $unknownWebhookRejected = true;
+}
+check($unknownWebhookRejected, 'unknown or revoked Meta phone identities fail closed');
+$mixedWebhookTenantsRejected = false;
+try {
+    $webhookTenantResolver->resolve([
+        'object' => 'whatsapp_business_account',
+        'entry' => [['changes' => [
+            ['field' => 'messages', 'value' => ['metadata' => ['phone_number_id' => 'phone-tenant-a-1'], 'messages' => []]],
+            ['field' => 'messages', 'value' => ['metadata' => ['phone_number_id' => 'phone-tenant-b-1'], 'messages' => []]],
+        ]]],
+    ]);
+} catch (MetaWebhookTenantResolutionException) {
+    $mixedWebhookTenantsRejected = true;
+}
+check($mixedWebhookTenantsRejected, 'a single Meta webhook cannot mix multiple tenant destinations');
+$missingWebhookPhoneRejected = false;
+try {
+    $webhookTenantResolver->resolve([
+        'object' => 'whatsapp_business_account',
+        'entry' => [['changes' => [['field' => 'messages', 'value' => ['messages' => []]]]],
+    ]);
+} catch (MetaWebhookTenantResolutionException) {
+    $missingWebhookPhoneRejected = true;
+}
+check($missingWebhookPhoneRejected, 'routable Meta changes require a provider phone-number identity');
+check(
+    $webhookTenantResolver->resolve(['object' => 'whatsapp_business_account', 'entry' => [['changes' => [['field' => 'account_update', 'value' => []]]]]]) === null,
+    'unsupported account-level webhook changes are acknowledged without arbitrary tenant assignment'
+);
+
 $raw = '{"object":"whatsapp_business_account","entry":[]}';
 $secret = 'unit-test-meta-app-secret';
 $signature = 'sha256=' . hash_hmac('sha256', $raw, $secret);
