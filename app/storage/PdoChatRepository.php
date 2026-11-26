@@ -107,9 +107,14 @@ final class PdoChatRepository implements ChatRepository
         return $this->metaConnections->activePhoneNumberId();
     }
 
-    public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array
+    public function tenantIdForWhatsAppPhoneNumberId(string $phoneNumberId): ?string
     {
-        return $this->webhookInbox->enqueueWebhookInbox($payloadHash, $encrypted);
+        return $this->metaConnections->tenantIdForPhoneNumberId($phoneNumberId);
+    }
+
+    public function enqueueWebhookInbox(string $tenantId, string $payloadHash, array $encrypted): array
+    {
+        return $this->webhookInbox->enqueueWebhookInbox($tenantId, $payloadHash, $encrypted);
     }
 
     public function claimWebhookInbox(string $lockToken, int $maxAttempts = 8): ?array
@@ -117,14 +122,14 @@ final class PdoChatRepository implements ChatRepository
         return $this->webhookInbox->claimWebhookInbox($lockToken, $maxAttempts);
     }
 
-    public function completeWebhookInbox(int $id, string $lockToken): void
+    public function completeWebhookInbox(string $tenantId, int $id, string $lockToken): void
     {
-        $this->webhookInbox->completeWebhookInbox($id, $lockToken);
+        $this->webhookInbox->completeWebhookInbox($tenantId, $id, $lockToken);
     }
 
-    public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void
+    public function failWebhookInbox(string $tenantId, int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void
     {
-        $this->webhookInbox->failWebhookInbox($id, $lockToken, $retry, $delaySeconds, $error);
+        $this->webhookInbox->failWebhookInbox($tenantId, $id, $lockToken, $retry, $delaySeconds, $error);
     }
 
 

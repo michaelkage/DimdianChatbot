@@ -51,44 +51,62 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
 
     public function saveActiveConnection(array $connection): void
     {
+        $tenantId = (string) ($connection['tenant_id'] ?? '00000000-0000-4000-8000-000000000001');
+        if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i', $tenantId)) {
+            throw new InvalidArgumentException('Meta connection requires a valid tenant UUID.');
+        }
+
         $binary = PdoSqlDialect::isPostgres($this->pdo);
         $ciphertext = $binary ? base64_encode((string) $connection['token_ciphertext']) : $connection['token_ciphertext'];
         $nonce = $binary ? base64_encode((string) $connection['token_nonce']) : $connection['token_nonce'];
         $tag = $binary ? base64_encode((string) $connection['token_tag']) : $connection['token_tag'];
-        $sql = $binary
-            ? 'INSERT INTO meta_connections
-                   (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
-                    access_token_tag, token_expires_at, status, connected_at, updated_at)
-               VALUES (:waba, :phone, :cipher, :nonce, :tag, :expires, \'active\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-               ON CONFLICT (phone_number_id) DO UPDATE SET
-                   waba_id = EXCLUDED.waba_id,
-                   access_token_ciphertext = EXCLUDED.access_token_ciphertext,
-                   access_token_nonce = EXCLUDED.access_token_nonce,
-                   access_token_tag = EXCLUDED.access_token_tag,
-                   token_expires_at = EXCLUDED.token_expires_at,
-                   status = \'active\',
-                   updated_at = CURRENT_TIMESTAMP'
-            : 'INSERT INTO meta_connections
-                   (waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
-                    access_token_tag, token_expires_at, status, connected_at, updated_at)
-               VALUES (:waba, :phone, :cipher, :nonce, :tag, :expires, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())
-               ON DUPLICATE KEY UPDATE
-                   waba_id = VALUES(waba_id),
-                   access_token_ciphertext = VALUES(access_token_ciphertext),
-                   access_token_nonce = VALUES(access_token_nonce),
-                   access_token_tag = VALUES(access_token_tag),
-                   token_expires_at = VALUES(token_expires_at),
-                   status = "active",
-                   updated_at = UTC_TIMESTAMP()';
-        $statement = PdoSqlDialect::prepare($this->pdo, $sql);
-        $statement->execute([
-            ':waba' => $connection['waba_id'],
-            ':phone' => $connection['phone_number_id'],
-            ':cipher' => $ciphertext,
-            ':nonce' => $nonce,
-            ':tag' => $tag,
-            ':expires' => $connection['token_expires_at'],
-        ]);
+
+        $this->transaction(function () use ($tenantId, $connection, $ciphertext, $nonce, $tag): void {
+            $existing = PdoSqlDialect::prepare($this->pdo,
+                'SELECT tenant_id FROM meta_connections WHERE phone_number_id = :phone LIMIT 1 FOR UPDATE'
+            );
+            $existing->execute([':phone' => $connection['phone_number_id']]);
+            $existingTenantId = $existing->fetchColumn();
+
+            if (is_string($existingTenantId)) {
+                if (!hash_equals($existingTenantId, $tenantId)) {
+                    throw new RuntimeException('This Meta phone-number identity is already owned by another tenant.');
+                }
+                $update = PdoSqlDialect::prepare($this->pdo,
+                    'UPDATE meta_connections
+                     SET waba_id = :waba, access_token_ciphertext = :cipher,
+                         access_token_nonce = :nonce, access_token_tag = :tag,
+                         token_expires_at = :expires, status = "active", updated_at = UTC_TIMESTAMP()
+                     WHERE phone_number_id = :phone AND tenant_id = :tenant_id'
+                );
+                $update->execute([
+                    ':waba' => $connection['waba_id'],
+                    ':cipher' => $ciphertext,
+                    ':nonce' => $nonce,
+                    ':tag' => $tag,
+                    ':expires' => $connection['token_expires_at'],
+                    ':phone' => $connection['phone_number_id'],
+                    ':tenant_id' => $tenantId,
+                ]);
+                return;
+            }
+
+            $insert = PdoSqlDialect::prepare($this->pdo,
+                'INSERT INTO meta_connections
+                    (tenant_id, waba_id, phone_number_id, access_token_ciphertext, access_token_nonce,
+                     access_token_tag, token_expires_at, status, connected_at, updated_at)
+                 VALUES (:tenant_id, :waba, :phone, :cipher, :nonce, :tag, :expires, "active", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+            );
+            $insert->execute([
+                ':tenant_id' => $tenantId,
+                ':waba' => $connection['waba_id'],
+                ':phone' => $connection['phone_number_id'],
+                ':cipher' => $ciphertext,
+                ':nonce' => $nonce,
+                ':tag' => $tag,
+                ':expires' => $connection['token_expires_at'],
+            ]);
+        });
     }
 
     public function findActiveConnection(): ?array
@@ -155,6 +173,21 @@ final class PdoMetaConnectionRepository implements MetaConnectionRepository
         );
         $value = $statement->fetchColumn();
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    public function tenantIdForPhoneNumberId(string $phoneNumberId): ?string
+    {
+        if ($phoneNumberId === '' || strlen($phoneNumberId) > 80) {
+            return null;
+        }
+        $statement = PdoSqlDialect::prepare($this->pdo,
+            'SELECT tenant_id FROM meta_connections
+             WHERE phone_number_id = :phone AND status = "active"
+             LIMIT 1'
+        );
+        $statement->execute([':phone' => $phoneNumberId]);
+        $tenantId = $statement->fetchColumn();
+        return is_string($tenantId) && $tenantId !== '' ? $tenantId : null;
     }
 
     /** @template T @param callable():T $operation @return T */

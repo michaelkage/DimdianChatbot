@@ -57,6 +57,9 @@ interface WhatsAppIdentityRepository
 {
     /** Return the currently active Meta phone-number ID, or null when none is connected. */
     public function activeWhatsAppPhoneNumberId(): ?string;
+
+    /** Return the owning tenant for an active Meta phone-number ID, or null if unknown/revoked. */
+    public function tenantIdForWhatsAppPhoneNumberId(string $phoneNumberId): ?string;
 }
 
 /** Durable, encrypted provider webhook inbox operations. */
@@ -67,15 +70,15 @@ interface WebhookInboxRepository
      * @param array{ciphertext:string,nonce:string,tag:string} $encrypted
      * @return array{id:int,inserted:bool,status:string}
      */
-    public function enqueueWebhookInbox(string $payloadHash, array $encrypted): array;
+    public function enqueueWebhookInbox(string $tenantId, string $payloadHash, array $encrypted): array;
 
-    /** Atomically lease one due inbox row; null means no work is currently available. */
+    /** @return array{id:int,tenant_id:string,payload_ciphertext:string,payload_nonce:string,payload_tag:string,attempts:int}|null */
     public function claimWebhookInbox(string $lockToken, int $maxAttempts = 8): ?array;
 
-    /** Complete or reschedule only the row owned by the supplied lease token. */
-    public function completeWebhookInbox(int $id, string $lockToken): void;
+    /** Complete or reschedule only the row owned by the supplied tenant and lease token. */
+    public function completeWebhookInbox(string $tenantId, int $id, string $lockToken): void;
 
-    public function failWebhookInbox(int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void;
+    public function failWebhookInbox(string $tenantId, int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void;
 }
 
 /** Idempotent persistence for provider message and delivery-status events. */
