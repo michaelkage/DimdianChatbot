@@ -182,6 +182,60 @@ staff_expect(
     'staff assertion nonce replay protection is isolated by tenant and rejects same-tenant replay'
 );
 
+$tenantBGuestId = uuid_v4();
+$tenantBConversationId = uuid_v4();
+$pdo->prepare(
+    'INSERT INTO guests (id, tenant_id, created_at, updated_at)
+     VALUES (:id, :tenant_id, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $tenantBGuestId, ':tenant_id' => $tenantB]);
+$pdo->prepare(
+    'INSERT INTO conversations (id, tenant_id, guest_id, status, created_at, updated_at)
+     VALUES (:id, :tenant_id, :guest_id, "open", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+)->execute([':id' => $tenantBConversationId, ':tenant_id' => $tenantB, ':guest_id' => $tenantBGuestId]);
+$repository->assignConversation($tenantBConversationId, $tenantBStaffId, $tenantBStaffId, 'tenant-b-assignment', $tenantB);
+$repository->addInternalNote(uuid_v4(), $tenantBConversationId, $tenantBStaffId, 'Tenant B private note.', null, false, $tenantB);
+$tenantBReply = $repository->createStaffReply([
+    'id' => uuid_v4(),
+    'conversation_id' => $tenantBConversationId,
+    'client_message_id' => uuid_v4(),
+    'body' => 'Tenant B website reply.',
+], $tenantBStaffId, 'tenant-b-reply', false, $tenantB);
+$tenantBList = $repository->listConversations('open', null, 0, 50, false, '', $tenantB);
+$tenantAList = $repository->listConversations('open', null, 0, 50);
+$tenantBHistory = $repository->listAssignmentHistory($tenantBConversationId, 0, 20, null, $tenantB);
+$tenantAHistory = $repository->listAssignmentHistory($tenantBConversationId, 0, 20);
+$tenantBNotes = $repository->listInternalNotes($tenantBConversationId, 0, 20, null, $tenantB);
+$tenantANotes = $repository->listInternalNotes($tenantBConversationId, 0, 20);
+$tenantBMessages = $repository->listConversationMessages($tenantBConversationId, 0, 20, null, $tenantB);
+$tenantAMessages = $repository->listConversationMessages($tenantBConversationId, 0, 20);
+$tenantBAudit = $repository->listAuditEvents($tenantBConversationId, 0, 50, $tenantB);
+$tenantAAudit = $repository->listAuditEvents($tenantBConversationId, 0, 50);
+$crossTenantStaffWriteRejected = false;
+try {
+    $repository->addInternalNote(uuid_v4(), $tenantBConversationId, $resolvedA, 'Wrong tenant write.');
+} catch (RuntimeException) {
+    $crossTenantStaffWriteRejected = true;
+}
+staff_expect(
+    $repository->getActiveAssignee($tenantBConversationId, $tenantB) === $tenantBStaffId
+        && $repository->getActiveAssignee($tenantBConversationId) === null
+        && count($tenantBList) === 1
+        && count(array_filter($tenantAList, static fn(array $row): bool => $row['id'] === $tenantBConversationId)) === 0
+        && count($tenantBHistory) === 1 && $tenantAHistory === []
+        && count($tenantBNotes) === 1 && $tenantANotes === []
+        && count($tenantBMessages['items']) === 1 && $tenantAMessages['items'] === []
+        && count($tenantBAudit) === 3 && $tenantAAudit === []
+        && $tenantBReply['message']['body'] === 'Tenant B website reply.'
+        && $crossTenantStaffWriteRejected,
+    'staff conversation, assignment, note, reply, audit and authorization persistence cannot cross tenant boundaries'
+);
+staff_expect(
+    count($repository->listStaffIdentities($tenantB)) === 1
+        && count(array_filter($repository->listStaffIdentities(), static fn(array $row): bool => $row['id'] === $tenantBStaffId)) === 0,
+    'staff directory reads are isolated by tenant'
+);
+
+
 
 $assertionSecret = str_repeat('s', 64);
 $hmacProvider = new HmacStaffIdentityProvider($assertionSecret, $repository);
