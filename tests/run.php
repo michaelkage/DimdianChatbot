@@ -710,7 +710,7 @@ check($logContext === ['attempt' => 3, 'exception_class' => 'PDOException'], 'st
 
 $transportRejected = false;
 try {
-    (new MetaCloudApiTransport([]))->sendTemplate('2348031234567', 'Hello');
+    (new MetaCloudApiTransport([]))->sendTemplate('00000000-0000-4000-8000-000000000001', '2348031234567', 'Hello');
 } catch (WhatsAppTransportException $error) {
     $transportRejected = !$error->retryable;
 }
