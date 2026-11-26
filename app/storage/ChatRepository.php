@@ -131,17 +131,17 @@ interface WhatsAppOutboxRepository
      */
     public function claimWhatsAppOutbox(string $lockToken, int $maxAttempts = 6, int $leaseSeconds = 300): array;
 
-    /** Consent is deliberately checked immediately before the provider request. */
-    public function hasWhatsAppConsent(string $messageId): bool;
+    /** Consent is deliberately checked immediately before the provider request, within the job tenant. */
+    public function hasWhatsAppConsent(string $tenantId, string $messageId): bool;
 
     /** Complete a cancelled lease only if its token is still current. */
-    public function cancelWhatsAppOutbox(string $id, string $lockToken, string $messageId): bool;
+    public function cancelWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId): bool;
 
     /** Persist provider acceptance and reconcile any status callback received early. */
-    public function completeWhatsAppOutbox(string $id, string $lockToken, string $messageId, string $providerMessageId): bool;
+    public function completeWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, string $providerMessageId): bool;
 
     /** Retry or terminally fail only the job still owned by this lease token. */
-    public function failWhatsAppOutbox(string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool;
+    public function failWhatsAppOutbox(string $tenantId, string $id, string $lockToken, string $messageId, bool $retry, int $delaySeconds, string $error): bool;
 }
 
 /** Minimum capabilities required to create and authenticate guest sessions. */
