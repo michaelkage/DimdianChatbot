@@ -72,10 +72,10 @@ interface WebhookInboxRepository
      */
     public function enqueueWebhookInbox(string $tenantId, string $payloadHash, array $encrypted): array;
 
-    /** Atomically lease one due inbox row; null means no work is currently available. */
+    /** Atomically lease one due inbox row; returned row includes its immutable tenant_id. */
     public function claimWebhookInbox(string $lockToken, int $maxAttempts = 8): ?array;
 
-    /** Complete or reschedule only the row owned by the supplied lease token. */
+    /** Complete or reschedule only the row owned by the supplied tenant and lease token. */
     public function completeWebhookInbox(string $tenantId, int $id, string $lockToken): void;
 
     public function failWebhookInbox(string $tenantId, int $id, string $lockToken, bool $retry, int $delaySeconds, string $error): void;
