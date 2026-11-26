@@ -18,9 +18,9 @@ interface StaffIdentityRepository
     /** Upsert a verified external identity; never accept a browser-supplied subject. */
     public function upsertStaffIdentity(array $identity): string;
     /** @return array<string,mixed>|null */
-    public function findStaffIdentityById(string $staffIdentityId): ?array;
+    public function findStaffIdentityById(string $staffIdentityId, string $tenantId = '00000000-0000-4000-8000-000000000001'): ?array;
     /** Atomically consume a one-time authentication nonce until its expiry. */
-    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc): bool;
+    public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool;
     /** @return list<array<string,mixed>> */
     public function listStaffIdentities(): array;
     /** Owner-only access change; implementation must protect the last active owner. */
