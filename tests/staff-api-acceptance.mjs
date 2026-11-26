@@ -6,6 +6,7 @@ if (!publicBase.pathname.endsWith("/")) publicBase.pathname += "/";
 const staffBase = new URL("staff/", publicBase);
 const origin = process.env.DIMDIAN_CONTRACT_ORIGIN || "https://website.example.test";
 const secret = process.env.DIMDIAN_STAFF_ASSERTION_SECRET || "s".repeat(64);
+const tenantId = process.env.DIMDIAN_STAFF_TENANT_ID || "00000000-0000-4000-8000-000000000001";
 let passed = 0;
 
 function check(condition, label) {
@@ -37,6 +38,7 @@ async function publicRequest(path, method, body, token) {
 
 function makeAssertion(identity, method, target, rawBody) {
   const payload = {
+    tenant_id: tenantId,
     auth_provider: "portable-contract-test",
     external_subject: identity.subject,
     display_name: identity.name,

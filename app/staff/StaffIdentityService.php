@@ -8,6 +8,10 @@ final class StaffInboxAuthenticationException extends RuntimeException
 /**
  * Resolves a cryptographically verified external principal to a locally
  * provisioned staff identity. Local role/status remain authoritative.
+ *
+ * The verified tenant is preserved in the returned actor context. Persistence
+ * and authorization consumers must still scope every operation by this value;
+ * the current single-tenant adapters do not yet provide that shared-DB guarantee.
  */
 final class StaffIdentityService
 {
@@ -32,6 +36,11 @@ final class StaffIdentityService
             throw new StaffInboxAuthenticationException('A valid staff identity is required.');
         }
 
+        $tenantId = strtolower((string)($principal['tenant_id'] ?? ''));
+        if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $tenantId)) {
+            throw new StaffInboxAuthenticationException('A signed staff tenant is required.');
+        }
+
         $provider = strtolower(trim((string) ($principal['auth_provider'] ?? '')));
         $subject = (string) ($principal['external_subject'] ?? '');
         $name = trim((string) ($principal['display_name'] ?? ''));
@@ -49,6 +58,7 @@ final class StaffIdentityService
         try {
             $id = $this->repository->upsertStaffIdentity([
                 'id' => self::uuidV4(),
+                'tenant_id' => $tenantId,
                 'auth_provider' => $provider,
                 'external_subject' => $subject,
                 'display_name' => $name,
@@ -63,6 +73,8 @@ final class StaffIdentityService
             throw new StaffInboxAuthenticationException('This staff account is not active.');
         }
 
+        // Do not infer or overwrite this from persistence or request parameters.
+        $identity['tenant_id'] = $tenantId;
         return $identity;
     }
 

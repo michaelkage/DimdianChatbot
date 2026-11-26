@@ -76,7 +76,17 @@ function chatbridge_staff_proxy_request(string $method, string $endpoint, array 
         $requestBody = $encodedBody;
     }
 
+    // This value is server configuration, not a WordPress request parameter.
+    // A dedicated shared-database deployment must set a distinct value per tenant.
+    $tenantId = defined('CHATBRIDGE_STAFF_TENANT_ID')
+        ? strtolower((string) constant('CHATBRIDGE_STAFF_TENANT_ID'))
+        : '00000000-0000-4000-8000-000000000001';
+    if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/', $tenantId)) {
+        return new WP_Error('chatbridge_staff_tenant', __('The server-side staff tenant identifier is invalid.', 'chatbridge-widget'), ['status' => 503]);
+    }
+
     $assertion = [
+        'tenant_id' => $tenantId,
         'auth_provider' => 'wordpress',
         'external_subject' => 'user:' . (int)$user->ID,
         'display_name' => (string)($user->display_name ?: $user->user_login),

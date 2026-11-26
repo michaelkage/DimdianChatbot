@@ -11,10 +11,10 @@ declare(strict_types=1);
 interface StaffIdentityProvider
 {
     /**
-     * Return only a verified stable external identity.
+     * Return only a verified stable external identity and its signed tenant.
      *
      * @param array<string,mixed> $server Server request context, including headers.
-     * @return array{auth_provider:string,external_subject:string,display_name:string,email?:string|null}|null
+     * @return array{tenant_id:string,auth_provider:string,external_subject:string,display_name:string,email?:string|null}|null
      */
     public function authenticate(array $server): ?array;
 }

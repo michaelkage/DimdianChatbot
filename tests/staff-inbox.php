@@ -27,7 +27,10 @@ final class StaffTestIdentityProvider implements StaffIdentityProvider
 
     public function authenticate(array $server): ?array
     {
-        return $this->identity;
+        if ($this->identity === null) return null;
+        // Test-only compatibility principal; production HMAC assertions must
+        // carry an explicit tenant_id inside the signed payload.
+        return $this->identity + ['tenant_id' => '00000000-0000-4000-8000-000000000001'];
     }
 }
 
@@ -145,6 +148,7 @@ staff_expect($resolvedA === $resolvedAgain, 'external staff identity maps to a s
 $assertionSecret = str_repeat('s', 64);
 $hmacProvider = new HmacStaffIdentityProvider($assertionSecret, $repository);
 $assertionPayload = [
+    'tenant_id' => '00000000-0000-4000-8000-000000000001',
     'auth_provider' => 'signed-app',
     'external_subject' => 'hmac-staff-01',
     'display_name' => 'Signed Staff',
@@ -161,8 +165,25 @@ $assertionServer = [
     'REQUEST_URI' => '/api/v1/staff/inbox.php?status=open',
     'CHATBRIDGE_RAW_BODY' => '',
 ];
+
+$missingTenantPayload = $assertionPayload;
+unset($missingTenantPayload['tenant_id']);
+$missingTenantPayload['nonce'] = staff_base64url(random_bytes(32));
+$missingTenantServer = $assertionServer;
+$missingTenantServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($missingTenantPayload, $assertionSecret);
+staff_expect($hmacProvider->authenticate($missingTenantServer) === null, 'staff assertion without a signed tenant is rejected');
+
+$invalidTenantPayload = array_merge($assertionPayload, [
+    'tenant_id' => 'tenant-from-request',
+    'nonce' => staff_base64url(random_bytes(32)),
+]);
+$invalidTenantServer = $assertionServer;
+$invalidTenantServer['HTTP_X_CHATBRIDGE_STAFF_ASSERTION'] = staff_sign_assertion($invalidTenantPayload, $assertionSecret);
+staff_expect($hmacProvider->authenticate($invalidTenantServer) === null, 'staff assertion with a malformed tenant identifier is rejected');
+
 $verifiedAssertion = $hmacProvider->authenticate($assertionServer);
-staff_expect(is_array($verifiedAssertion) && $verifiedAssertion['external_subject'] === 'hmac-staff-01', 'valid server-signed staff assertion is accepted');
+staff_expect(is_array($verifiedAssertion) && $verifiedAssertion['external_subject'] === 'hmac-staff-01'
+        && $verifiedAssertion['tenant_id'] === '00000000-0000-4000-8000-000000000001', 'valid server-signed staff assertion is accepted');
 staff_expect($hmacProvider->authenticate($assertionServer) === null, 'signed staff assertion nonce cannot be replayed');
 
 $wideSkewProvider = new HmacStaffIdentityProvider($assertionSecret, $repository, 300);

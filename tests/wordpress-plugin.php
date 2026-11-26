@@ -273,6 +273,8 @@ $expectedStaffSignature = count($staffAssertionParts) === 2
     : '';
 check(is_array($staffProxyResult) && ($staffProxyResult['items'] ?? null) === [], 'WordPress staff proxy returns successful API data');
 check(($staffProxyRequest['url'] ?? '') === 'https://chat.example.test/api/v1/staff/inbox.php?status=open&search=a%2Bb', 'WordPress staff proxy preserves the exact signed request target');
+check(($staffAssertionPayload['tenant_id'] ?? '') === '00000000-0000-4000-8000-000000000001',
+    'WordPress staff assertion uses the server-side single-tenant identity by default');
 check(($staffAssertionPayload['method'] ?? '') === 'GET'
     && ($staffAssertionPayload['target'] ?? '') === '/api/v1/staff/inbox.php?status=open&search=a%2Bb'
     && ($staffAssertionPayload['body_sha256'] ?? '') === hash('sha256', ''),

@@ -38,6 +38,7 @@ function staff_http_assertion(string $method, string $path, string $body = '', s
 {
     global $secret;
     $payload = [
+        'tenant_id' => '00000000-0000-4000-8000-000000000001',
         'auth_provider' => 'http-test',
         'external_subject' => $externalSubject,
         'display_name' => $externalSubject === 'staff-http-owner' ? 'HTTP Staff Owner' : 'HTTP Staff Agent',

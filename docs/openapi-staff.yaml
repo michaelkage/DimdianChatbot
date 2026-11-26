@@ -416,11 +416,13 @@ components:
       description: >-
         Per-request token is base64url(payload JSON) followed by a dot and
         base64url(HMAC-SHA256(encoded payload, shared secret)). The payload
-        includes auth_provider, external_subject, display_name, optional email,
-        iat (Unix seconds), nonce (32-128 URL-safe characters), method (HTTP
-        method), target (exact request URI including query), and body_sha256
-        (lowercase SHA-256 hex of the exact request body). The nonce is
-        one-time-use. The secret must remain server-side.
+        includes tenant_id (a server-configured UUID), auth_provider,
+        external_subject, display_name, optional email, iat (Unix seconds),
+        nonce (32-128 URL-safe characters), method (HTTP method), target
+        (exact request URI including query), and body_sha256 (lowercase
+        SHA-256 hex of the exact request body). The tenant_id is inside the
+        signed payload and must never be copied from a browser request. The
+        nonce is one-time-use. The secret must remain server-side.
   parameters:
     ConversationId:
       name: conversation_id
