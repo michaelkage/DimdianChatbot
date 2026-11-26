@@ -39,9 +39,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $this->identities->findStaffIdentityById($staffIdentityId, $tenantId);
     }
 
-    public function getActiveAssignee(string $conversationId): ?string
+    public function getActiveAssignee(string $conversationId, string $tenantId = '00000000-0000-4000-8000-000000000001'): ?string
     {
-        return $this->conversations->getActiveAssignee($conversationId);
+        return $this->conversations->getActiveAssignee($conversationId, $tenantId);
     }
 
     public function consumeStaffAuthNonce(string $nonceHash, string $expiresAtUtc, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool
@@ -49,9 +49,9 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         return $this->identities->consumeStaffAuthNonce($nonceHash, $expiresAtUtc, $tenantId);
     }
 
-    public function listStaffIdentities(): array
+    public function listStaffIdentities(string $tenantId = '00000000-0000-4000-8000-000000000001'): array
     {
-        return $this->identities->listStaffIdentities();
+        return $this->identities->listStaffIdentities($tenantId);
     }
 
     public function updateStaffIdentityAccess(
@@ -59,18 +59,20 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $actorStaffId,
         string $role,
         string $status,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): void {
-        $this->identities->updateStaffIdentityAccess($targetStaffId, $actorStaffId, $role, $status, $requestId);
+        $this->identities->updateStaffIdentityAccess($targetStaffId, $actorStaffId, $role, $status, $requestId, $tenantId);
     }
 
     public function listConversationMessages(
         string $conversationId,
         int $afterSequence,
         int $limit,
-        ?string $requiredAssigneeId = null
+        ?string $requiredAssigneeId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
-        return $this->messages->listConversationMessages($conversationId, $afterSequence, $limit, $requiredAssigneeId);
+        return $this->messages->listConversationMessages($conversationId, $afterSequence, $limit, $requiredAssigneeId, $tenantId);
     }
 
     public function listConversations(
@@ -79,7 +81,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         int $afterSequence,
         int $limit,
         bool $includeUnassigned = false,
-        string $search = ''
+        string $search = '',
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
         return $this->conversations->listConversations(
             $status,
@@ -87,7 +90,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $afterSequence,
             $limit,
             $includeUnassigned,
-            $search
+            $search,
+            $tenantId
         );
     }
 
@@ -95,42 +99,47 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $conversationId,
         string $staffIdentityId,
         string $actorStaffId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): void {
-        $this->conversations->assignConversation($conversationId, $staffIdentityId, $actorStaffId, $requestId);
+        $this->conversations->assignConversation($conversationId, $staffIdentityId, $actorStaffId, $requestId, $tenantId);
     }
 
     public function listAssignmentHistory(
         string $conversationId,
         int $afterId,
         int $limit,
-        ?string $requiredAssigneeId = null
+        ?string $requiredAssigneeId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
-        return $this->conversations->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssigneeId);
+        return $this->conversations->listAssignmentHistory($conversationId, $afterId, $limit, $requiredAssigneeId, $tenantId);
     }
 
     public function unassignConversation(
         string $conversationId,
         string $actorStaffId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool {
-        return $this->conversations->unassignConversation($conversationId, $actorStaffId, $requestId);
+        return $this->conversations->unassignConversation($conversationId, $actorStaffId, $requestId, $tenantId);
     }
 
     public function selfAssignConversation(
         string $conversationId,
         string $staffIdentityId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool {
-        return $this->conversations->selfAssignConversation($conversationId, $staffIdentityId, $requestId);
+        return $this->conversations->selfAssignConversation($conversationId, $staffIdentityId, $requestId, $tenantId);
     }
 
     public function unassignOwnConversation(
         string $conversationId,
         string $staffIdentityId,
-        ?string $requestId = null
+        ?string $requestId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool {
-        return $this->conversations->unassignOwnConversation($conversationId, $staffIdentityId, $requestId);
+        return $this->conversations->unassignOwnConversation($conversationId, $staffIdentityId, $requestId, $tenantId);
     }
 
     public function addInternalNote(
@@ -139,7 +148,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $authorStaffId,
         string $body,
         ?string $requestId = null,
-        bool $requireAssignment = false
+        bool $requireAssignment = false,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool {
         return $this->messages->addInternalNote(
             $id,
@@ -147,7 +157,8 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
             $authorStaffId,
             $body,
             $requestId,
-            $requireAssignment
+            $requireAssignment,
+            $tenantId
         );
     }
 
@@ -155,22 +166,24 @@ final class PdoStaffInboxRepository implements StaffInboxRepository
         string $conversationId,
         int $afterId,
         int $limit,
-        ?string $requiredAssigneeId = null
+        ?string $requiredAssigneeId = null,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
-        return $this->messages->listInternalNotes($conversationId, $afterId, $limit, $requiredAssigneeId);
+        return $this->messages->listInternalNotes($conversationId, $afterId, $limit, $requiredAssigneeId, $tenantId);
     }
 
     public function createStaffReply(
         array $message,
         string $staffIdentityId,
         ?string $requestId = null,
-        bool $requireAssignment = false
+        bool $requireAssignment = false,
+        string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): array {
-        return $this->messages->createStaffReply($message, $staffIdentityId, $requestId, $requireAssignment);
+        return $this->messages->createStaffReply($message, $staffIdentityId, $requestId, $requireAssignment, $tenantId);
     }
 
-    public function listAuditEvents(string $conversationId, int $afterId, int $limit): array
+    public function listAuditEvents(string $conversationId, int $afterId, int $limit, string $tenantId = '00000000-0000-4000-8000-000000000001'): array
     {
-        return $this->messages->listAuditEvents($conversationId, $afterId, $limit);
+        return $this->messages->listAuditEvents($conversationId, $afterId, $limit, $tenantId);
     }
 }
