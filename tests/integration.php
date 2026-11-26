@@ -427,7 +427,7 @@ $pdo->prepare(
     'INSERT IGNORE INTO message_status_events (provider_message_id, status, event_timestamp, created_at)
      VALUES ("wamid.integration.early-status", "failed", 1739321027, UTC_TIMESTAMP())'
 )->execute();
-chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.early-status');
+chat_repository($pdo)->reconcileProviderMessageStatus($defaultTenantId, 'wamid.integration.early-status');
 $statusAfterLateFailure = $pdo->query("SELECT delivery_status FROM messages WHERE provider_message_id = 'wamid.integration.early-status'")->fetchColumn();
 expect($statusAfterLateFailure === 'delivered', 'late failure callback cannot downgrade a delivered message');
 
@@ -441,7 +441,7 @@ $pdo->prepare(
      VALUES ("wamid.integration.sent-then-failed", "sent", 1739321028, UTC_TIMESTAMP()),
             ("wamid.integration.sent-then-failed", "failed", 1739321029, UTC_TIMESTAMP())'
 )->execute();
-chat_repository($pdo)->reconcileProviderMessageStatus('wamid.integration.sent-then-failed');
+chat_repository($pdo)->reconcileProviderMessageStatus($defaultTenantId, 'wamid.integration.sent-then-failed');
 $failedAfterSent = $pdo->query("SELECT delivery_status FROM messages WHERE id = '{$sentThenFailedId}'")->fetchColumn();
 expect($failedAfterSent === 'failed', 'failure status supersedes sent when delivery does not complete');
 
