@@ -84,7 +84,7 @@ The backend-neutral runner and both OpenAPI structural checks passed in [GitHub 
 
 ## Backend-neutral staff acceptance
 
-`tests/staff-api-acceptance.mjs` uses Node's built-in crypto/fetch to sign the same per-request HMAC assertions described in `docs/openapi-staff.yaml`. It creates two visitor conversations and two first-seen local agent identities without direct database access, then verifies unassigned visibility, self-assignment, assignment isolation, denial of cross-agent reads and assignment theft, private-note idempotency and isolation from the visitor thread, website-only staff replies, assignment history, administrator-only route denial and immediate access loss after unassignment. The same runner can be pointed at another implementation by setting `DIMDIAN_API_BASE_URL` and `DIMDIAN_STAFF_ASSERTION_SECRET`.
+`tests/staff-api-acceptance.mjs` uses Node's built-in crypto/fetch to sign the same per-request HMAC assertions described in `docs/openapi-staff.yaml`. It creates two visitor conversations and two first-seen local agent identities without direct database access, then verifies unassigned visibility, self-assignment, assignment isolation, denial of cross-agent reads and assignment theft, private-note idempotency and isolation from the visitor thread, website-only staff replies, assignment history, administrator-only route denial and immediate access loss after unassignment. The same runner can be pointed at another implementation by setting `DIMDIAN_API_BASE_URL`, `DIMDIAN_STAFF_ASSERTION_SECRET` and (when not using the legacy single-tenant default) `DIMDIAN_STAFF_TENANT_ID`. The signed assertion now includes the tenant UUID.
 
 
 ### Latest full validation
