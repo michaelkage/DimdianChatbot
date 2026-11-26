@@ -63,7 +63,7 @@ interface StaffConversationRepository
         string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool;
     public function selfAssignConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool;
-    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null): bool;
+    public function unassignOwnConversation(string $conversationId, string $staffIdentityId, ?string $requestId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): bool;
 }
 
 interface StaffMessageRepository
@@ -81,7 +81,7 @@ interface StaffMessageRepository
         string $tenantId = '00000000-0000-4000-8000-000000000001'
     ): bool;
     /** @return list<array<string,mixed>> */
-    public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null): array;
+    public function listInternalNotes(string $conversationId, int $afterId, int $limit, ?string $requiredAssigneeId = null, string $tenantId = '00000000-0000-4000-8000-000000000001'): array;
     /**
      * Persist a website-visible business reply and its staff-author link atomically.
      * This operation does not enqueue WhatsApp delivery.
