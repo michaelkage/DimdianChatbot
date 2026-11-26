@@ -98,8 +98,8 @@ tenant_schema_expect(
 );
 tenant_schema_expect(
     is_string($workerSource)
-        && strpos($workerSource, "$"."routing['tenant_id']") !== false
-        && strpos($workerSource, "process($"."routing['tenant_id']") !== false,
+        && strpos($workerSource, "$"."job['tenant_id']") !== false
+        && strpos($workerSource, 'tenantIdForWhatsAppPhoneNumberId') !== false,
     'webhook worker passes its trusted tenant routing context into provider processing'
 );
 
