@@ -138,4 +138,49 @@ tenant_schema_expect(
     'claimed webhook jobs retain tenant identity and payload deduplication is tenant-local'
 );
 
-echo "Tenant provider-schema contract checks passed." . PHP_EOL;
+
+$staffMigrationFiles = [
+    'database/migrations/006_tenant_owned_staff_storage.sql' => 'mysql',
+    'database/postgresql/migrations/006_tenant_owned_staff_storage.sql' => 'postgresql',
+];
+$staffTables = [
+    'staff_identities',
+    'staff_conversation_assignments',
+    'staff_internal_notes',
+    'staff_message_authors',
+    'staff_audit_events',
+    'staff_auth_nonces',
+];
+foreach ($staffMigrationFiles as $relative => $dialect) {
+    $sql = file_get_contents($root . '/' . $relative);
+    tenant_schema_expect(is_string($sql) && $sql !== '', $dialect . ' staff tenant migration is readable');
+    tenant_schema_expect(
+        stripos($sql, $legacyTenant) !== false,
+        $dialect . ' staff migration assigns existing rows to the deterministic legacy tenant'
+    );
+    foreach ($staffTables as $table) {
+        tenant_schema_expect(
+            preg_match('/ALTER TABLE\\s+' . preg_quote($table, '/') . '[\\s\\S]*?ADD COLUMN\\s+tenant_id/i', $sql) === 1,
+            $dialect . ' staff migration adds tenant ownership to ' . $table
+        );
+    }
+    foreach ([
+        'staff_identities' => 'tenant_id, id',
+        'staff_conversation_assignments' => 'tenant_id, conversation_id',
+        'staff_internal_notes' => 'tenant_id, conversation_id',
+        'staff_message_authors' => 'tenant_id, message_id',
+        'staff_audit_events' => 'tenant_id, actor_staff_id',
+    ] as $table => $columnPair) {
+        tenant_schema_expect(
+            stripos($sql, $columnPair) !== false,
+            $dialect . ' staff migration includes composite tenant ownership for ' . $table
+        );
+    }
+    tenant_schema_expect(
+        stripos($sql, 'staff_auth_nonces') !== false
+            && stripos($sql, 'tenant_id, nonce_sha256') !== false,
+        $dialect . ' staff nonce replay protection is tenant-keyed'
+    );
+}
+
+echo "Tenant provider and staff schema contract checks passed." . PHP_EOL;
