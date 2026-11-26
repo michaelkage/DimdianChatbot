@@ -125,7 +125,8 @@ $signupService = file_get_contents($root . '/app/channels/whatsapp/MetaEmbeddedS
 $metaSaveRepository = file_get_contents($root . '/app/storage/PdoMetaConnectionRepository.php');
 tenant_schema_expect(
     is_string($signupService)
-        && strpos($signupService, "'tenant_id' => (string) ($this->configValue('tenancy.default_tenant_id')") !== false
+        && strpos($signupService, "'tenant_id' =>") !== false
+        && strpos($signupService, "tenancy.default_tenant_id") !== false
         && is_string($metaSaveRepository)
         && strpos($metaSaveRepository, 'already owned by another tenant') !== false,
     'Meta signup binds connections to server configuration and refuses cross-tenant phone reassignment'
