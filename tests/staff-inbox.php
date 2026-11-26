@@ -175,12 +175,12 @@ staff_expect(
 );
 
 $setRoleTenantScript = dirname(__DIR__) . '/bin/set-staff-role.php';
-$tenantSetRole = staff_run_cli([$setRoleTenantScript, 'test-idp', 'staff-subject-a', 'owner', '--tenant=' . $tenantB]);
+$tenantSetRole = staff_run_cli([$setRoleTenantScript, 'test-idp', 'staff-subject-a', 'admin', '--tenant=' . $tenantB]);
 $tenantBPromoted = $repository->findStaffIdentityById($tenantBStaffId, $tenantB);
 $tenantADuringTenantPromotion = $repository->findStaffIdentityById($resolvedA);
 staff_expect(
     $tenantSetRole['status'] === 0
-        && ($tenantBPromoted['role'] ?? '') === 'owner'
+        && ($tenantBPromoted['role'] ?? '') === 'admin'
         && ($tenantADuringTenantPromotion['role'] ?? '') === 'agent',
     'set-staff-role CLI changes only the selected tenant identity'
 );
@@ -189,14 +189,14 @@ $tenantProvision = staff_run_cli([
     $provisionTenantScript,
     '--provider=test-idp',
     '--subject=staff-subject-a',
-    '--role=admin',
+    '--role=owner',
     '--tenant=' . $tenantB,
 ]);
 $tenantBProvisioned = $repository->findStaffIdentityById($tenantBStaffId, $tenantB);
 $tenantAAfterProvision = $repository->findStaffIdentityById($resolvedA);
 staff_expect(
     $tenantProvision['status'] === 0
-        && ($tenantBProvisioned['role'] ?? '') === 'admin'
+        && ($tenantBProvisioned['role'] ?? '') === 'owner'
         && ($tenantAAfterProvision['role'] ?? '') === 'agent',
     'legacy provision-staff CLI changes only the selected tenant identity'
 );
