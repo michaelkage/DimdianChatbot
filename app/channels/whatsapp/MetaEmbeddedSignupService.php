@@ -87,6 +87,8 @@ final class MetaEmbeddedSignupService
         $sealed = $this->cipher->seal($token);
 
         $this->repository->saveActiveConnection([
+            // This value comes from server configuration, never the browser callback.
+            'tenant_id' => (string) ($this->configValue('tenancy.default_tenant_id') ?? '00000000-0000-4000-8000-000000000001'),
             'waba_id' => $wabaId,
             'phone_number_id' => $phoneId,
             'token_ciphertext' => $sealed['ciphertext'],
